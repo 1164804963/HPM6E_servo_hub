@@ -1,0 +1,7 @@
+﻿Name,Value,EnumName,描述,Description
+DRV_SYS_NOP,0,DRV_SYS_CMD,无动作,No operation
+DRV_SYS_HOMING,1,DRV_SYS_CMD,当前位置回零,Homing
+DRV_SYS_SAVE_FLASH,2,DRV_SYS_CMD,参数保存到Flash,Save flash
+DRV_SYS_RESET,3,DRV_SYS_CMD,系统软件复位,System reset
+DRV_SYS_CLEAR_ERROR,4,DRV_SYS_CMD,清除错误记录,Clear Error
+DRV_SYS_FACTORY_RESET,5,DRV_SYS_CMD,恢复出厂设置,Factory reset

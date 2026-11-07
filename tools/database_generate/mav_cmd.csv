@@ -1,0 +1,3 @@
+﻿name,cmd_group,index,cmd_id,description,value,enum_name
+Message ID,MAV_CMD_DRV_REQUEST_MESSAGE,1,20000,Request the target to emit a specific message,,
+SysCmd,MAV_CMD_DRV_SYSTEM_CMD,1,20001,"Issue a generic system command (factory reset, etc.).","DRV_SYS_NOP,DRV_SYS_HOMING,DRV_SYS_SAVE_FLASH",DRV_SYS_CMD

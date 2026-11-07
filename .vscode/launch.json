@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "HPM6E80 调试（当前CMake构建）",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${command:cmake.buildDirectory}/output/demo.elf",
+      "serverpath": "${config:hpm.sdkEnvPath}/tools/openocd/openocd.exe",
+      "searchDir": [
+        "${workspaceFolder}/boards/openocd",
+        "${config:hpm.sdkEnvPath}/hpm_sdk/boards/openocd",
+        "${config:hpm.sdkEnvPath}/tools/openocd/tcl"
+      ],
+      "configFiles": [
+        "probes/ft2232.cfg",
+        "soc/hpm6e80-dual-core.cfg",
+        "boards/hpm6e00YZ.cfg"
+      ],
+      "numberOfProcessors": 2,
+      "targetProcessor": 0,
+      "gdbPath": "${config:hpm.sdkEnvPath}/toolchains/${config:hpm.toolchainName}/bin/riscv32-unknown-elf-gdb.exe",
+      "armToolchainPath": "${config:hpm.sdkEnvPath}/toolchains/${config:hpm.toolchainName}/bin",
+      "toolchainPrefix": "riscv32-unknown-elf",
+      "runToEntryPoint": "main",
+      "showDevDebugOutput": "raw"
+    }
+  ]
+}

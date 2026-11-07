@@ -1,0 +1,32 @@
+{
+    "folders": [
+        {
+            "path": ".",
+            "name": "HPM6E80 固件"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "build-hpm6e80": true,
+            "**/build-hpm6e80": true,
+            "embedded_project/Y01": true,
+            "SIL_project": true,
+            "simulink_project": true,
+            "tools/database_generate": true,
+            "tools/SSC Generate LAN9252_EtherCAT Protocol Stack": true,
+            "AGENTS.md": true,
+            "LICENSE": true,
+            "README.md": true,
+            "README.en.md": true,
+            ".gitattributes": true
+        },
+        "search.exclude": {
+            "**/build-hpm6e80": true,
+            "embedded_project/Y01": true,
+            "SIL_project": true,
+            "simulink_project": true,
+            "tools/database_generate": true,
+            "tools/SSC Generate LAN9252_EtherCAT Protocol Stack": true
+        }
+    }
+}

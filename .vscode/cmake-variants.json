@@ -1,0 +1,12 @@
+{
+  "buildType": {
+    "default": "debug",
+    "choices": {
+      "debug": {
+        "short": "HPM Debug",
+        "long": "HPM Flash 调试构建",
+        "buildType": "debug"
+      }
+    }
+  }
+}

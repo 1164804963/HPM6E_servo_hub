@@ -1,0 +1,69 @@
+# Windows default autosave extension
+*.asv
+
+# OSX / *nix default autosave extension
+*.m~
+
+# Compiled MEX binaries (all platforms)
+*.mex*
+
+# Packaged app and toolbox files
+*.mlappinstall
+*.mltbx
+
+# Generated helpsearch folders
+helpsearch*/
+
+# Simulink code generation folders
+slprj/
+sccprj/
+
+# Matlab code generation folders
+codegen/
+
+# Simulink autosave extension
+*.autosave
+
+# Simulink cache files
+*.slxc
+
+# Octave session info
+octave-workspace
+/simulink_project/sldv_output
+/simulink_project/code_gen
+/simulink_project/work
+/simulink_project/ext/sys_id/function_server
+/simulink_project/ext/sys_id/G.mat
+/simulink_project/ext/sys_id/logfile.txt
+/embedded_project/STM32G474VET6/STM32G474VET6/MDK-ARM/.vscode
+/embedded_project/STM32G474VET6/STM32G474VET6/MDK-ARM/STM32G474VET6
+/embedded_project/STM32G474VET6/STM32G474VET6/MDK-ARM/*.uvoptx
+/embedded_project/STM32F405RGT6/STM32F405RGT6/MDK-ARM/STM32F405RGT6
+/embedded_project/STM32F405RGT6/STM32F405RGT6/MDK-ARM/*.uvoptx
+/tools/database_generate/mavlink_c_lib
+/tools/database_generate/mavlink_python_lib
+/tools/database_generate/scope_map_temp.c
+/tools/database_generate/servo_hub_database.xml
+/tools/database_generate/mavlink_handle_temp.c
+
+# IDEA
+.idea/
+.vscode/settings.json
+/embedded_project/Y01/MDK-ARM/DebugConfig
+/embedded_project/Y01/MDK-ARM/RTE
+/embedded_project/Y01/MDK-ARM/STM32H743VGT6_Y01
+
+/embedded_project/Y01/BootLoader/MDK-ARM/DebugConfig
+/embedded_project/Y01/BootLoader/MDK-ARM/RTE
+/embedded_project/Y01/BootLoader/MDK-ARM/BootLoader
+
+# Sil Build Output
+/out
+
+# Local HPM build output and Python caches
+/build-hpm6e80/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+

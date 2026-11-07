@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "name": "HPM6E80 shared SDK",
+      "compileCommands": "${workspaceFolder}/build-hpm6e80/compile_commands.json",
+      "compilerPath": "${config:hpm.sdkEnvPath}/toolchains/${config:hpm.toolchainName}/bin/riscv32-unknown-elf-gcc.exe",
+      "includePath": [
+        "${workspaceFolder}/embedded_project/HPM6E80/**",
+        "${workspaceFolder}/app/**",
+        "${workspaceFolder}/common/**",
+        "${workspaceFolder}/database/**",
+        "${workspaceFolder}/motor_control/**",
+        "${workspaceFolder}/simulink_code_gen/**",
+        "${workspaceFolder}/board_public/**",
+        "${workspaceFolder}/boards/**",
+        "${config:hpm.sdkEnvPath}/hpm_sdk/**"
+      ],
+      "cStandard": "c11",
+      "cppStandard": "c++17"
+    }
+  ],
+  "version": 4
+}

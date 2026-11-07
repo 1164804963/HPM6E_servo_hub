@@ -1,0 +1,24 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "servo_hil_demo",
+            "displayName": "servo_hil_demo",
+            "description": "Default configuration for the project servo_hil_demo",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cmakeExecutable": "${sourceDir}/../mingw64/bin/cmake.exe",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_MAKE_PROGRAM": "${sourceDir}/../mingw64/bin/mingw32-make.exe",
+                "CMAKE_C_COMPILER": "${sourceDir}/../mingw64/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "${sourceDir}/../mingw64/bin/g++.exe",
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "environment": {
+                "PATH": "${sourceDir}/../mingw64/bin;",
+                "MY_DEBUG_ENV": "true"
+            }
+        }
+    ]
+}

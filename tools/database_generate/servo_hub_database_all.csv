@@ -1,0 +1,718 @@
+﻿VariableName,NameZh,Category,Access,DataType,Dimension,DefaultValue,Unit,Index,Remarks,IsVisible,GodeGen,NonVolatile,AppParam,Min,Max,HighLevelParam,Cia402_ObjectDictionary_all
+b,速度阻尼系数,PmsmConfig,RW,single,1,," Nm/(rad/s)",1,,Visible,1,,,,,,
+fc,静摩擦大小,PmsmConfig,RW,single,1,," NM/(rad/s)",2,,Visible,1,,,,,,
+flux,磁链系数,PmsmConfig,RW,single,1,," Wb",3,,Visible,1,,,,,,
+j,转子惯量,PmsmConfig,RW,single,1,," kg.m^2",4,,Visible,1,,,,,,
+ld,d定子电感,PmsmConfig,RW,single,1,," H",5,,Visible,1,,,,,,
+lq,q定子电感,PmsmConfig,RW,single,1,," H",6,,Visible,1,,,,,,
+peak_current,电机峰值电流,PmsmConfig,RW,single,1,," A",7,,Visible,1,,,,,,
+pn,极对数,PmsmConfig,RW,single,1,,pairs,8,,Visible,1,,,,,,
+r,定子电阻,PmsmConfig,RW,single,1,," ohm",9,,Visible,1,,,,,,
+rated_current,电机额定电流,PmsmConfig,RW,single,1,," A",10,,Visible,1,,,,,,
+speed_max_rpm,电机最大转速,PmsmConfig,RW,single,1,," rpm",11,,Visible,1,,,,,,
+i_abc_now_A,当前三相电流,ElecIdSinInput,RO,single,3,0,A,12,,Visible,1,,,,,,
+state_now,激励信号状态标志位,ElecIdSinOutput,RO,int8,1,0,,13,"-2：辨识过程中检测电流过流，超过设定值的1.2倍
+-1：激励信号错误，无法搜索到满足信噪比条件的激励信号
+0：空闲状态，激励信号等待启动，重新使能电机进入电气辨识模式，将会重新复位该模块，状态从0开始
+1：激励信号搜索阶段
+2：激励信号稳定激励阶段，1->2上升沿时刻，立即开始离线波形采集
+3：激励信号结束",Visible,1,,,,,,
+dt_s,"运行周期
+",ElecIdSinConfig,RW,single,1,0.0001,s,14,模块内部参数，由用户决定，一般和位置环控制频率同频,Visible,1,,,,,,
+u_abc_tar_V,三相目标电压,ElecIdSinOutput,RO,single,3,0,V,15,,Visible,1,,,,,,
+u_alpha_now_V,alpha轴当前电压 ,ElecIdSinOutput,RO,single,1,0,V,16,用于离线数据采集,Visible,1,,,,,,
+i_alpha_now_A,alpha轴当前电流,ElecIdSinOutput,RO,single,1,0,A,17,用于离线数据采集,Visible,1,,,,,,
+end_fs_Hz,终止频率,ElecIdSinConfig,RW,single,1,1,Hz,18,如果达到该频率 电流还没有达到目标值 则报错,Visible,1,,,,,,
+i_max_A,"电气辨识最大电流
+",ElecIdSinConfig,RW,single,1,1,A,19,辨识过程中超过设定的最大电流 1.2倍，则会立即停止辨识报错。一般该电流设置为电机额定电流,Visible,1,,,,,,
+init_fs_Hz,初始激励频率,ElecIdSinConfig,RW,single,1,500,Hz,20,模块内部参数，一般不需要更改,Visible,1,,,,,,
+target_time_s,激励信号持续时间,ElecIdSinConfig,RW,single,1,0.4,s,21,模块内部参数，根据硬件平台支持的离线波形采集最大时间来确定,Visible,1,,,,,,
+u_max_V,电气辨识最大电压,ElecIdSinConfig,RW,single,1,12,V,22,辨识过程中激励电压最大值，一般设定为母线电压一半，如母线电压24V，该参数应当设定为12V,Visible,1,,,,,,
+wait_time_s,激励信号自动调整等待时间,ElecIdSinConfig,RW,single,1,0.2,s,23,模块内部参数，一般不需要更改,Visible,1,,,,,,
+iq_tar_A,目标力矩电流,MecIdOutput,RO,single,1,0,A,24,,Visible,1,,,,,,
+dt_s,"运行周期
+",MecIdConfig,RW,single,1,0.0001,s,25,,Visible,1,,,,,,
+end_fs_Hz,扫描终止频率,MecIdConfig,RW,single,1,1000,Hz,26,,Visible,1,,,,,,
+start_fs_Hz,扫描起始频率,MecIdConfig,RW,single,1,100,Hz,27,,Visible,1,,,,,,
+target_time_s,激励信号持续时间,MecIdConfig,RW,single,1,0.4,s,28,离线波形需要采集到完整的激励信号,Visible,1,,,,,,
+i_max_A,辨识过程中最大目标力矩电流iq,MecIdConfig,RW,single,1,1,A,29,一般设置为电机额定电流，注意这里是iq的电流最大值，是峰值电流，不是电机额定电流有效值,Visible,1,,,,,,
+state_now,激励信号状态标志位,MecIdOutput,RO,int8,1,0,,30,"-1：激励信号错误，无法搜索到满足信噪比条件的激励信号
+0：空闲状态，激励信号等待启动，重新使能电机进入电气辨识模式，将会重新复位该模块，状态从0开始
+1：激励信号搜索阶段
+2：激励信号稳定激励阶段，1->2上升沿时刻，立即开始离线波形采集
+3：激励信号结束",Visible,1,,,,,,
+iq_tar_A,速度环输出目标电流,NotchFilterInput,RO,single,1,0,A,31,,Visible,1,,,,,,
+u0,前馈系数0,NotchFilterInternal,RO,single,6,,,32,,Invisible,1,,,,,,
+iq_tar_filter_A,滤波后的目标电流,NotchFilterOutput,RO,single,1,,,33,,Visible,1,,,,,,
+u1,前馈系数1,NotchFilterInternal,RO,single,6,,,34,,Invisible,1,,,,,,
+u2,前馈系数2,NotchFilterInternal,RO,single,6,,,35,如果不滤波则将u2设置为1，其他系数都设置为0,Invisible,1,,,,,,
+y0,反馈系数0,NotchFilterInternal,RO,single,6,,,36,,Invisible,1,,,,,,
+y1,反馈系数1,NotchFilterInternal,RO,single,6,,,37,,Invisible,1,,,,,,
+speed_now_rad_s,当前速度,MecIdInput,RO,single,1,0,rad/s,38,,Visible,1,,,,,,
+search_speed_max_rad_s,辨识过程中搜索频率的最大转速,MecIdConfig,RW,single,1,10,rad/s,39,一般设置为电机额定转速的 5%~10%，激励信号频率会根据设定的最大速度进行频率搜索,Visible,1,,,,,,
+wait_time_s,搜索等待时间,MecIdConfig,RW,single,1,0.4,s,40,每次激励信号搜索等待的时间,Visible,1,,,,,,
+signal_type,激励信号类型,MecIdConfig,RW,uint8,1,0,,41,"0：chirp 信号  一般惯量比小于15场合适用
+1：step  信号  大惯量无机械限位场合适用",Visible,1,,,,,,
+pos_cmd_p,指令目标位置,InputShapingInput,RW,int64,1,0,P,42,,Visible,1,,,,,,
+wn_Hz,末端振动抑制的频率,InputShapingConfig,RW,single,1,10,Hz,43,最小频率10Hz，由内部位置缓冲区大小决定,Visible,1,1,,,,1,
+pos_cmd_shaping_p,整形后指令目标位置,InputShapingOutput,RO,int64,1,0,P,44,,Visible,1,,,,,,
+run_frq_Hz,模块运行频率,InputShapingConfig,RW,single,1,10000,Hz,45,,Visible,1,1,,,,1,
+pos_cmd_p_init,指令目标位置初始值,InputShapingInput,RW,int64,1,0,P,46,在调用模块初始化接口函数时候，会将该值对内部缓存进行全部初始化,Visible,1,,,,,,
+channel_map,示波器通道映射,ScopeConfig,RW,uint32,16,,,47,16个通道的示波器参数映射(高16位Index，低16位数组下标）,Invisible,,,,,,,
+channel_switch,示波器通道开关,ScopeConfig,RW,uint16,1,,,48,bit15-bit0二进制，表示通道16-通道1,Invisible,,,,,,,
+control_word,示波器控制字,ScopeControl,RW,uint16,1,,,49,"    kScopeNull = 0x00（空模式，无效）
+    kScopeConfig = 0x01（配置示波器参数）
+    kSampleTrigger = 0x02（触发采样）
+    kSampleImmediately = 0x03（立即采样）
+    kSampleStop = 0x04（停止采样）
+    kScopeReset = 0x06（重置示波器）",Invisible,,,,,,,
+frame_data,示波器数据,ScopeData,RO,uint8,128,,,50,"示波器数据，一帧包含128字节
+byte0:通道号
+byte1:包索引
+byte2:数据长度
+byte3-byte7:保留0
+byte8-byte127:示波器数据",Invisible,,,,,,,
+frame_info,数据信息,ScopeControl,RW,uint32,1,,,51,高16位-示波器通道，低16位-包索引（上位机通过设置这个参数，获取frame_data）,Invisible,,,,,,,
+frame_num,数据包总数,ScopeControl,RO,uint16,16,,,52,16个通道当前的采样数据包个数（上位机获取每个通道的数据包数量，用于获取frame_data）,Invisible,,,,,,,
+sample_interval,示波器采样间隔,ScopeConfig,RW,uint8,1,,,53,示波器采样间隔，默认1（n：n个中断采样一次）,Invisible,,,,,,,
+sample_points,示波器采样点数,ScopeConfig,RW,uint32,1,,,54,采样点数 = 采样时间/采样周期,Invisible,,,,,,,
+status_word,示波器状态字,ScopeControl,RO,uint16,1,,,55,"kScopeNormal = 0（示波器正常）
+kScopeError = 1（示波器异常）
+kSampleSuccess = 2（采样完成）",Invisible,,,,,,,
+trigger_delay,触发采样延时,ScopeConfig,RW,uint8,1,,,56,0-99（0%-99%）,Invisible,,,,,,,
+trigger_mode,触发采样模式,ScopeConfig,RW,uint8,1,,,57,1-下降沿触发，0-上升沿触发,Invisible,,,,,,,
+trigger_source,触发采样信号,ScopeConfig,RW,uint32,1,,,58,高16位：飞书参数索引值；低16位：数组类型参数下标（1-n），若不是数组类型参数，低16位默认0,Invisible,,,,,,,
+trigger_threshold,触发采样阈值,ScopeConfig,RW,int32,1,,,59,触发阈值（取决于采样信号数据类型，32位数据只是用来存储二进制，上位机和嵌入式进行类型转化）,Invisible,,,,,,,
+waveform_data_array,波形参数数组,WaveformData,RO,int64,6,,,60,嵌入式端的原始值（在任务中刷新）,Invisible,,,,,,,
+waveform_map_info,波形参数映射,WaveformMap,RW,int32,6,,,61,高16位：飞书参数索引值；低16位：数组类型参数下标（0-n），若不是数组类型参数，低16位默认0,Invisible,,,,,,,
+pos_tar_p,目标位置,PosSpeedCtlInput,RW,int64,1,0,P,62,,Visible,1,,,,,,
+pos_now_p,当前位置,PosSpeedCtlInput,RO,int64,1,0,P,63,,Visible,1,,,,,,
+iq_max_A,最大目标q轴电流,PosSpeedCtlInput,RW,single,1,1,A,64,,Visible,1,,,,,,
+speed_tar_p_s,目标速度,PosSpeedCtlInput,RW,single,1,0,P/s,65,,Visible,1,,,,,,
+acc_tar_p_ss,目标加速度,PosSpeedCtlInput,RW,single,1,0,P/s^2,66,,Visible,1,,,,,,
+iq_tar_A,目标q轴电流,PosSpeedCtlOutput,RO,single,1,0,A,67,,Visible,1,,,,,,
+aff,加速度前馈系数,PosSpeedCtlConfig,RW,single,1,0,100%,69,1 表示 100%  0~1,Visible,1,1,,,,1,
+vff,速度前馈系数,PosSpeedCtlConfig,RW,single,1,1,100%,70,1 表示 100%   0~1,Visible,1,1,,,,1,
+enc_line_inv_p_n,编码器分辨率倒数,PosSpeedCtlConfig,RW,single,1,0.0001,1/(P/n),71,1/enc_line   0~1,Visible,1,,,,,,
+j_kt,惯性系数,PosSpeedCtlConfig,RW,single,1,0.000266666,kg*m^2/(N*m/A),72,,Visible,1,1,,,,1,
+ki_s,速度环积分系数,PosSpeedCtlConfig,RW,single,1,1,A/rad,73,并联式PI,Visible,1,1,,,,1,
+kp_p,位置环比例系数,PosSpeedCtlConfig,RW,single,1,1,Hz,74,,Visible,1,1,,,,1,
+kp_s,速度环比例系数,PosSpeedCtlConfig,RW,single,1,1,A/(rad/s),75,并联式PI,Visible,1,1,,,,1,
+speed_max_rad_s,最大目标速度限制,PosSpeedCtlConfig,RW,single,1,300,rad/s,76,,Visible,1,1,,,,,
+tp_s,位置速度环运行周期,PosSpeedCtlConfig,RW,single,1,0.0001,s,78,,Visible,1,,,,,,
+mode,运行模式,MotorCtlSmConfig,RW,int8,1,0,,81,"-6：转矩脉动与摩擦辨识模式
+-5：机械特性辨识模式
+-4：电角度辨识模式
+-3：方向辨识模式
+-2：极对数辨识模式
+-1：电气特性辨识模式
+0：空闲模式
+1：力矩模式
+2：速度模式
+3：位置模式
+4:  往复运动模式
+5：参考信号模式
+6:  MIT模式
+127：电压控制模式",Visible,1,,,,,,
+motor_enable,电机使能控制指令,MotorCtlSmInput,RW,uint8,1,0,,82,"0：失能电机 PWM 关闭 自由释放电机
+1：使能电机 PWM开启 电机受控状态
+3：清除错误",Visible,1,,,,,,
+state,运行状态,MotorCtlSmOutput,RO,int8,1,0,,86,"0：电机失能状态
+1：电机使能状态
+-1：错误状态",Visible,1,,,,,,
+error,错误代码,MotorCtlSmOutput,RO,uint32,1,0,,87,"0：无错误
+1：欠压保护错误
+2：过压保护错误
+3：过速保护错误
+4：低温保护错误
+5：高温保护错误
+6：位置跟随误差过大保护错误
+7：过流保护
+8：nfault等硬件错误，由硬件触发",Visible,1,,,,,,
+warning,警告代码,MotorCtlSmOutput,RO,uint32,1,0,,88,0：无警告,Visible,1,,,,,,
+under_voltage_protection_V,欠压保护阈值,MotorCtlSmConfig,RW,single,1,15,V,90,低于该电压，进入欠压保护,Visible,1,,,,,,
+over_voltage_protection_V,过压保护阈值,MotorCtlSmConfig,RW,single,1,58,V,91,高于该电压，进入过压保护,Visible,1,,,,,,
+over_speed_protection_rad_s,过速保护阈值,MotorCtlSmConfig,RW,single,1,400,rad/s,92,高于该转速，进入过速保护,Visible,1,,,,,,
+under_temperature_protection_d,欠温保护阈值,MotorCtlSmConfig,RW,single,1,-20,℃,93,低温保护,Visible,1,,,,,,
+over_temperature_protection_d,过温保护阈值,MotorCtlSmConfig,RW,single,1,85,℃,94,高温保护,Visible,1,,,,,,
+position_following_error_protection,位置跟随误差保护阈值,MotorCtlSmConfig,RW,int32,1,1000,P,95,仅位置控制时生效，位置控制误差绝对值超过该值则进行保护,Visible,1,,,,,,
+idq_tar_A,目标id iq 电流,CurrentCtlInput,RW,single,2,0,A,96,,Visible,1,,,,,,
+i_noise_A,电流采样噪声绝对值,CurrentCtlConfig,RW,single,1,0.1,A,97,,Visible,1,1,,,,,
+uabc_tar_comp_V,死区补偿后目标三相电压,CurrentCtlOutput,RO,single,3,0,V,98,,Visible,1,,,,,,
+iabc_now_A,iabc 三相当前电流反馈,CurrentCtlInput,RO,single,3,0,A,99,,Visible,1,,,,,,
+elec_theta_rad,当前电角度,CurrentCtlInput,RO,single,1,0,rad,100,,Visible,1,,,,,,
+dc_bus_now_V,当前母线电压,CurrentCtlInput,RO,single,1,0,V,101,,Visible,1,,,,,,
+comp_du_V,死区补偿电压大小,CurrentCtlConfig,RW,single,1,0,V,102,,Visible,1,1,,,,,
+idq_now_A,当前dq轴电流,CurrentCtlOutput,RO,single,2,0,A,103,,Visible,1,,,,,,
+uabc_tar_org_V,补偿前目标三相电压,CurrentCtlOutput,RO,single,3,0,V,104,,Visible,1,,,,,,
+bandwidth_percentage,电流环目标带宽 %,CurrentCtlConfig,RW,single,1,100,%,105,,Visible,1,1,,,,1,
+dt_s,电流环运行周期,CurrentCtlConfig,RW,single,1,5e-05,s,106,,Visible,1,,,,,,
+flux_wb,磁链系数,CurrentCtlConfig,RW,single,1,0,wb,107,用于前馈解耦,Visible,1,1,,,,1,
+kp_ld,d轴 kp控制增益,CurrentCtlConfig,RW,single,1,0,V/A,114,,Visible,1,1,,,,1,
+ki_ld,d轴 ki控制增益,CurrentCtlConfig,RW,single,1,0,V/(A*s),115,,Visible,1,1,,,,1,
+kp_lq,q轴 kp控制增益,CurrentCtlConfig,RW,single,1,0,V/A,116,,Visible,1,1,,,,1,
+ki_lq,q轴 ki控制增益,CurrentCtlConfig,RW,single,1,0,V/(A*s),117,,Visible,1,1,,,,1,
+frq,陷波滤波器频率,NotchFilterConfig,RW,single,6,,Hz,119,,Visible,1,1,,,,1,
+width,陷波滤波器宽度,NotchFilterConfig,RW,single,6,,Hz,120,,Visible,1,1,,,,1,
+depth,陷波滤波器深度,NotchFilterConfig,RW,single,6,,dB,121,,Visible,1,1,,,,1,
+pos_now_p,电机当前位置,SpeedObsPllInput,RO,int64,1,0,P,126,,Visible,1,,,,,,
+tp_s,运行周期,SpeedObsPllConfig,RW,single,1,0.0001,s,127,,Visible,1,,,,,,
+ev_rad_s,观测转速,SpeedObsPllOutput,RO,single,1,0,rad/s,128,,Visible,1,,,,,,
+wn_Hz,速度观测带宽,SpeedObsPllConfig,RW,single,1,400,Hz,129,,Visible,1,1,,,,1,
+enc_line_inv_p_n,编码器分辨率倒数,SpeedObsPllConfig,RW,single,1,0.0001,n/p,131,,Visible,1,,,,,,
+speed_obs_max_rad_s,最大目标速度限制,SpeedObsPllConfig,RW,single,1,500,rad/s,133,,Visible,1,,,,,,
+speed_now_rad_s,当前转速,PosSpeedCtlInput,RO,single,1,0,rad/s,134,,Visible,1,,,,,,
+id_max_A,id 目标电流最大值,ElecAngleIdConfig,RW,single,1,3,A,137,通常设置为电机额定电流,Visible,1,,,,,,
+id_tar_A,目标d轴电流,ElecAngleIdOutput,RO,single,1,,A,138,,Visible,1,,,,,,
+pos_now_rad,转子当前位置,ElecAngleIdInput,RO,single,1,0,rad,139,,Visible,1,,,,,,
+elec_bias_rad,电角度偏移值,ElecAngleIdOutput,RO,single,1,,rad,140,,Visible,1,,,,,,
+state_now,运行状态,ElecAngleIdOutput,RO,int8,1,,,142,"-1：搜索错误
+0：空闲状态
+1：搜索阶段
+2：稳定收敛阶段
+3：搜索成功",Visible,1,,,,,,
+dt_s,运行周期,ElecAngleIdConfig,RW,single,1,0.0001,s,143,,Visible,1,,,,,,
+mode,运行模式,PosSpeedCtlConfig,RW,single,1,0,,146,"运行模式  
+0：速度控制模式
+1：位置控制模式",Visible,1,,,,,,
+enc_counts_sum_p,编码器位置累计值,DirectionIdInput,RO,int64,1,,P,147,编码器累计的绝对值,Visible,1,,,,,,
+elec_angle_add_rad,电角度步进的增量,DirectionIdConfig,RW,single,1,,rad,148,引导开环旋转磁场的目标电角度每次步进的增量,Visible,1,,,,,,
+elec_angle_tar_rad,开环的目标电角度,DirectionIdOutput,RO,single,1,,rad,149,引导开环旋转磁场的目标电角度,Visible,1,,,,,,
+direction,辨识的方向结果,DirectionIdOutput,RO,int8,1,,,150,"-1: 方向相反
+0:辨识进行中，初始方向状态
+1: 方向相同",Visible,1,,,,,,
+state_now,运行状态,DirectionIdOutput,RO,int8,1,,,151,"-1：搜索错误
+0：空闲状态
+1：搜索阶段
+2：稳定收敛阶段
+3：搜索成功",Visible,1,,,,,,
+enc_counts_now_p,编码器当前单圈位置脉冲数,MotorPosSensorInput,RO,uint32,1,0,P,152,,Visible,1,,,,,,
+enc_line_p_n,编码器分辨率,MotorPosSensorConfig,RW,uint32,1,0,P,153,,Visible,1,,,,,,
+enc_sum_p,编码器累计脉冲值,MotorPosSensorOutput,RO,int64,1,0,P,154,,Visible,1,,,,,,
+init_pos_p,编码器初始位置,MotorPosSensorConfig,RW,int64,1,0,P,155,,Visible,1,,,,,,
+pn,电机极对数,MotorPosSensorConfig,RW,uint32,1,1,pairs,156,,Visible,1,,,,,,
+elec_angle_now_rad,电角度当前值,MotorPosSensorOutput,RO,single,1,0,rad,157,,Visible,1,,,,,,
+elec_angle_bias_rad,电角度偏移值,MotorPosSensorConfig,RW,single,1,0,rad,158,,Visible,1,1,,,,,
+dir,计数方向,MotorPosSensorConfig,RW,int8,1,1,,159,,Visible,1,,,,,,
+enc_counts_sum_p,编码器位置累计值,PolePairsIdInput,RO,int64,1,0,P,161,,Visible,1,,,,,,
+elec_angle_add,电角度步进的增量,PolePairsIdConfig,RW,single,1,0.0005,rad,162,,Visible,1,,,,,,
+pn_id,极对数辨识结果,PolePairsIdOutput,RO,uint32,1,1,pairs,163,,Visible,1,,,,,,
+enc_line_p_n,编码器分辨率,PolePairsIdConfig,RW,uint32,1,4000,ppr,164,,Visible,1,,,,,,
+state_now,运行状态,PolePairsIdOutput,RO,int8,1,0,,165,,Visible,1,,,,,,
+elec_angle_tar_rad,电角度目标值,PolePairsIdOutput,RO,single,1,0,rad,166,,Visible,1,,,,,,
+encoder_res,编码器分辨率,NonVolatileParam,RW,uint32,1,,p,167,,Visible,0,,,,,,
+param_save,参数保存,SystemConfig,RW,int8,1,,,169,"0：无操作
+1：flash保存",Visible,0,,,,,,
+system_reset,系统复位,SystemConfig,RW,int8,1,,,170,"0：无操作
+1：复位",Visible,0,,,,,,
+rated_current,电机额定电流,NonVolatileParam,RW,single,1,," A",171,,Visible,0,,,,,,
+current_loop_freq,电流环频率,SystemConfig,RW,uint32,1,,,172,"0：无操作
+20000：20Khz 
+其它：无操作",Visible,0,,,,,,
+position_loop_freq,位置环频率,SystemConfig,RW,uint32,1,,,173,"0：无操作
+10000：10Khz 
+其它：无操作",Visible,0,,,,,,
+id_tar_A,d轴电流目标值,PolePairsIdOutput,RO,single,1,0,A,175,,Visible,1,,,,,,
+id_tar_max_A,d轴目标电流最大值,PolePairsIdConfig,RW,single,1,1,A,176,,Visible,1,,,,,,
+mode_now,当前运行模式,MotorCtlSmOutput,RO,int8,1,0,,177,"-6：转矩脉动与摩擦辨识模式
+-5：机械特性辨识模式
+-4：电角度辨识模式
+-3：方向辨识模式
+-2：极对数辨识模式
+-1：电气特性辨识模式
+0：空闲模式
+1：力矩模式
+2：速度模式
+3：位置模式
+4:  往复运动模式
+5：参考信号模式
+6:  MIT模式
+127：电压控制模式",Visible,1,,,,,,
+mode,电流环控制模式,CurrentCtlInput,RO,uint8,1,0,,178,"0:  电压控制模式
+1：电流控制模式",Visible,1,,,,,,
+uabc_tar_V,三相目标电压,CurrentCtlInput,RW,single,3,0,V,179,仅电压控制模式有效,Visible,1,,,,,,
+pos_ctl_error_p,当前位置控制误差,PosSpeedCtlOutput,RO,int32,1,0,P,180,,Visible,1,,,,,,
+error_enable,保护生效,MotorCtlSmConfig,RW,uint32,1,0,,181,"保护生效位
+bit1: 欠压保护生效
+bit2: 过压保护生效
+bit3:过速保护生效
+bit4:欠温保护生效
+bit5:过温保护生效
+bit6:位置跟随误差保护生效
+bit7:过流保护生效",Visible,1,,,,,,
+over_current_protection_A,过流保护阈值,MotorCtlSmConfig,RW,single,1,10,A,182,过流保护，采集iabc三相电流，任意一相电流绝对值超过该电流则保护,Visible,1,,,,,,
+driver_temp,驱动器当前温度,CurrentCtlInput,RO,single,1,25,℃,184,用于温度补偿,Visible,1,,,,,,
+tp_s,位置环运行周期,PmsmConfig,RW,single,1,,s,186,,Visible,1,,,,,,
+tc_s,电流环运行周期,PmsmConfig,RW,single,1,,s,187,,Visible,1,,,,,,
+enc_line_p_n,编码器分辨率,PmsmConfig,RW,uint32,1,,p/n,188,,Visible,1,,,,,,
+dob_wn_Hz,负载扰动观测器带宽,PosSpeedCtlConfig,RW,single,1,40,Hz,189,,Visible,1,1,,,,1,
+dob_enable,负载扰动观测使能开关,PosSpeedCtlConfig,RW,uint8,1,0,,190,"0：失能
+1：使能",Visible,1,1,,,,1,
+dob_iq_com_A,负载扰动补偿电流,PosSpeedCtlOutput,RO,single,1,0,A,191,,Visible,1,,,,,,
+enable,使能末端振动抑制开关,InputShapingConfig,RW,uint8,1,0,,192,0：失能  1：使能,Visible,1,1,,,,1,
+iq_com_A,负载扰动观测器补偿值,TqFcIdInput,RO,single,1,0,A,194,,Visible,1,,,,,,
+enc_line_p_n,编码器分辨率,TqFcIdConfig,RW,uint32,1,4000,p/n,195,,Visible,1,,,,,,
+pos_cmd_p,位置指令值,TqFcIdOutput,RO,int64,1,0,p,196,,Visible,1,,,,,,
+pos_abs_p,当前转子绝对位置,TqFcIdInput,RO,uint32,1,0,p,197,,Visible,1,,,,,,
+pos_init_p,电机初始位置,TqFcIdInput,RO,int64,1,0,p,198,,Visible,1,,,,,,
+start,启动辨识指令,TqFcIdInput,RO,uint8,1,0,,199,,Visible,1,,,,,,
+iq_com_enable,使能负载扰动补偿开关,TqFcIdConfig,RW,uint8,1,0,,201,,Visible,1,1,,,,,
+tq_com_enable,使能转矩脉动补偿开关,TqFcIdConfig,RW,uint8,1,0,,202,,Visible,1,1,,,,,
+fc_com_enable,使能摩擦补偿开关,TqFcIdConfig,RW,uint8,1,0,,203,,Visible,1,1,,,,,
+state_now,当前辨识状态,TqFcIdOutput,RO,int8,1,0,,204,,Visible,1,,,,,,
+motor_enable_last,电机使能控制上一个周期的值,MotorCtlSmOutput,RO,uint8,1,0,,205,"0：失能电机 PWM 关闭 自由释放电机
+1：使能电机 PWM开启 电机受控状态
+3：清除错误",Visible,1,,,,,,
+index,主索引,ObjectDictionary,RW,uint16,1,,,206,402字典主索引,Visible,0,,,,,,
+sub_index,子索引,ObjectDictionary,RW,uint8,1,,,207,402字典子索引,Visible,0,,,,,,
+data,数据,ObjectDictionary,RW,uint32,1,,,208,402字典数据,Visible,0,,,,,,
+rw,读写,ObjectDictionary,RW,uint8,1,,,209,"读：0
+写：1",Visible,,,,,,,
+pwm_duty_cycle_max,pwm 占空比最大值,CurrentCtlConfig,RW,single,1,0.9,100%,210,默认 0.9   90%,Visible,1,1,,,,,
+pos_tar1_p,目标位置1,ReciprocalMotionConfig,RW,int64,1,0,p,211,,Visible,1,,,,,,
+pos_tar2_p,目标位置2,ReciprocalMotionConfig,RW,int64,1,0,p,212,,Visible,1,,,,,,
+dwell_time_s,等待时间,ReciprocalMotionConfig,RW,single,1,0,s,213,,Visible,1,,,,,,
+profile_velocity_p_s,轮廓速度,ReciprocalMotionConfig,RW,single,1,0,p/s,214,,Visible,1,,,,,,
+profile_acc_p_ss,轮廓加速度,ReciprocalMotionConfig,RW,single,1,0,p/s^2,215,,Visible,1,,,,,,
+profile_dec_p_ss,轮廓减速度,ReciprocalMotionConfig,RW,single,1,0,p/s^2,216,,Visible,1,,,,,,
+dt_s,运行周期,ReciprocalMotionConfig,RW,single,1,0.0001,s,217,,Visible,1,,,,,,
+pos_tar_p,规划位置,ReciprocalMotionOutput,RO,int64,1,0,p,218,,Visible,1,,,,,,
+v_tar_p_s,规划速度,ReciprocalMotionOutput,RO,single,1,0,p/s,219,,Visible,1,,,,,,
+acc_tar_p_ss,规划加速度,ReciprocalMotionOutput,RO,single,1,0,p/s^2,220,,Visible,1,,,,,,
+state_now,规划器状态,ReciprocalMotionOutput,RO,int8,1,0,,221,,Visible,1,,,,,,
+dt_s,运行周期,ReferenceSignalConfig,RW,single,1,0,s,222,,Visible,1,,,,,,
+signal_out,参考信号输出,ReferenceSignalOutput,RO,single,1,0,,223,,Visible,1,,,,,,
+signal_type,信号类型,ReferenceSignalConfig,RW,uint8,1,0,,224,"0:  方波
+1：正弦",Visible,1,,,,,,
+amp,信号幅值,ReferenceSignalConfig,RW,single,1,0,,225,,Visible,1,,,,,,
+frq_Hz,运行频率,ReferenceSignalConfig,RW,single,1,0,Hz,226,,Visible,1,,,,,,
+bias,信号偏移,ReferenceSignalConfig,RW,single,1,0,,227,,Visible,1,,,,,,
+signal_target,信号激励目标,ReferenceSignalConfig,RW,uint8,1,1,,228,"0: d轴电流信号
+1: q轴电流信号
+2: 目标速度信号
+3: 目标位置信号",Visible,1,,,,,,
+Controlword,控制字,AppControlWord,RW,uint16,1,,,229,"0-失能；
+1-使能(0->1上升沿生效)；
+2-急停；
+3-清除错误(0->3上升沿生效)；",Visible,,0,1,0,3,,Controlword
+Statusword,状态字,AppStatusInfo,RO,uint32,1,,,230,"bit0-目标达到;
+bit1-零速到达;
+bit2-回零完成;
+bit3-位置到达;
+bit4-速度到达;
+bit5-力矩到达;
+bit6-使能状态(0-失能,1使能);",Visible,,,1,,,,Statusword
+Error_word,错误字,AppStatusInfo,RO,uint32,1,,,231,"bit0-驱动器峰值电流过载;
+bit1-驱动器过载;
+bit2-母线过压;
+bit3-母线欠压;
+bit4-驱动器过温;
+bit5-驱动器低温;
+bit6-电机过速;
+bit7-位置误差过大(使能&位置模式);
+bit8-负载端编码器错误;
+bit9-电机端编码器错误;
+bit10-flash存储错误;
+bit11-drv初始化错误;
+bit12-电流采样错误;
+bit13-硬件短路保护;
+bit14-驱动器软件检测过流保护;
+bit15-母线电压检测异常;
+bit16-CAN总线掉线错误;
+bit17-电机过温;
+bit18-电机欠温;
+bit19-MCU过温;
+bit20-MCU欠温;
+bit21-外部抑制输入检测错误",Visible,,,1,,,,Error_code
+Modes_of_operation,运行模式,AppOpMode,RW,int8,1,,,238," -6：转矩脉动与摩擦辨识模式
+ -5：机械特性辨识模式
+ -4：电角度辨识模式
+ -3：方向辨识模式
+ -2：极对数辨识模式
+ -1：电气特性辨识模式
+ 0：空闲模式
+ 1：力矩模式
+ 2：速度模式
+ 3：位置模式
+ 6：MIT模式
+ 7：回零模式
+ 8：CSP
+ 9：CSV
+10：CST",Visible,,,1,,,,Modes_of_operation
+Load_encoder_resolution,负载端位置反馈分辨率,AppEncoderConfig,RW,uint32,1,,P,242,,Visible,,1,1,,,,Position_encoder_resolution_Motor_revolutions
+Motor_encoder_resolution,电机端位置反馈分辨率,AppEncoderConfig,RW,uint32,1,,P,243,,Visible,,1,1,,,,Position_encoder_resolution_Encoder_increments
+Polarity,运动极性,AppBaseConfig,RW,uint8,1,,,250,,Visible,,1,1,0,1,,Polarity
+Target_position,位置目标值,AppMotionParam,RW,int64,1,,P,251,,Visible,,,1,,,,Target_position
+Position_range_limit_Minimal_position_limit,位置溢出最小值,AppRestrictParam,RW,int64,1,,p,253,,Visible,,1,1,,,,Position_range_limit_Minimal_position_limit
+Position_range_limit_Maximal_position_limit,位置溢出最大值,AppRestrictParam,RW,int64,1,,p,254,,Visible,0,1,1,,,,Position_range_limit_Maximal_position_limit
+Software_position_limit_Minimal_position_limit,应用位置下限,AppRestrictParam,RW,int64,1,,p,256,,Visible,,1,1,,,,Software_position_limit_Minimal_position_limit
+Software_position_limit_Maximal_position_limit,应用位置上限,AppRestrictParam,RW,int64,1,,p,257,,Visible,,1,1,,,,Software_position_limit_Maximal_position_limit
+Max_profile_velocity,应用速度限制,AppRestrictParam,RW,single,1,,RPM,258,,Visible,0,1,1,0,,,Max_profile_velocity
+Max_motor_speed,电机最大转速,AppRestrictParam,RW,single,1,,RPM,259,,Visible,,1,1,0,,,
+Profile_velocity,轮廓速度,AppMotionParam,RW,single,1,,RPM,260,,Visible,,1,1,0,,,Profile_velocity
+Profile_acceleration,轮廓加速度,AppMotionParam,RW,single,1,,RPM/s,262,,Visible,,1,1,0,,,Profile_acceleration
+Profile_deceleration,轮廓减速度,AppMotionParam,RW,single,1,,RPM/s,263,,Visible,,1,1,0,,,Profile_deceleration
+Quick_stop_deceleration,快速停止减速度,AppMotionParam,RW,single,1,,RPM/s,264,,Visible,,1,1,0,,,Quick_stop_deceleration
+Motion_profile_type,运动轮廓模式,AppMotionParam,RW,int32,1,,,265,,Visible,,1,1,,,,Motion_profile_type
+Max_acceleration,应用加速度限制,AppRestrictParam,RW,single,1,,RPM/s,270,,Visible,0,1,1,0,,,Max_acceleration
+Max_deceleration,应用减速度限制,AppRestrictParam,RW,single,1,,RPM/s,271,,Visible,,1,1,0,,,Max_deceleration
+Home_offset,回零偏移,AppMotionParam,RW,int64,1,,P,272,,Visible,,1,1,,,,Home_offset
+Homing_method,回零方法,AppMotionParam,RW,int8,1,,,273,,Visible,,1,1,-2,35,,Homing_method
+Position_demand_value,负载端位置指令值,AppMotionInfo,RO,int64,1,,P,284,,Visible,,,1,,,,Position_demand_value
+Position_actual_value_inc,负载端内部位置当前值,AppMotionInfo,RO,int64,1,,P,285,原始内部位置当前值，未经过到位转化，和回零偏移，内部控制当前位置,Visible,,,1,,,,"Position_actual_value_inc,Position_actual_value"
+Position_actual_value,负载端位置当前值,AppMotionInfo,RO,int64,1,,P,286,,Visible,,,1,,,,
+Following_error_window,位置跟随误差阈值,AppWindowParam,RW,int64,1,,P,287,,Visible,,1,1,0,,,Following_error_window
+Following_error_time_out,位置跟随误差阈值时间,AppWindowParam,RW,single,1,,s,288,,Visible,,1,1,0,,,Following_error_time_out
+Position_window,位置到达检测窗口,AppWindowParam,RW,uint32,1,,P,289,,Visible,,1,1,0,,,Position_window
+Position_window_time,位置到达检测窗口时间,AppWindowParam,RW,single,1,,s,290,,Visible,,1,1,0,,,Position_window_time
+Following_error_actual_value,负载端位置误差值,AppMotionInfo,RO,int64,1,,P,291,,Visible,,,1,,,,Following_error_actual_value
+Velocity_demand_value,负载端速度指令值,AppMotionInfo,RO,single,1,,RPM,314,,Visible,,,1,,,,Velocity_demand_value
+Velocity_actual_value,负载端速度当前值,AppMotionInfo,RO,single,1,,RPM,315,,Visible,,,1,,,,Velocity_actual_value
+Velocity_window,速度到达检测窗口,AppWindowParam,RW,single,1,,RPM,316,,Visible,,1,1,0,,,Velocity_window
+Velocity_window_time,速度到达检测窗口时间,AppWindowParam,RW,single,1,,s,317,,Visible,,1,1,0,,,Velocity_window_time
+Velocity_threshold,零速检测窗口,AppWindowParam,RW,single,1,,RPM,318,,Visible,,1,1,0,,,Velocity_threshold
+Velocity_threshold_time,零速检测窗口时间,AppWindowParam,RW,single,1,,s,319,,Visible,,1,1,0,,,Velocity_threshold_time
+Target_velocity,速度目标值,AppMotionParam,RW,single,1,,RPM,320,,Visible,,,1,,,,Target_velocity
+Target_torque,力矩目标值,AppMotionParam,RW,single,1,,A,321,,Visible,,,1,,,,Target_torque
+Max_current,应用电流限制,AppRestrictParam,RW,single,1,,A,323,,Visible,,1,1,0,,,Max_current
+Torque_demand_value,力矩指令值,AppMotionInfo,RO,single,1,,A,324,,Visible,,,1,,,,Torque_demand_value
+Motor_rated_current,电机额定电流,AppMotorConfig,RW,single,1,,Arms,325,,Visible,,1,1,0,,,Motor_rated_current
+Motor_rated_torque,电机额定力矩,AppMotorConfig,RW,single,1,,Nm,326,,Visible,,1,1,0,,,Motor_rated_torque
+Torque_actual_value,力矩当前值,AppMotionInfo,RO,single,1,,A,327,,Visible,,,1,,,,Torque_actual_value
+Current_actual_value,电流当前值,AppMotionInfo,RO,single,1,,A,328,,Visible,0,,1,,,,Current_actual_value
+DC_link_circuit_voltage,母线电压当前值,AppStatusInfo,RO,single,1,,V,329,,Visible,,,1,,,,DC_link_circuit_voltage
+Torque_slope,力矩上升斜率,AppMotionParam,RW,single,1,,A/s,330,,Visible,,1,1,0,,,Torque_slope
+dynamic_integration_enable,速度环动态积分使能,PosSpeedCtlConfig,RW,uint8,1,0,,340,"0：失能
+1：使能",Visible,1,1,0,,,1,
+Home_position_offset_value,回零完成位置偏移值,AppBaseConfig,RO,int64,1,,P,344,,Visible,,1,1,,,,
+Bus_under_voltage_threshold,母线欠压阈值,AppProtectConfig,RW,single,1,,V,347,,Visible,,1,1,0,,,
+Bus_over_voltage_threshold,母线过压阈值,AppProtectConfig,RW,single,1,,V,348,,Visible,,1,1,0,,,
+Drive_overload_current_duration,驱动器过载持续时间,AppProtectConfig,RW,single,1,,s,349,,Visible,,1,1,0,,,
+Drive_peak_current_duration,驱动器峰值电流持续时间,AppProtectConfig,RW,single,1,,s,351,,Visible,,1,1,0,,,
+Drive_temperature_threshold_time,驱动器温度保护阈值时间,AppProtectConfig,RW,single,1,,s,352,,Visible,,1,1,0,,,
+Drive_low_temperature_fault_threshold,驱动器低温报错阈值,AppProtectConfig,RW,single,1,,℃,353,,Visible,,1,1,,,,
+Drive_high_temperature_fault_threshold,驱动器高温报错阈值,AppProtectConfig,RW,single,1,,℃,354,,Visible,,1,1,,,,
+Overspeed_threshold,过速阈值,AppProtectConfig,RW,single,1,,RPM,355,,Visible,,1,1,0,,,
+Drive_accumulated_heat,驱动器热量累计值,AppStatusInfo,RO,single,1,,,357,,Visible,,,1,,,,
+Drive_temperature,驱动器当前温度,AppStatusInfo,RO,single,1,,℃,358,,Visible,,,1,,,,
+tq_set_NM,前馈力矩电流,MitCtlInput,RW,single,1,0,NM,359,,Visible,1,,,,,,
+kt,转矩常数,PmsmConfig,RW,single,1,,N*M/A,360,,Visible,1,,,,,,
+kp_pos_NM_rad,位置刚度,MitCtlConfig,RW,single,1,0,NM/rad,363,,Visible,1,1,,,,1,
+kd_spd_NM_rad_s,速度阻尼,MitCtlConfig,RW,single,1,0,NM/(rad/s),364,,Visible,1,1,,,,1,
+pos_tar_p,目标位置,MitCtlInput,RW,int64,1,0,P,366,,Visible,1,,,,,,
+pos_now_p,当前位置,MitCtlInput,RO,int64,1,0,P,367,,Visible,1,,,,,,
+iq_max_A,q轴最大输出电流,MitCtlInput,RW,single,1,0,A,368,,Visible,1,,,,,,
+speed_tar_p_s,目标速度,MitCtlInput,RW,single,1,0,p/s,369,,Visible,1,,,,,,
+speed_now_rad_s,当前速度,MitCtlInput,RO,single,1,0,rad/s,371,,Visible,1,,,,,,
+enc_line_inv_p_n,编码器分辨率倒数,MitCtlConfig,RW,single,1,0,n/p,372,,Visible,1,,,,,,
+iq_tar_A,目标q轴电流,MitCtlOutput,RO,single,1,0,A,373,,Visible,1,,,,,,
+Motor_peak_current,电机峰值电流,AppMotorConfig,RW,single,1,,Arms,376,,Visible,,1,1,0,,,
+Motor_pole_pairs,电机极对数,AppMotorConfig,RW,single,1,,Pairs,377,,Visible,,1,1,1,,,
+Motor_maximum_speed,电机最大转速,AppMotorConfig,RW,single,1,,RPM,378,,Visible,,1,1,0,,,Max_motor_speed
+D_current_actual_value,d轴电流当前值,AppMotionInfo,RO,single,1,,A,379,,Visible,0,,1,,,,
+Alarm_word,告警字,AppStatusInfo,RO,uint32,1,,,381,"bit0-驱动器过温警告;
+bit1-驱动器欠温警告;
+bit2-电机过温警告;
+bit3-电机欠温警告;
+bit4-MCU过温警告;
+bit5-MCU欠温警告;
+bit6-电机NTC异常警告;
+bit7-保留位
+bit8-负向硬件限位警告;
+bit9-正向硬件限位警告;
+bit10-负向软件限位警告;
+bit11-正向软件限位警告;",Visible,,,1,,,,
+elec_angle_speed_rad_s,电角速度,CurrentCtlInput,RO,single,1,0,rad/s,382,电角速度,Visible,1,,,,,,
+elec_angle_compensation,电角度补偿系数,CurrentCtlConfig,RW,single,1,0,100%,383,补偿多少个电流环周期,Visible,1,1,,,,,
+Modes_of_operation_display,当前模式,AppStatusInfo,RO,int8,1,,,384,Modes_of_operation一致,Visible,,,1,,,,Modes_of_operation_display
+phase_dir,UVW相序,CurrentCtlConfig,RW,int8,1,1,,385,"UVW 相序
+ 1 正向
+-1 反向",Visible,1,1,,,,,
+Resistance,电机相间电阻,AppMotorConfig,RW,single,1,,ohm,386,,Visible,,1,1,0,,,
+Inductance,电机相间电感,AppMotorConfig,RW,single,1,,H,387,,Visible,,1,1,0,,,
+Drive_overcurrent_threshold,驱动器过流保护阈值,AppProtectConfig,RW,single,1,,A,388,,Visible,,1,1,0,,,
+Protection_enable,保护生效,AppProtectConfig,RW,uint32,1,,,389,默认全部生效,Visible,,1,1,,,,
+Encoder_calibration_speed,编码器校准速度,AppMotionParam,RW,single,1,,RPM,390,,Visible,,1,1,0,,,
+method,辨识方法,ElecAngleIdConfig,RW,uint8,1,0,,391,"0：强拉对齐 适用于电机空载下，平横轴，无较大负载力干扰
+1：TODO",Visible,1,,,,,,
+elec_bias_buff_rad,内部电角度偏移值缓存值,ElecAngleIdOutput,RO,single,2,0,rad,392,,Visible,1,,,,,,
+step_num,内部辨识步骤,ElecAngleIdOutput,RO,uint8,1,0,,393,,Visible,1,,,,,,
+angle_add_rad,电角度强拉增量,ElecAngleIdConfig,RW,single,1,0.0001,rad,394,,Visible,1,,,,,,
+wait_time_s,强拉角度等待时间,ElecAngleIdConfig,RW,single,1,3,s,396,默认 3s,Visible,1,,,,,,
+test_angle_rad,测试拖动角度,ElecAngleIdConfig,RW,single,1,0.5,rad,397,强拉对齐后测试的角度,Visible,1,,,,,,
+current_slope_percentage,电流上升斜率%每s,ElecAngleIdConfig,RW,single,1,0.0001,%/s,398,额定电流 %/s,Visible,1,,,,,,
+current_slope_percentage,电流上升斜率%每s,DirectionIdConfig,RW,single,1,0.0001,%/s,399,额定电流 %/s,Visible,1,,,,,,
+id_tar_A,d轴电流目标值,DirectionIdOutput,RO,single,1,0,A,400,,Visible,1,,,,,,
+current_slope_percentage,电流上升斜率%每s,PolePairsIdConfig,RW,single,1,0.0001,%/s,401,,Visible,1,,,,,,
+id_tar_max_A,d轴目标电流最大值,DirectionIdConfig,RW,single,1,0,A,402,强制拖动D轴最大目标电流,Visible,1,,,,,,
+MIT_feedforward_torque,MIT前馈力矩,AppMotionParam,RW,single,1,,NM,403,负载端转矩,Visible,,,1,,,,
+MIT_target_position,MIT目标位置,AppMotionParam,RW,int64,1,,P,404,负载端目标位置,Visible,,,1,,,,
+MIT_max_current,MIT最大输出电流,AppMotionParam,RW,single,1,,A,405,,Visible,,1,1,0,,,
+MIT_target_velocity,MIT目标速度,AppMotionParam,RW,single,1,,RPM,406,负载端目标速度,Visible,,,1,,,,
+Comm_control_authority,通信控制权限,AppPermissionConfig,RW,uint8,1,,,409,"0-上位机;
+1-总线通信;",Visible,,,1,0,1,1,
+Version,软件版本,AppStatusInfo,RO,uint32,1,,,410,软件版本号,Visible,,,1,,,,
+U_current_actual_value,U相当前电流,AppMotionInfo,RO,single,1,,A,411,,Visible,,,1,,,,
+V_current_actual_value,V相当前电流,AppMotionInfo,RO,single,1,,A,412,,Visible,,,1,,,,
+W_current_actual_value,W相当前电流,AppMotionInfo,RO,single,1,,A,413,,Visible,,,1,,,,
+Reduction_ratio_num,减速比分子,AppMotorConfig,RW,uint32,1,,,414,,Visible,,1,1,,,,Shaft_revolutions
+Reduction_ratio_den,减速比分母,AppMotorConfig,RW,uint32,1,,,415,,Visible,,1,1,,,,Motor_revolutions
+Can_id,CAN ID,AppBaseConfig,RW,uint32,1,,,416,,Visible,,1,1,,,,
+Can_baudrate,CAN 波特率,AppBaseConfig,RW,uint32,1,,,417,"1000000,500000",Visible,,1,1,,,,
+MIT_kp,位置刚度,AppMotionParam,RW,single,1,,NM/rad,418,,Visible,,,1,,,,
+MIT_kd,速度阻尼系数,AppMotionParam,RW,single,1,,NM/(rad/s),419,,Visible,,,1,,,,
+Sys_cmd,系统指令,SystemCmd,RW,uint8,1,0,,420,"0: 无动作
+1: 当前位置回零
+2：参数保存到FLASH
+3：系统软件复位
+4：保存转矩脉动摩擦补偿表
+253：清除转矩脉动摩擦补偿表
+254：清除错误记录
+255：恢复出厂设置",Visible,,,1,,,1,
+Motor_encoder_type,电机端编码器类型,AppEncoderConfig,RW,uint8,1,,,421,"0：ABZ编码器
+1：AB编码器
+2：BISS-C
+3:  多摩川
+255：弓望编码器",Visible,,1,1,,,,
+Load_encoder_type,负载端编码器类型,AppEncoderConfig,RW,uint8,1,,,422,"0：ABZ编码器
+1：AB编码器
+2：BISS-C
+3:  多摩川
+255：弓望编码器",Visible,,1,1,,,,
+Torque_constant,电机转矩常数,AppMotorConfig,RW,single,1,,mN*m/A,423,,Visible,,1,1,0,,,
+Motor_position_demand_value,电机端位置指令值,AppMotionInfo,RO,int64,1,,P,424,,Visible,,,1,,,,
+Motor_position_actual_value,电机端位置当前值,AppMotionInfo,RO,int64,1,,P,425,,Visible,,,1,,,,
+Motor_following_error_actual_value,电机端位置误差值,AppMotionInfo,RO,int64,1,,P,426,,Visible,,,1,,,,
+Motor_velocity_demand_value,电机端速度指令值,AppMotionInfo,RO,single,1,,RPM,427,,Visible,,,1,,,,
+Motor_velocity_actual_value,电机端速度当前值,AppMotionInfo,RO,single,1,,RPM,428,,Visible,,,1,,,,
+enc_counts_now_p,编码器当前单圈位置脉冲数,LoadPosSensorInput,RO,uint32,1,0,P,429,,Visible,1,0,,,,,
+enc_line_p_n,编码器分辨率,LoadPosSensorConfig,RW,uint32,1,0,P,430,,Visible,1,0,,,,,
+init_pos_p,编码器初始位置,LoadPosSensorConfig,RW,int64,1,0,P,431,,Visible,1,0,,,,,
+dir,计数方向,LoadPosSensorConfig,RW,int8,1,1,,432,,Visible,1,0,,,,,
+enc_sum_p,编码器累计脉冲值,LoadPosSensorOutput,RO,int64,1,0,P,433,,Visible,1,0,,,,,
+Storage_status,参数存储状态,SystemStatus,RW,int8,1,,,435,"-3：存储保护状态（写入频率超过最大允许次数锁定，系统复位解除锁定）
+-2：存储警告（当前状态不允许操作）
+-1：存储错误
+0：空闲
+1：存储中
+2：存储成功",Visible,,,1,,,1,
+Motor_temperature,电机当前温度,AppStatusInfo,RO,single,1,,℃,436,,Visible,,,1,,,,
+Motor_low_temperature_fault_threshold,电机低温报错阈值,AppProtectConfig,RW,single,1,,℃,437,,Visible,,1,1,,,,
+Motor_high_temperature_fault_threshold,电机高温报错阈值,AppProtectConfig,RW,single,1,,℃,438,,Visible,,1,1,,,,
+Can_timeout,CAN通讯超时时间,AppProtectConfig,RW,single,1,,s,439,从第一次接收到 CAN指令 开始计算时间，超过改时间没有接收到CAN指令则认为通讯错误，每次接收到新的CAN消息则重置计算时间,Visible,,1,1,0,,,
+Quick_stop_option_code,快速停机方式选择,AppBaseConfig,RW,int16,1,2,,440,"0：自由停机，保持自由运行状 
+态 
+1：轮廓减速度/Homing 
+acceleration(HM)斜坡停机 
+，保持自由运行状态 
+2：Quick_stop_deceleration斜坡停机，保持自由 
+运行状态 
+3：急停转矩停机，保持自由运 
+行状态 
+5：轮廓减速度/Homing 
+acceleration(HM)斜坡停机 
+，保持位置锁定状态 
+6：Quick_stop_deceleration斜坡停机，保持位置 
+锁定状态 
+7：急停转矩停机，保持位置锁 
+定状态",Visible,,1,1,0,7,,Quick_stop_option_code
+Motor_power,电机当前功率,AppStatusInfo,RO,single,1,,W,442,转矩 X 当前转速,Visible,,,1,,,,
+Motor_low_temperature_warning_threshold,电机低温警告阈值,AppProtectConfig,RW,single,1,,℃,443,,Visible,0,1,1,,,,
+Motor_high_temperature_warning_threshold,电机高温警告阈值,AppProtectConfig,RW,single,1,,℃,444,,Visible,0,1,1,,,,
+hw_ready_state,硬件准备的状态,MotorCtlSmInput,RO,uint8,1,0,,448,0：为准备好  1：准备好,Visible,1,,,,,,
+Brake_engage_time,抱闸动作时间,AppBaseConfig,RW,single,1,0,s,449,,Visible,,1,1,0,,,
+Brake_release_time,松闸动作时间,AppBaseConfig,RW,single,1,0,s,450,,Visible,,1,1,0,,,
+Dynamic_brake_speed_threshold,抱闸制动速度阈值,AppBaseConfig,RW,single,1,10,RPM,451,电机端速度阈值,Visible,,1,1,0,,,
+Brake_release_hold_voltage,松闸保持电压,AppBaseConfig,RW,single,1,12,V,452,,Visible,,1,1,0,,,
+Calibration_cmd,编码器校准控制字,EncoderCalibrationCmd,RW,uint16,1,,,455,"0-无校准
+1-进入校准状态
+2-开始校准",Visible,,,1,,,,
+Calibration_time,校准时间,EncoderCalibrationCmd,RW,uint16,1,10,S,456,校准时间（单位：秒）,Visible,,,1,1,,,
+Calibration_status,编码器校准状态字,EncoderCalibrationStatus,RW,uint16,1,,,457,"0-无校准
+1-校准失败
+2-校准中
+3-校准完毕（暂未使用）
+4-校准超时
+5-校准成功
+6-查询电压不符合规格",Visible,,,1,,,,
+Mcu_temperature,Mcu当前温度,AppStatusInfo,RO,single,1,,℃,458,,Visible,0,0,1,,,,
+Internal_control_authority,内部控制权限切换,AppPermissionConfig,RW,uint8,1,,,459,0-应用层控制；1-控制层控制,Visible,,,1,0,1,,
+U_adc_mid_val,U相电流校准值,AppMotionInfo,RO,uint16,1,,cnt,460,,Visible,,,1,,,,
+V_adc_mid_val,V相电流校准值,AppMotionInfo,RO,uint16,1,,cnt,461,,Visible,,,1,,,,
+W_adc_mid_val,W相电流校准值,AppMotionInfo,RO,uint16,1,,cnt,462,,Visible,0,0,1,,,0,
+Current_loop_time,电流环耗时,AppMotionInfo,RO,single,1,,us,463,,Visible,,,1,,,,
+Position_loop_time,位置环耗时,AppMotionInfo,RO,single,1,,us,464,,Visible,0,0,1,,,0,
+Current_loop_cycle,电流环周期,AppMotionInfo,RO,single,1,,us,465,,Visible,0,0,1,,,0,
+Position_loop_cycle,位置环周期,AppMotionInfo,RO,single,1,,us,466,,Visible,0,0,1,,,0,
+Halt_running_cmd,运行中暂停控制命令,AppControlWord,RW,uint8,1,,,468,true->Enable,Visible,,,1,0,1,,
+Mcu_temperature_threshold_time,MCU温度保护阈值时间,AppProtectConfig,RW,single,1,,s,470,,Visible,0,1,1,0,,0,
+Mcu_low_temperature_fault_threshold,MCU低温报错阈值,AppProtectConfig,RW,single,1,,℃,471,,Visible,0,1,1,,,0,
+Mcu_high_temperature_fault_threshold,MCU高温报错阈值,AppProtectConfig,RW,single,1,,℃,472,,Visible,0,1,1,,,0,
+Mcu_low_temperature_warning_threshold,MCU低温警告阈值,AppProtectConfig,RW,single,1,,℃,473,,Visible,0,1,1,,,0,
+Mcu_high_temperature_warning_threshold,MCU高温警告阈值,AppProtectConfig,RW,single,1,,℃,474,,Visible,0,1,1,,,0,
+Drive_low_temperature_warning_threshold,驱动器低温警告阈值,AppProtectConfig,RW,single,1,,℃,475,,Visible,0,1,1,,,0,
+Drive_high_temperature_warning_threshold,驱动器高温警告阈值,AppProtectConfig,RW,single,1,,℃,476,,Visible,0,1,1,,,0,
+User_module_code,用户模型编码,CustomInfo,RO,uint64,1,0,,477,,Invisible,,,1,,,,
+Sys_init_flag,系统初始化标志位,HeartBit,RW,uint8,1,234,,478,"0-连接上位机成功
+234-系统上电初始化，待连接状态（234 = 0xEA（Energy Active）",Invisible,,,1,,,1,
+Error_records_list,错误记录表单,HistoricalInfo,RO,uint32,16,0,,481,,Visible,,,1,,,,
+Motor_encoder_options,电机端编码器选项,AppEncoderConfig,RW,uint8,1,,,483,"bit0：电机端计数方向；0-默认, 1-取反
+bit1：负载端计数方向；0-默认, 1-取反
+bit2：多圈值溢出坐标为0/分辨率；0：默认按±一半多圈分辨率溢出，1：按0/多圈分辨率溢出
+bit3：负载端单圈作为值电机端多圈值；0：默认正常双编码器，1：负载端编码器单圈值作为电机端编码器多圈值使用",Visible,0,1,1,0,,0,
+signal_pos,参考信号输出位置,ReferenceSignalOutput,RO,int64,1,0,P,484,,Visible,1,,,,,,
+signal_vel,参考信号输出速度,ReferenceSignalOutput,RO,single,1,0,P/s,485,,Visible,1,,,,,,
+signal_acc,参考信号输出加速度,ReferenceSignalOutput,RO,single,1,0,P/s^2,486,,Visible,1,,,,,,
+signal_start_pos,参考信号启动位置,ReferenceSignalConfig,RO,int64,1,0,P,490,,Visible,1,,,,,,
+uabc_tar_V,虚拟模型三相电压输入,SimPlantInput,RW,single,3,,V,493,,Visible,1,,,,,,
+iabc_now_A,虚拟模型三相电流输出,SimPlantOutput,RO,single,3,,A,494,,Visible,1,,,,,,
+tl_Nm,虚拟模型转矩输入,SimPlantInput,RW,single,1,,Nm,495,,Visible,1,,,,,,
+enc_counts_P,虚拟模型编码器单圈值,SimPlantOutput,RO,uint32,1,,P,496,,Visible,1,,,,,,
+b,速度阻尼系数,SimPlantConfig,RW,single,1,," Nm/(rad/s)",530,,Visible,1,0,,,,0,
+fc,静摩擦大小,SimPlantConfig,RW,single,1,," NM/(rad/s)",531,,Visible,1,0,,,,0,
+flux,磁链系数,SimPlantConfig,RW,single,1,," Wb",532,,Visible,1,0,,,,0,
+kt,转矩常数,SimPlantConfig,RW,single,1,,N*M/A,533,,Visible,1,0,,,,0,
+j,转子惯量,SimPlantConfig,RW,single,1,," kg.m^2",534,,Visible,1,0,,,,0,
+ld,d定子电感,SimPlantConfig,RW,single,1,," H",535,,Visible,1,0,,,,0,
+lq,q定子电感,SimPlantConfig,RW,single,1,," H",536,,Visible,1,0,,,,0,
+peak_current_A,电机峰值电流,SimPlantConfig,RW,single,1,," A",537,,Visible,1,0,,,,0,
+pn,极对数,SimPlantConfig,RW,single,1,,pairs,538,,Visible,1,0,,,,0,
+r,定子电阻,SimPlantConfig,RW,single,1,," ohm",539,,Visible,1,0,,,,0,
+rated_current_A,电机额定电流,SimPlantConfig,RW,single,1,," A",540,,Visible,1,0,,,,0,
+speed_max_rpm,电机最大转速,SimPlantConfig,RW,single,1,," rpm",541,,Visible,1,0,,,,0,
+dt_s,虚拟电机模型运行周期,SimPlantConfig,RW,single,1,,s,542,,Visible,1,0,,,,0,
+enc_line_p_n,编码器分辨率,SimPlantConfig,RW,uint32,1,,P/n,544,,Visible,1,0,,,,0,
+j_inv,转子惯量倒数,SimPlantConfig,RW,single,1,," 1/kg.m^2",546,,Visible,1,0,,,,0,
+ld_inv,d定子电感倒数,SimPlantConfig,RW,single,1,," 1/H",547,,Visible,1,0,,,,0,
+lq_inv,q定子电感倒数,SimPlantConfig,RW,single,1,," 1/H",548,,Visible,1,0,,,,0,
+enc_line_init_pos_P,编码器初始位置,SimPlantConfig,RW,int64,1,,P,549,,Visible,1,,,,,,
+enc_noise,编码器传感器噪声,SimPlantConfig,RW,single,1,,P,550,,Visible,1,,,,,,
+hall_state,虚拟模型霍尔传感器输出,SimPlantOutput,RO,uint8,1,,,551,"默认 120°霍尔传感器
+霍尔状态 1~7",Visible,1,,,,,,
+dc_bus_V,虚拟母线电源电压输出,SimPlantOutput,RO,single,1,,V,552,,Visible,1,,,,,,
+state_last,上一个周期运行状态,MotorCtlSmOutput,RO,int8,1,0,,553,"0：电机失能状态
+1：电机使能状态
+-1：错误状态",Visible,1,,,,,,
+Reduction_ratio,减速比系数,AppMotorConfig,RO,single,1,,,558,,Visible,,0,1,,,0,
+Reduction_ratio_inv,减速比系数倒数,AppMotorConfig,RO,single,1,,,559,,Visible,,0,1,,,0,
+Load_pps_2_rpm,负载端指令RPM转换系数,AppEncoderConfig,RO,single,1,,,560,,Visible,,0,1,,,0,
+Load_rpm_2_pps,负载端指令pps转换系数,AppEncoderConfig,RO,single,1,,,561,,Visible,,0,1,,,0,
+Storage_cmd,Flash存储命令,SystemStatus,RW,uint8,1,0,,562,"0：无操作/空闲
+1：读取数据库参数
+2：写入数据库参数
+3：擦除数据库参数
+4：读取错误记录
+5：写入错误记录
+6：擦除错误记录",Visible,,0,1,,,0,
+Motor_rotor_inertia,电机转子惯量,AppMotorConfig,RW,single,1,,kg*m^2*e-4,563,,Visible,,1,1,0,,,
+Debug_float,临时debug变量 float 类型,AppDebugParam,RW,single,16,,,564,,Visible,,1,1,,,1,
+Debug_uint32,临时debug变量 uint32 类型,AppDebugParam,RW,uint32,16,,,565,,Visible,,1,1,,,1,
+kt_NM_A,转矩常数,MitCtlConfig,RW,single,1,1,NM/A,589,,Visible,1,0,,,,,
+Motor_pps_2_rpm,电机端指令RPM转换系数,AppEncoderConfig,RO,single,1,,,590,,Visible,0,0,1,,,0,
+Motor_rpm_2_pps,电机端指令pps转换系数,AppEncoderConfig,RO,single,1,,,591,,Visible,0,0,1,,,0,
+P_load_2_motor,负载端到电机端P转换系数,AppEncoderConfig,RO,single,1,,,592,,Visible,,,1,,,,
+P_motor_2_load,电机端到负载端P转换系数,AppEncoderConfig,RO,single,1,,,593,,Visible,,,1,,,,
+Debug_int32,临时debug变量 int32 类型,AppDebugParam,RW,int32,16,,,598,,Visible,0,1,1,,,1,
+Load_control_resolution,负载端控制位置分辨率,AppEncoderConfig,RW,uint32,1,,P,599,≤Load_encoder_resolution，且能被整除,Visible,0,1,1,,,0,
+Motor_control_resolution,电机端控制位置分辨率,AppEncoderConfig,RW,uint32,1,,P,600,≤Motor_encoder_resolution，且能被整除,Visible,0,1,1,,,0,
+Load_encoder_options,负载端编码器选项,AppEncoderConfig,RW,uint8,1,,,601,"bit0：电机端计数方向；0-默认, 1-取反
+bit1：负载端计数方向；0-默认, 1-取反
+bit2：多圈值溢出坐标为0/分辨率；0：默认按±一半多圈分辨率溢出，1：按0/多圈分辨率溢出
+bit3：负载端单圈作为值电机端多圈值；0：默认正常双编码器，1：负载端编码器单圈值作为电机端编码器多圈值使用",Visible,0,1,1,0,,0,
+Position_limit_enable,位置限位使能开关,AppRestrictParam,RW,uint8,1,,,602,"0：关闭位置限位功能
+1：开启位置限位功能",Visible,,1,1,0,1,,
+Digital_io_inputs_status,数字IO输入状态,AppStatusInfo,RO,uint32,1,,,603,"bit0：负向硬件限位开关
+bit1：正向硬件限位开关
+bit2：回零开关
+bit3：互锁开关
+bit4~bit15：保留
+bit16~bit31：厂商自定义",Visible,,,1,,,,Digital_inputs
+Digital_io_outputs_phys,数字IO输出物理值,AppBaseConfig,RW,uint32,1,0,,605,"bit0：刹车（抱闸）
+bit1~bit15：保留
+bit16~bit31：厂商自定义",Visible,,1,1,,,,Digital_outputs_Physical_outputs
+Digital_io_outputs_mask,数字IO输出掩码,AppBaseConfig,RW,uint32,1,0,,606,"bit0：刹车（抱闸）
+bit1~bit15：保留
+bit16~bit31：厂商自定义",Visible,0,1,1,,,0,Digital_outputs_Bit_mask
+fc_p_com,摩擦补偿正方向补偿值,TqFcIdConfig,RW,single,1,0,A,611,,Visible,1,1,,,,,
+fc_n_com,摩擦补偿负方向补偿值,TqFcIdConfig,RW,single,1,0,A,612,,Visible,1,1,,,,,
+table_data,数据表缓存,TableData,RW,single,20,,A,613,,Invisible,,,,,,,
+table_id,数据表id,TableConfig,RW,uint8,1,1,,614,"需要写入或者读取的目标表格ID。
+1-转矩脉动补偿表",Invisible,,,,,,,
+table_index_offset,数据表索引偏移,TableConfig,RW,uint8,1,0,,615,,Invisible,,,,,,,
+Brake_state,抱闸状态,AppStatusInfo,RO,uint8,1,,,617,"0：抱闸完成
+1：松闸进行中
+2：松闸完成
+3：抱闸进行中",Visible,,,1,,,,
+Brake_control_mode,抱闸控制模式,AppBaseConfig,RW,uint8,1,0,,618,"0：内部逻辑自动控制控制IO
+1：外部命令手动控制控制IO
+2：内部逻辑自动控制控制PWM
+3：外部命令手动控制控制PWM",Visible,,1,1,0,3,,
+Brake_rated_voltage,抱闸器额定电压,AppBaseConfig,RW,single,1,24,V,619,,Visible,,1,1,0,,,
+Brake_release_action_voltage,松闸动作电压,AppBaseConfig,RW,single,1,24,V,620,,Visible,0,1,1,0,,0,
+Brake_release_pwm_freq,松闸PWM频率,AppBaseConfig,RW,uint16,1,10000,Hz,622,,Visible,,1,1,1,,,
+Brake_engage_delay_time,抱闸延迟时间,AppBaseConfig,RW,single,1,0,s,623,,Visible,,1,1,0,,,
+Brake_release_delay_time,松闸延迟时间,AppBaseConfig,RW,single,1,0,s,624,,Visible,0,1,1,0,,0,
+Interp_time_value,插值时间基数,AppMotionParam,RW,uint8,1,1,s,625,,Visible,,1,1,,,,Interpolation_time_period_Ip_time_units
+Interp_time_index,插值时间指数,AppMotionParam,RW,int8,1,-3,,626,,Visible,0,1,1,-5,5,0,Interpolation_time_period_Ip_time_index
+Sys_id,mavlink系统ID,AppMavlinkConfig,RW,uint8,1,0,,630,,Invisible,,1,1,,,,
+Comp_id,mavlink组件ID,AppMavlinkConfig,RW,uint8,1,0,,631,,Invisible,,1,1,,,,
+iq_offset_A,iq 目标电流偏置,CurrentCtlInput,RW,single,1,0,A,632,iq 电流偏置，对应402字典 0x60B2,Visible,1,,,,,,Torque_offset
+position_offset_p,目标位置偏置,PosSpeedCtlInput,RW,int64,1,0,P,633,目标位置偏置，对应字典0X60B0,Visible,1,,,,,,Position_offset
+speed_offset_p_s,目标速度偏置,PosSpeedCtlInput,RW,single,1,0,P/s,634,目标速度偏置，对应字典 0X60B1,Visible,1,,,,,,Velocity_offset
+Interp_period,插值时间周期,AppMotionInfo,RO,single,1,,s,635,,Visible,,,1,,,,
+Emergency_brake_requested,紧急制动请求值,AppMotionInfo,RO,uint8,1,,,636,,Visible,,,1,,,,
+Target_update_state,目标值更新状态,AppMotionInfo,RO,uint8,1,,,637,,Visible,,,1,,,,
+Homing_speed_search_for_switch,回零搜索开关速度,AppMotionParam,RW,single,1,,RPM,639,,Visible,0,1,1,0,,0,Homing_speeds_Speed_for_switch_search
+Homing_speed_search_for_zero,回零搜索零点速度,AppMotionParam,RW,single,1,,RPM,640,,Visible,0,1,1,0,,0,Homing_speeds_Speed_for_zero_search
+Homing_acceleration,回零加速度,AppMotionParam,RW,single,1,,RPM/s,641,,Visible,0,1,1,0,,0,Homing_acceleration
+Homing_step,回零步骤,AppMotionInfo,RO,int8,1,,,643,"-1, 回零方法不存在/回零失败；
+0, 初始化状态
+1, 起始状态
+2, 搜索开关
+3, 搜索回零开关
+4, 退出回零开关
+5, 靠近回零开关
+6, 搜索Index信号
+7, 回零减速中
+8, 回零完成",Visible,,,1,,,,
+Encoder_zero_crossing_state,编码器过零点状态,AppMotionInfo,RO,uint8,1,,,644,"使用前后需清零操作
+0: 未经过零点
+1: 已经过零点",Visible,0,0,1,,,0,
+Homing_state,回零状态,AppMotionInfo,RO,int8,1,,,645,"-1, 回零失败/超时
+0, 初始化状态
+1, 回零成功",Visible,0,0,1,,,0,
+File_type,文件传输类型,AppFileTransferConfig,RW,uint8,1,0,,648,"0：空，无类型，复位状态
+1：固件",Visible,,,1,,,,
+File_size,文件传输大小,AppFileTransferConfig,RW,uint32,1,0,bytes,649,文件大小,Visible,,,1,,,,
+File_direction,文件传输方向,AppFileTransferConfig,RW,uint8,1,0,,650,"0：下载
+1：上传",Visible,,,1,,,,
+File_index_complete,文件传输完成帧索引,AppFileTransferConfig,RW,uint32,1,0,,651,文件传输完成帧索引号，用作帧收发闭环检测,Visible,,,1,,,,
+File_status,文件传输状态,AppFileTransferConfig,RO,int8,1,0,,652,"-2, 校验失败
+-1, 传输失败
+0,  空闲状态
+1,  传输准备
+2,  传输中
+3,  传输完成",Visible,,,1,,,,
+Fw_mode,固件传输模式,AppFwUpgradeParam,RW,uint8,1,0,,653,"0x00：空模式
+0x01：写入（升级）模式使能
+0x02：读取模式使能（保留）
+0xBC：备份固件拷贝",Visible,0,0,1,,,0,
+Fw_app_index,固件传输APP分区,AppFwUpgradeParam,RO,uint8,1,0,,660,目标固件传输所在APP分区索引,Visible,0,0,1,,,0,
+Fw_flash_size,固件存储空间大小,AppFwUpgradeParam,RO,uint32,1,0,bytes,661,固件写入目标Flash分区大小,Visible,0,0,1,,,0,
+Fw_operating_steps,固件当前操作步骤（状态）,AppFwUpgradeParam,RO,int8,1,0,,662,"-4, 文件写入/校验失败状态
+-3, 文件超限失败状态
+-2, 准备空间失败状态
+-1, 请求失败状态
+0,  空闲状态
+1,  写入请求状态
+2,  读取请求状态
+3,  正在写入状态
+4,  正在读取状态
+5,  成功状态",Visible,0,0,1,,,0,
+Index,数据帧索引,AppFileTransferStream,RW,uint16,1,,,664,,Invisible,,,,,,,
+Length,数据帧长度,AppFileTransferStream,RW,uint8,1,,,665,,Invisible,,,,,,,
+File_buffer,文件传输数据流缓存区,AppFileTransferStream,RW,uint8,252,,,666,"用于文件传输：
+场景1、固件通道定义：
+①、Index：Frame index
+②、Length：Frame data length
+③、File_buffer：Frame data（Max 252 Bytes）",Invisible,0,0,0,,,0,

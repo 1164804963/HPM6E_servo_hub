@@ -1,0 +1,206 @@
+#pragma once
+
+#include <stdint.h>
+
+/* USER CODE BEGIN AREA 0 */
+#include "app_data_type_define.h"
+#include "bsp_api.h"
+
+// 存储擦写保护窗口配置
+#define STORE_WINDOW_TIME_SECONDS       60000u  // 固定窗口时长：60000ms = 60s
+#define STORE_MAX_WRITES_IN_WINDOW      20u     // 窗口内最大允许擦写次数：20次
+
+/* USER CODE END AREA 0 */
+
+typedef struct {
+    float input_shaping_config_wn_Hz;
+    float input_shaping_config_run_frq_Hz;
+    float pos_speed_ctl_config_aff;
+    float pos_speed_ctl_config_vff;
+    float pos_speed_ctl_config_j_kt;
+    float pos_speed_ctl_config_ki_s;
+    float pos_speed_ctl_config_kp_p;
+    float pos_speed_ctl_config_kp_s;
+    float pos_speed_ctl_config_speed_max_rad_s;
+    float current_ctl_config_i_noise_A;
+    float current_ctl_config_comp_du_V;
+    float current_ctl_config_bandwidth_percentage;
+    float current_ctl_config_flux_wb;
+    float current_ctl_config_kp_ld;
+    float current_ctl_config_ki_ld;
+    float current_ctl_config_kp_lq;
+    float current_ctl_config_ki_lq;
+    float notch_filter_config_frq[6];
+    float notch_filter_config_width[6];
+    float notch_filter_config_depth[6];
+    float speed_obs_pll_config_wn_Hz;
+    float motor_pos_sensor_config_elec_angle_bias_rad;
+    float pos_speed_ctl_config_dob_wn_Hz;
+    uint8_t pos_speed_ctl_config_dob_enable;
+    uint8_t input_shaping_config_enable;
+    float current_ctl_config_pwm_duty_cycle_max;
+    uint8_t pos_speed_ctl_config_dynamic_integration_enable;
+    int64_t app_motion_info_Home_position_offset_value;
+    float mit_ctl_config_kp_pos_NM_rad;
+    float mit_ctl_config_kd_spd_NM_rad_s;
+    float current_ctl_config_elec_angle_compensation;
+    int8_t current_ctl_config_phase_dir;
+    uint32_t app_base_config_Can_Id;
+    uint32_t app_base_config_Can_Baudrate;
+    float app_base_config_Can_timeout;
+    int16_t app_base_config_Quick_stop_option_code;
+    float app_base_config_Bus_under_voltage_threshold;
+    float app_base_config_Bus_over_voltage_threshold;
+    float app_base_config_Drive_overload_current_duration;
+    float app_base_config_Drive_peak_current_duration;
+    float app_base_config_Drive_temperature_threshold_time;
+    float app_base_config_Drive_low_temperature_fault_threshold;
+    float app_base_config_Drive_high_temperature_fault_threshold;
+    float app_base_config_Overspeed_threshold;
+    float app_base_config_Motor_low_temperature_fault_threshold;
+    float app_base_config_Motor_high_temperature_fault_threshold;
+    float app_base_config_Motor_low_temperature_warning_threshold;
+    float app_base_config_Motor_high_temperature_warning_threshold;
+    uint8_t app_base_config_Polarity;
+    int64_t app_restrict_param_Position_range_limit_Minimal_position_limit;
+    int64_t app_restrict_param_Position_range_limit_Maximal_position_limit;
+    int64_t app_restrict_param_Software_position_limit_Minimal_position_limit;
+    int64_t app_restrict_param_Software_position_limit_Maximal_position_limit;
+    float app_restrict_param_Max_Profile_velocity;
+    float app_restrict_param_Max_motor_speed;
+    float app_motion_param_Profile_velocity;
+    float app_motion_param_Profile_acceleration;
+    float app_motion_param_Profile_deceleration;
+    float app_motion_param_Quick_stop_deceleration;
+    int32_t app_motion_param_Motion_profile_type;
+    float app_restrict_param_Max_acceleration;
+    float app_restrict_param_Max_deceleration;
+    int64_t app_motion_param_Home_offset;
+    int8_t app_motion_param_Homing_method;
+    float app_motion_param_Max_torque;
+    float app_motion_param_Max_current;
+    float app_motion_param_Torque_slope;
+    float app_motion_param_MIT_max_current;
+    int64_t app_window_param_Following_error_window;
+    float app_window_param_Following_error_time_Out;
+    uint32_t app_window_param_Position_window;
+    float app_window_param_Position_window_time;
+    float app_window_param_Velocity_window;
+    float app_window_param_Velocity_window_time;
+    float app_window_param_Velocity_threshold;
+    float app_window_param_Velocity_threshold_time;
+    float app_base_config_Drive_overcurrent_threshold;
+    uint32_t app_base_config_Protection_Enable;
+    float app_motion_param_Encoder_calibration_speed;
+    float app_base_config_Brake_Engage_Time;
+    float app_base_config_Brake_Release_Time;
+    float app_base_config_Dynamic_Brake_Speed_Threshold;
+    float app_base_config_Brake_Release_Hold_Voltage;
+    uint32_t app_base_config_Load_Encoder_resolution;
+    uint32_t app_base_config_Motor_Encoder_resolution;
+    float app_base_config_Motor_rated_current;
+    float app_base_config_Motor_rated_torque;
+    float app_base_config_Motor_peak_current;
+    float app_base_config_Motor_pole_pairs;
+    float app_base_config_Motor_maximum_speed;
+    float app_base_config_Resistance;
+    float app_base_config_Inductance;
+    uint32_t app_base_config_Reduction_Ratio_num;
+    uint32_t app_base_config_Reduction_Ratio_den;
+    uint8_t app_base_config_Motor_Encoder_Type;
+    uint8_t app_base_config_Load_Encoder_Type;
+    float app_base_config_Torque_Constant;
+    float app_base_config_Mcu_temperature_threshold_time;
+    float app_base_config_Mcu_low_temperature_fault_threshold;
+    float app_base_config_Mcu_high_temperature_fault_threshold;
+    float app_base_config_Mcu_low_temperature_warning_threshold;
+    float app_base_config_Mcu_high_temperature_warning_threshold;
+    float app_base_config_Drive_low_temperature_warning_threshold;
+    float app_base_config_Drive_high_temperature_warning_threshold;
+    uint8_t app_base_config_Encoder_options;
+    uint32_t app_encoder_config_Load_encoder_resolution;
+    uint32_t app_encoder_config_Motor_encoder_resolution;
+    float app_restrict_param_Max_profile_velocity;
+    float app_window_param_Following_error_time_out;
+    float app_restrict_param_Max_current;
+    float app_motor_config_Motor_rated_current;
+    float app_motor_config_Motor_rated_torque;
+    int64_t app_base_config_Home_position_offset_value;
+    float app_protect_config_Bus_under_voltage_threshold;
+    float app_protect_config_Bus_over_voltage_threshold;
+    float app_protect_config_Drive_overload_current_duration;
+    float app_protect_config_Drive_peak_current_duration;
+    float app_protect_config_Drive_temperature_threshold_time;
+    float app_protect_config_Drive_low_temperature_fault_threshold;
+    float app_protect_config_Drive_high_temperature_fault_threshold;
+    float app_protect_config_Overspeed_threshold;
+    float app_motor_config_Motor_peak_current;
+    float app_motor_config_Motor_pole_pairs;
+    float app_motor_config_Motor_maximum_speed;
+    float app_motor_config_Resistance;
+    float app_motor_config_Inductance;
+    float app_protect_config_Drive_overcurrent_threshold;
+    uint32_t app_protect_config_Protection_enable;
+    uint32_t app_motor_config_Reduction_ratio_num;
+    uint32_t app_motor_config_Reduction_ratio_den;
+    uint32_t app_base_config_Can_id;
+    uint32_t app_base_config_Can_baudrate;
+    uint8_t app_encoder_config_Motor_encoder_type;
+    uint8_t app_encoder_config_Load_encoder_type;
+    float app_motor_config_Torque_constant;
+    float app_protect_config_Motor_low_temperature_fault_threshold;
+    float app_protect_config_Motor_high_temperature_fault_threshold;
+    float app_protect_config_Can_timeout;
+    float app_protect_config_Motor_low_temperature_warning_threshold;
+    float app_protect_config_Motor_high_temperature_warning_threshold;
+    float app_base_config_Brake_engage_time;
+    float app_base_config_Brake_release_time;
+    float app_base_config_Dynamic_brake_speed_threshold;
+    float app_base_config_Brake_release_hold_voltage;
+    float app_protect_config_Mcu_temperature_threshold_time;
+    float app_protect_config_Mcu_low_temperature_fault_threshold;
+    float app_protect_config_Mcu_high_temperature_fault_threshold;
+    float app_protect_config_Mcu_low_temperature_warning_threshold;
+    float app_protect_config_Mcu_high_temperature_warning_threshold;
+    float app_protect_config_Drive_low_temperature_warning_threshold;
+    float app_protect_config_Drive_high_temperature_warning_threshold;
+    uint8_t app_encoder_config_Motor_encoder_options;
+    float app_motor_config_Motor_rotor_inertia;
+    float app_debug_param_Debug_float[16];
+    uint32_t app_debug_param_Debug_uint32[16];
+    int32_t app_debug_param_Debug_int32[16];
+    uint32_t app_encoder_config_Load_control_resolution;
+    uint32_t app_encoder_config_Motor_control_resolution;
+    uint8_t app_encoder_config_Load_encoder_options;
+    uint8_t app_restrict_param_Position_limit_enable;
+    uint32_t app_base_config_Digital_io_outputs_phys;
+    uint32_t app_base_config_Digital_io_outputs_mask;
+    uint8_t tq_fc_id_config_iq_com_enable;
+    uint8_t tq_fc_id_config_tq_com_enable;
+    uint8_t tq_fc_id_config_fc_com_enable;
+    float tq_fc_id_config_fc_p_com;
+    float tq_fc_id_config_fc_n_com;
+    uint8_t app_base_config_Brake_control_mode;
+    float app_base_config_Brake_rated_voltage;
+    float app_base_config_Brake_release_action_voltage;
+    uint16_t app_base_config_Brake_release_pwm_freq;
+    float app_base_config_Brake_engage_delay_time;
+    float app_base_config_Brake_release_delay_time;
+    uint8_t app_motion_param_Interp_time_value;
+    int8_t app_motion_param_Interp_time_index;
+    uint8_t app_mavlink_config_Sys_id;
+    uint8_t app_mavlink_config_Comp_id;
+    float app_motion_param_Homing_speed_search_for_switch;
+    float app_motion_param_Homing_speed_search_for_zero;
+    float app_motion_param_Homing_acceleration;
+}FLASH_PARAM_STRUCT;
+extern FLASH_PARAM_STRUCT kFlashStorage;
+
+void flash_param_update(void);
+void flash_param_init(void);
+
+/* USER CODE BEGIN AREA 1 */
+void AppStoreInit(void);
+void AppStoreUpdata1ms(void);
+
+/* USER CODE END AREA 1 */
