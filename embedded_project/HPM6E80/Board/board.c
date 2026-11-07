@@ -49,8 +49,6 @@ static bool s_pwm_on_last;
 /* 编码器采样分频（20kHz -> 1kHz）。 */
 static uint32_t s_enc_div;
 
-/* Read-only diagnostic: ADC3 control ticks skipped because ADC2 was not complete. */
-volatile uint32_t board_adc2_not_ready_count;
 
 static uint16_t adc_word_to_result(uint32_t word)
 {
@@ -254,7 +252,6 @@ void isr_adc_bus(void)
         return;
     }
     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
-    servo_console_isr_adc3();
 
     __asm__ volatile ("fence iorw, iorw" ::: "memory");
     kBspData.adc_v_raw = adc_word_to_result(adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
@@ -296,7 +293,6 @@ static void board_control_tick(void)
 
     if ((hpm_adc_v2_get_status_flags(adc) & HPM_ADC_V2_EVENT_TRIG_COMPLETE) == 0U)
     {
-        board_adc2_not_ready_count++;
         return;
     }
     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
@@ -304,10 +300,6 @@ static void board_control_tick(void)
     __asm__ volatile ("fence iorw, iorw" ::: "memory");
     kBspData.adc_u_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U]);
     kBspData.adc_w_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U + 1U]);
-
-    /* Raw copy only while adccap is armed; status registers are read inside that branch. */
-    servo_console_isr_adc_capture(&adc_buff[0][BOARD_BLDC_ADC_TRG * 4U],
-                                  &adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
 
     kBspData.ctrl_tick++;
 

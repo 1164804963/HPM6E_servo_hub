@@ -7,20 +7,12 @@
 #include <string.h>
 
 #include "hpm_debug_console.h"
-#include "hpm_soc.h"
-#include "hpm_adc16_regs.h"
-#include "hpm_adc_v2.h"
-#include "hpm_clock_drv.h"
-#include "hpm_plic_drv.h"
-#include "hpm_plic_regs.h"
 
 #include "bsp_api.h"
 #include "drv_encoder.h"
 #include "motor_ctl_loop.h"
 #include "servo_board.h"
 #include "system_timer.h"
-
-extern volatile uint32_t board_adc2_not_ready_count;
 
 /* 一行最多 79 字符 + 结束符；超长时整行丢弃，避免半条命令被执行。 */
 #define CONSOLE_LINE_MAX        (80U)
@@ -530,103 +522,6 @@ static volatile uint32_t s_enc_len;
 static volatile uint32_t s_enc_max;
 static volatile bool s_enc_done;
 
-/* Raw ADC DMA snapshot. 1024 * 10 words = 40 KiB, static (no heap). */
-#define ADC_CAPTURE_POINTS  (1024U)
-
-typedef struct
-{
-    uint32_t raw2_u;
-    uint32_t raw2_w;
-    uint32_t raw3_v;
-    uint32_t raw3_vbus;
-    uint32_t sts2;
-    uint32_t sts3;
-    uint32_t seq2;
-    uint32_t seq3_before;
-    uint32_t seq3_after;
-    uint32_t start_cycle;
-} AdcCaptureSample;
-
-static AdcCaptureSample s_adc_capture[ADC_CAPTURE_POINTS];
-static volatile uint32_t s_adc_cap_len;
-static volatile uint32_t s_adc_cap_max;
-static volatile bool s_adc_cap_armed;
-static volatile bool s_adc_cap_done;
-static volatile uint32_t s_adc_cap_seq2;
-static volatile uint32_t s_adc_cap_seq3;
-static volatile uint32_t s_adc_cap_copy_max;
-static volatile uint32_t s_adc_cap_copy_total;
-static volatile uint32_t s_adc_cap_cpu_hz;
-
-/* RISC-V mcycle low 32 bits; wraps modulo 2^32, valid for these short deltas. */
-static inline uint32_t adc_capture_rdcycle(void)
-{
-    uint32_t v;
-
-    __asm__ volatile ("csrr %0, mcycle" : "=r"(v) : : "memory");
-    return v;
-}
-
-/* Compiler barrier only: same-core ISR/console visibility, no SMP. */
-static inline void adc_capture_barrier(void)
-{
-    __asm__ volatile ("" ::: "memory");
-}
-
-void servo_console_isr_adc3(void)
-{
-    if (s_adc_cap_armed)
-    {
-        s_adc_cap_seq3++;
-    }
-}
-
-void servo_console_isr_adc_capture(const volatile uint32_t raw2[2],
-                                   const volatile uint32_t raw3[2])
-{
-    uint32_t n = s_adc_cap_len;
-    uint32_t copy_start;
-    uint32_t copy_cycles;
-    AdcCaptureSample *s;
-
-    if (!s_adc_cap_armed || (n >= s_adc_cap_max))
-    {
-        return;
-    }
-
-    s = &s_adc_capture[n];
-    copy_start = adc_capture_rdcycle();
-    s->start_cycle = copy_start;
-    s->seq2 = s_adc_cap_seq2 + 1U;
-    s_adc_cap_seq2 = s->seq2;
-    s->seq3_before = s_adc_cap_seq3;
-
-    /* ADC3 is the control source; seq3_before/after exposes unexpected reentry. */
-    s->raw2_u = raw2[0];
-    s->raw2_w = raw2[1];
-    s->raw3_v = raw3[0];
-    s->raw3_vbus = raw3[1];
-    s->sts2 = HPM_ADC2->INT_STS;
-    s->sts3 = HPM_ADC3->INT_STS;
-    s->seq3_after = s_adc_cap_seq3;
-
-    /* mcycle delta is wall time; ADC3 is the control source. */
-    copy_cycles = adc_capture_rdcycle() - copy_start;
-    s_adc_cap_copy_total += copy_cycles;
-    if (copy_cycles > s_adc_cap_copy_max)
-    {
-        s_adc_cap_copy_max = copy_cycles;
-    }
-
-    s_adc_cap_len = n + 1U;
-    if (s_adc_cap_len >= s_adc_cap_max)
-    {
-        s_adc_cap_armed = false;
-        adc_capture_barrier();
-        s_adc_cap_done = true;
-    }
-}
-
 void servo_console_isr_encoder(uint32_t cnt)
 {
     uint32_t n = s_enc_len;
@@ -768,139 +663,7 @@ static void cmd_scope(int argc, char *argv[])
     }
 }
 
-/* Read-only ADC clock/divider/sample-cycle snapshot. No status write/clear. */
-static void adcinfo_sample(const char *name, ADC16_Type *adc, uint32_t ch)
-{
-    uint32_t cfg = adc->SAMPLE_CFG[ch];
-
-    printf("adcinfo: %s ch=%lu SAMPLE_CFG=0x%08lX sample_cycle=%lu shift=%lu\r\n",
-           name, (unsigned long)ch, (unsigned long)cfg,
-           (unsigned long)ADC16_SAMPLE_CFG_SAMPLE_CLOCK_NUMBER_GET(cfg),
-           (unsigned long)ADC16_SAMPLE_CFG_SAMPLE_CLOCK_NUMBER_SHIFT_GET(cfg));
-}
-
-static void cmd_adcinfo(int argc, char *argv[])
-{
-    uint32_t conv2 = HPM_ADC2->CONV_CFG1;
-    uint32_t conv3 = HPM_ADC3->CONV_CFG1;
-    uint32_t cfg2 = HPM_ADC2->ADC_CFG0;
-    uint32_t cfg3 = HPM_ADC3->ADC_CFG0;
-    uint32_t cov2 = HPM_ADC2->ADC16_CONFIG1;
-    uint32_t cov3 = HPM_ADC3->ADC16_CONFIG1;
-    uint32_t buf2 = HPM_ADC2->BUF_CFG0;
-    uint32_t buf3 = HPM_ADC3->BUF_CFG0;
-
-    (void)argc;
-    (void)argv;
-    printf("adcinfo: cpu_clk=%lu Hz adc2_clk=%lu Hz adc3_clk=%lu Hz ahb0_clk=%lu Hz\r\n",
-           (unsigned long)clock_get_frequency(clock_cpu0),
-           (unsigned long)clock_get_frequency(clock_adc2),
-           (unsigned long)clock_get_frequency(clock_adc3),
-           (unsigned long)clock_get_frequency(clock_ahb0));
-    printf("adcinfo: PLIC feature=0x%08lX preempt=%lu threshold=%lu ADC2_pri=%lu ADC3_pri=%lu\r\n",
-           (unsigned long)HPM_PLIC->FEATURE,
-           (unsigned long)PLIC_FEATURE_PREEMPT_GET(HPM_PLIC->FEATURE),
-           (unsigned long)HPM_PLIC->TARGETCONFIG[HPM_PLIC_TARGET_M_MODE].THRESHOLD,
-           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC2 - 1U],
-           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC3 - 1U]);
-    printf("adcinfo: ADC2_tick_not_ready=%lu\r\n",
-           (unsigned long)board_adc2_not_ready_count);
-    printf("adcinfo: ADC2 CONV_CFG1=0x%08lX divider_field=%lu divider=%lu conv_clk=%lu ADC_CFG0=0x%08lX sync_ahb=%lu ahb_en=%lu COV_END=%lu wait_dis=%lu\r\n",
-           (unsigned long)conv2,
-           (unsigned long)ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv2),
-           (unsigned long)(ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv2) + 1U),
-           (unsigned long)ADC16_CONV_CFG1_CONVERT_CLOCK_NUMBER_GET(conv2),
-           (unsigned long)cfg2,
-           (unsigned long)ADC16_ADC_CFG0_SEL_SYNC_AHB_GET(cfg2),
-           (unsigned long)ADC16_ADC_CFG0_ADC_AHB_EN_GET(cfg2),
-           (unsigned long)ADC16_ADC16_CONFIG1_COV_END_CNT_GET(cov2),
-           (unsigned long)ADC16_BUF_CFG0_WAIT_DIS_GET(buf2));
-    printf("adcinfo: ADC3 CONV_CFG1=0x%08lX divider_field=%lu divider=%lu conv_clk=%lu ADC_CFG0=0x%08lX sync_ahb=%lu ahb_en=%lu COV_END=%lu wait_dis=%lu\r\n",
-           (unsigned long)conv3,
-           (unsigned long)ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv3),
-           (unsigned long)(ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv3) + 1U),
-           (unsigned long)ADC16_CONV_CFG1_CONVERT_CLOCK_NUMBER_GET(conv3),
-           (unsigned long)cfg3,
-           (unsigned long)ADC16_ADC_CFG0_SEL_SYNC_AHB_GET(cfg3),
-           (unsigned long)ADC16_ADC_CFG0_ADC_AHB_EN_GET(cfg3),
-           (unsigned long)ADC16_ADC16_CONFIG1_COV_END_CNT_GET(cov3),
-           (unsigned long)ADC16_BUF_CFG0_WAIT_DIS_GET(buf3));
-    adcinfo_sample("ADC2", HPM_ADC2, BOARD_BLDC_ADC_CH_U);
-    adcinfo_sample("ADC2", HPM_ADC2, BOARD_BLDC_ADC_CH_W);
-    adcinfo_sample("ADC3", HPM_ADC3, BOARD_BLDC_ADC_CH_V);
-    adcinfo_sample("ADC3", HPM_ADC3, BOARD_BLDC_ADC_VBUS_CH);
-}
-
-static void cmd_adccap(int argc, char *argv[])
-{
-    (void)argc;
-    (void)argv;
-    s_adc_cap_armed = false;
-    s_adc_cap_len = 0U;
-    s_adc_cap_done = false;
-    s_adc_cap_seq2 = 0U;
-    s_adc_cap_seq3 = 0U;
-    s_adc_cap_copy_max = 0U;
-    s_adc_cap_copy_total = 0U;
-    s_adc_cap_cpu_hz = clock_get_frequency(clock_cpu0);
-    s_adc_cap_max = ADC_CAPTURE_POINTS;
-    adc_capture_barrier();
-    s_adc_cap_armed = true;
-    printf("adccap: armed %lu points; adcdump after capture completes\r\n",
-           (unsigned long)ADC_CAPTURE_POINTS);
-}
-
-/* Full raw rows, no statistics-only replacement. Incomplete dump never waits. */
-static void cmd_adcdump(int argc, char *argv[])
-{
-    adc_v2_handle_t adc2 = HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE);
-    adc_v2_handle_t adc3 = HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE);
-
-    (void)argc;
-    (void)argv;
-    if (!s_adc_cap_done || (s_adc_cap_len != s_adc_cap_max) || (s_adc_cap_max == 0U))
-    {
-        printf("adcdump: NOT READY n=%lu/%lu armed=%u done=%u\r\n",
-               (unsigned long)s_adc_cap_len, (unsigned long)s_adc_cap_max,
-               (unsigned)s_adc_cap_armed, (unsigned)s_adc_cap_done);
-        return;
-    }
-
-    printf("# ADC raw capture: %lu points; seq2=control tick count; seq3b/a=ADC3 ISR count before/after raw copy\r\n",
-           (unsigned long)s_adc_cap_len);
-    printf("# copy mcycle low32: max=%lu mean=%lu cycles @ cpu=%lu Hz; ADC3 is the control source\r\n",
-           (unsigned long)s_adc_cap_copy_max,
-           (unsigned long)(s_adc_cap_copy_total / s_adc_cap_len),
-           (unsigned long)s_adc_cap_cpu_hz);
-    printf("# ADC2 slots: u=raw2[0], w=raw2[1]; ADC3 slots: v=raw3[0], vbus=raw3[1]\r\n");
-    printf("# DMA word (ADC_SOC_IP_VERSION=3): [15:0]=result [19:16]=reserved [24:20]=adc_ch [28:25]=trig_ch [30:29]=seq_num [31]=cycle_bit; PMT DMA word has no valid bit\r\n");
-    printf("# sts: b31 TRIG_CMPT b30 TRIG_SW_CFLCT b29 TRIG_HW_CFLCT b28 READ_CFLCT b22 DMA_FIFO_FULL b21 AHB_ERR; RW1C read snapshot, b31 cleared by ISR before capture\r\n");
-    printf("# idx cyc seq2 seq3b seq3a u_raw w_raw v_raw vbus_raw u_ch w_ch v_ch vbus_ch u_tr w_tr v_tr vbus_tr sts2 sts3\r\n");
-    for (uint32_t i = 0U; i < s_adc_cap_len; i++)
-    {
-        const AdcCaptureSample *s = &s_adc_capture[i];
-        adc_v2_dma_sample_t u, w, v, vbus;
-
-        hpm_adc_v2_parse_pmt_dma_word(adc2, s->raw2_u, &u);
-        hpm_adc_v2_parse_pmt_dma_word(adc2, s->raw2_w, &w);
-        hpm_adc_v2_parse_pmt_dma_word(adc3, s->raw3_v, &v);
-        hpm_adc_v2_parse_pmt_dma_word(adc3, s->raw3_vbus, &vbus);
-        printf("%4lu %10lu %5lu %5lu %5lu 0x%08lX 0x%08lX 0x%08lX 0x%08lX %2lu %2lu %2lu %2lu %2lu %2lu %2lu %2lu 0x%08lX 0x%08lX\r\n",
-               (unsigned long)i, (unsigned long)s->start_cycle,
-               (unsigned long)s->seq2, (unsigned long)s->seq3_before,
-               (unsigned long)s->seq3_after,
-               (unsigned long)s->raw2_u, (unsigned long)s->raw2_w,
-               (unsigned long)s->raw3_v, (unsigned long)s->raw3_vbus,
-               (unsigned long)u.adc_ch, (unsigned long)w.adc_ch,
-               (unsigned long)v.adc_ch, (unsigned long)vbus.adc_ch,
-               (unsigned long)u.trig_ch, (unsigned long)w.trig_ch,
-               (unsigned long)v.trig_ch, (unsigned long)vbus.trig_ch,
-               (unsigned long)s->sts2, (unsigned long)s->sts3);
-    }
-}
-
-/* 连续打印 N 个字符，用来看串口通道到底能吐出多少字节。 */
-static void cmd_burst(int argc, char *argv[])
+/* 连续打印 N 个字符，用来看串口通道到底能吐出多少字节。 */static void cmd_burst(int argc, char *argv[])
 {
     uint32_t n = 1000U;
 
@@ -977,9 +740,6 @@ static void cmd_pl(int argc, char *argv[])
 }
 
 static const ConsoleCommand s_commands[] = {
-    {"adcinfo", cmd_adcinfo, "print ADC clock/divider/sample registers"},
-    {"adccap",  cmd_adccap,  "arm 1024 raw ADC DMA samples (non-blocking)"},
-    {"adcdump", cmd_adcdump, "dump 1024 raw ADC DMA samples after adccap"},
     {"help",  cmd_help,     "打印命令表"},
     {"st",    cmd_status,   "打印运行状态"},
     {"pl",    cmd_pl,       "打印位置环内部量（pos_tar/pos_now/跟随误差/阈值）"},

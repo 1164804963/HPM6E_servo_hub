@@ -1,6 +1,4 @@
 # 交接说明（HANDOFF）
-> **2026-11-07 最新状态以此报告为准**：[DMA 时序/同帧修复报告](validation/2026-11-07/dma_timing/REPORT.md)
-
 
 > 读者：接手本任务的 AI / 工程师。本文自包含，不需要上一轮对话。
 > 架构与硬件映射在 [PORTING_HPM6E80.md](PORTING_HPM6E80.md)，本文是入口、现状和调试手册。
