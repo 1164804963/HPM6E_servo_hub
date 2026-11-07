@@ -49,6 +49,9 @@ static bool s_pwm_on_last;
 /* 编码器采样分频（20kHz -> 1kHz）。 */
 static uint32_t s_enc_div;
 
+/* Read-only diagnostic: ADC3 control ticks skipped because ADC2 was not complete. */
+volatile uint32_t board_adc2_not_ready_count;
+
 static uint16_t adc_word_to_result(uint32_t word)
 {
     /* ADC16 预转换 DMA 字的低 16 位是转换结果，其余位是通道/序号/触发源。 */
@@ -146,8 +149,8 @@ static void board_init_trigger_mux(void)
 
 /*
  * ADC：两路预转换队列 + DMA。
- *   ADC2: 序列 U(通道5) -> W(通道6)，中断在第 2 个样本完成后产生（控制环入口）；
- *   ADC3: 序列 V(通道4) -> VBUS(通道7)，中断在 VBUS 完成后产生（优先级更高，先于控制环）。
+ *   ADC2: U(ch5) -> W(ch6); completion is polled by the ADC3 control tick.
+ *   ADC3: V(ch4) -> VBUS(ch7); the later queue completion drives the 20kHz control tick.
  * 采样时刻由 PWM 触发点决定，不要在软件里改。
  */
 static void board_init_adc(void)
@@ -236,9 +239,11 @@ void isr_gptmr(void)
 }
 
 /*
- * 母线/温度采样中断（ADC3）：优先级高于控制环，保证控制环读 adc_buff 时数据已就绪。
- * 这里只搬运，不做换算。
+ * ADC3 V/VBUS ISR is the single control tick; ADC2 U/W is consumed here.
+ * ADC3 priority 6; no ADC2 external IRQ is enabled.
  */
+static void board_control_tick(void);
+
 SDK_DECLARE_EXT_ISR_M(IRQn_ADC3, isr_adc_bus)
 void isr_adc_bus(void)
 {
@@ -249,10 +254,14 @@ void isr_adc_bus(void)
         return;
     }
     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+    servo_console_isr_adc3();
 
     __asm__ volatile ("fence iorw, iorw" ::: "memory");
     kBspData.adc_v_raw = adc_word_to_result(adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
     kBspData.adc_vbus_raw = adc_word_to_result(adc_buff[1][BOARD_BLDC_ADC_TRG * 4U + 1U]);
+
+    /* ADC3 tick is the single control frame; it consumes the earlier ADC2 U/W frame. */
+    board_control_tick();
 }
 
 /*
@@ -276,11 +285,10 @@ static void board_check_over_current(void)
 }
 
 /*
- * 20kHz 控制节拍（ADC2）：搬样本 -> 编码器采样 -> 电流环 -> 每 20 拍跑一次位置速度环。
- * 控制层未初始化完成前（s_ctrl_running == false）只搬样本和编码器，不碰 kAxis。
+ * One control frame per ADC3 tick. ADC2 completion is checked below;
+ * no ADC2 IRQ/busy wait. All existing 20kHz/1kHz work remains here.
  */
-SDK_DECLARE_EXT_ISR_M(BOARD_BLDC_ADC_IRQn, isr_adc_ctrl)
-void isr_adc_ctrl(void)
+static void board_control_tick(void)
 {
     static uint32_t pos_div;
 
@@ -288,6 +296,7 @@ void isr_adc_ctrl(void)
 
     if ((hpm_adc_v2_get_status_flags(adc) & HPM_ADC_V2_EVENT_TRIG_COMPLETE) == 0U)
     {
+        board_adc2_not_ready_count++;
         return;
     }
     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
@@ -295,6 +304,10 @@ void isr_adc_ctrl(void)
     __asm__ volatile ("fence iorw, iorw" ::: "memory");
     kBspData.adc_u_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U]);
     kBspData.adc_w_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U + 1U]);
+
+    /* Raw copy only while adccap is armed; status registers are read inside that branch. */
+    servo_console_isr_adc_capture(&adc_buff[0][BOARD_BLDC_ADC_TRG * 4U],
+                                  &adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
 
     kBspData.ctrl_tick++;
 
@@ -429,11 +442,11 @@ void board_init_servo(void)
     /* 采样中断先放开：上电自检（编码器就绪、零漂校准）要原始数据。 */
     hpm_adc_v2_clear_status_flags(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
     hpm_adc_v2_enable_interrupts(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
-    intc_m_enable_irq_with_priority(IRQn_ADC3, 5);
+    intc_m_enable_irq_with_priority(IRQn_ADC3, 6);   /* Sole ADC control interrupt. */
 
     hpm_adc_v2_clear_status_flags(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
     hpm_adc_v2_enable_interrupts(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
-    intc_m_enable_irq_with_priority(BOARD_BLDC_ADC_IRQn, 6);
+    /* ADC2 completion is polled in board_control_tick(); no ADC2 external IRQ. */
 }
 
 /* 启动 20kHz 控制节拍与 1ms 节拍。必须在 MotorCtrlInit()/AppInit() 之后调用。 */

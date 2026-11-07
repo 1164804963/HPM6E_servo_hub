@@ -27,6 +27,11 @@ void servo_console_isr_sample(void);
 /* 1kHz 位置环里调用：采集编码器计数序列（console 的 escope 命令用）。 */
 void servo_console_isr_encoder(uint32_t cnt);
 
+/* ADC raw DMA capture: ADC3 ISR advances a sequence; ADC3 control tick copies only while armed. */
+void servo_console_isr_adc3(void);
+void servo_console_isr_adc_capture(const volatile uint32_t raw2[2],
+                                   const volatile uint32_t raw3[2]);
+
 #ifdef __cplusplus
 }
 #endif

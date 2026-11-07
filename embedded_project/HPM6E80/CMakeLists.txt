@@ -35,6 +35,8 @@ set(SERVO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 # 板级参数：由 Board/servo_system_cfg.h 选择，这里只给编译开关
 sdk_compile_definitions(-DBOARD_SERVO_HPM6E80=1)
+# Keep the HPM6E80 debug build at -O2; no fast-math or ABI change.
+sdk_compile_options("-O2")
 
 # yuanhub_math.h 在 HPMSOC 分支下要 hpm_math.h。SDK 的 hpm_math 中间件只做 Andes DSP
 # 版本（CMake 里硬性要求 nds 工具链），本工程用 Board/hpm_math.h + servo_math_port.c
