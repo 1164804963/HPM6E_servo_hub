@@ -1,0 +1,24 @@
+--- pre_priority/servo_console.c
++++ embedded_project/HPM6E80/Board/servo_console.c
+@@ -11,6 +11,8 @@
+ #include "hpm_adc16_regs.h"
+ #include "hpm_adc_v2.h"
+ #include "hpm_clock_drv.h"
++#include "hpm_plic_drv.h"
++#include "hpm_plic_regs.h"
+ 
+ #include "bsp_api.h"
+ #include "drv_encoder.h"
+@@ -793,6 +795,12 @@
+            (unsigned long)clock_get_frequency(clock_adc2),
+            (unsigned long)clock_get_frequency(clock_adc3),
+            (unsigned long)clock_get_frequency(clock_ahb0));
++    printf("adcinfo: PLIC feature=0x%08lX preempt=%lu threshold=%lu ADC2_pri=%lu ADC3_pri=%lu\r\n",
++           (unsigned long)HPM_PLIC->FEATURE,
++           (unsigned long)PLIC_FEATURE_PREEMPT_GET(HPM_PLIC->FEATURE),
++           (unsigned long)HPM_PLIC->TARGETCONFIG[HPM_PLIC_TARGET_M_MODE].THRESHOLD,
++           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC2 - 1U],
++           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC3 - 1U]);
+     printf("adcinfo: ADC2 CONV_CFG1=0x%08lX divider_field=%lu divider=%lu conv_clk=%lu ADC_CFG0=0x%08lX sync_ahb=%lu ahb_en=%lu COV_END=%lu wait_dis=%lu\r\n",
+            (unsigned long)conv2,
+            (unsigned long)ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv2),

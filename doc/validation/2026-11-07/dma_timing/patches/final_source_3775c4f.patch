@@ -1,0 +1,412 @@
+diff --git a/embedded_project/HPM6E80/Board/board.c b/embedded_project/HPM6E80/Board/board.c
+index dabe335..87f92ac 100644
+--- a/embedded_project/HPM6E80/Board/board.c
++++ b/embedded_project/HPM6E80/Board/board.c
+@@ -49,6 +49,9 @@ static bool s_pwm_on_last;
+ /* 编码器采样分频（20kHz -> 1kHz）。 */
+ static uint32_t s_enc_div;
+ 
++/* Read-only diagnostic: ADC3 control ticks skipped because ADC2 was not complete. */
++volatile uint32_t board_adc2_not_ready_count;
++
+ static uint16_t adc_word_to_result(uint32_t word)
+ {
+     /* ADC16 预转换 DMA 字的低 16 位是转换结果，其余位是通道/序号/触发源。 */
+@@ -146,8 +149,8 @@ static void board_init_trigger_mux(void)
+ 
+ /*
+  * ADC：两路预转换队列 + DMA。
+- *   ADC2: 序列 U(通道5) -> W(通道6)，中断在第 2 个样本完成后产生（控制环入口）；
+- *   ADC3: 序列 V(通道4) -> VBUS(通道7)，中断在 VBUS 完成后产生（优先级更高，先于控制环）。
++ *   ADC2: U(ch5) -> W(ch6); completion is polled by the ADC3 control tick.
++ *   ADC3: V(ch4) -> VBUS(ch7); the later queue completion drives the 20kHz control tick.
+  * 采样时刻由 PWM 触发点决定，不要在软件里改。
+  */
+ static void board_init_adc(void)
+@@ -236,9 +239,11 @@ void isr_gptmr(void)
+ }
+ 
+ /*
+- * 母线/温度采样中断（ADC3）：优先级高于控制环，保证控制环读 adc_buff 时数据已就绪。
+- * 这里只搬运，不做换算。
++ * ADC3 V/VBUS ISR is the single control tick; ADC2 U/W is consumed here.
++ * ADC3 priority 6; no ADC2 external IRQ is enabled.
+  */
++static void board_control_tick(void);
++
+ SDK_DECLARE_EXT_ISR_M(IRQn_ADC3, isr_adc_bus)
+ void isr_adc_bus(void)
+ {
+@@ -249,10 +254,14 @@ void isr_adc_bus(void)
+         return;
+     }
+     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
++    servo_console_isr_adc3();
+ 
+     __asm__ volatile ("fence iorw, iorw" ::: "memory");
+     kBspData.adc_v_raw = adc_word_to_result(adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
+     kBspData.adc_vbus_raw = adc_word_to_result(adc_buff[1][BOARD_BLDC_ADC_TRG * 4U + 1U]);
++
++    /* ADC3 tick is the single control frame; it consumes the earlier ADC2 U/W frame. */
++    board_control_tick();
+ }
+ 
+ /*
+@@ -276,11 +285,10 @@ static void board_check_over_current(void)
+ }
+ 
+ /*
+- * 20kHz 控制节拍（ADC2）：搬样本 -> 编码器采样 -> 电流环 -> 每 20 拍跑一次位置速度环。
+- * 控制层未初始化完成前（s_ctrl_running == false）只搬样本和编码器，不碰 kAxis。
++ * One control frame per ADC3 tick. ADC2 completion is checked below;
++ * no ADC2 IRQ/busy wait. All existing 20kHz/1kHz work remains here.
+  */
+-SDK_DECLARE_EXT_ISR_M(BOARD_BLDC_ADC_IRQn, isr_adc_ctrl)
+-void isr_adc_ctrl(void)
++static void board_control_tick(void)
+ {
+     static uint32_t pos_div;
+ 
+@@ -288,6 +296,7 @@ void isr_adc_ctrl(void)
+ 
+     if ((hpm_adc_v2_get_status_flags(adc) & HPM_ADC_V2_EVENT_TRIG_COMPLETE) == 0U)
+     {
++        board_adc2_not_ready_count++;
+         return;
+     }
+     hpm_adc_v2_clear_status_flags(adc, HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+@@ -296,6 +305,10 @@ void isr_adc_ctrl(void)
+     kBspData.adc_u_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U]);
+     kBspData.adc_w_raw = adc_word_to_result(adc_buff[0][BOARD_BLDC_ADC_TRG * 4U + 1U]);
+ 
++    /* Raw copy only while adccap is armed; status registers are read inside that branch. */
++    servo_console_isr_adc_capture(&adc_buff[0][BOARD_BLDC_ADC_TRG * 4U],
++                                  &adc_buff[1][BOARD_BLDC_ADC_TRG * 4U]);
++
+     kBspData.ctrl_tick++;
+ 
+     /* 编码器按 1kHz 采样（不跟 20kHz 电流环走）：控制层用到的电角度和位置都是
+@@ -429,11 +442,11 @@ void board_init_servo(void)
+     /* 采样中断先放开：上电自检（编码器就绪、零漂校准）要原始数据。 */
+     hpm_adc_v2_clear_status_flags(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+     hpm_adc_v2_enable_interrupts(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+-    intc_m_enable_irq_with_priority(IRQn_ADC3, 5);
++    intc_m_enable_irq_with_priority(IRQn_ADC3, 6);   /* Sole ADC control interrupt. */
+ 
+     hpm_adc_v2_clear_status_flags(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+     hpm_adc_v2_enable_interrupts(HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE), HPM_ADC_V2_EVENT_TRIG_COMPLETE);
+-    intc_m_enable_irq_with_priority(BOARD_BLDC_ADC_IRQn, 6);
++    /* ADC2 completion is polled in board_control_tick(); no ADC2 external IRQ. */
+ }
+ 
+ /* 启动 20kHz 控制节拍与 1ms 节拍。必须在 MotorCtrlInit()/AppInit() 之后调用。 */
+diff --git a/embedded_project/HPM6E80/Board/servo_console.c b/embedded_project/HPM6E80/Board/servo_console.c
+index 4894728..8dfd9b7 100644
+--- a/embedded_project/HPM6E80/Board/servo_console.c
++++ b/embedded_project/HPM6E80/Board/servo_console.c
+@@ -7,6 +7,12 @@
+ #include <string.h>
+ 
+ #include "hpm_debug_console.h"
++#include "hpm_soc.h"
++#include "hpm_adc16_regs.h"
++#include "hpm_adc_v2.h"
++#include "hpm_clock_drv.h"
++#include "hpm_plic_drv.h"
++#include "hpm_plic_regs.h"
+ 
+ #include "bsp_api.h"
+ #include "drv_encoder.h"
+@@ -14,6 +20,8 @@
+ #include "servo_board.h"
+ #include "system_timer.h"
+ 
++extern volatile uint32_t board_adc2_not_ready_count;
++
+ /* 一行最多 79 字符 + 结束符；超长时整行丢弃，避免半条命令被执行。 */
+ #define CONSOLE_LINE_MAX        (80U)
+ #define CONSOLE_ARG_MAX         (5U)
+@@ -522,6 +530,103 @@ static volatile uint32_t s_enc_len;
+ static volatile uint32_t s_enc_max;
+ static volatile bool s_enc_done;
+ 
++/* Raw ADC DMA snapshot. 1024 * 10 words = 40 KiB, static (no heap). */
++#define ADC_CAPTURE_POINTS  (1024U)
++
++typedef struct
++{
++    uint32_t raw2_u;
++    uint32_t raw2_w;
++    uint32_t raw3_v;
++    uint32_t raw3_vbus;
++    uint32_t sts2;
++    uint32_t sts3;
++    uint32_t seq2;
++    uint32_t seq3_before;
++    uint32_t seq3_after;
++    uint32_t start_cycle;
++} AdcCaptureSample;
++
++static AdcCaptureSample s_adc_capture[ADC_CAPTURE_POINTS];
++static volatile uint32_t s_adc_cap_len;
++static volatile uint32_t s_adc_cap_max;
++static volatile bool s_adc_cap_armed;
++static volatile bool s_adc_cap_done;
++static volatile uint32_t s_adc_cap_seq2;
++static volatile uint32_t s_adc_cap_seq3;
++static volatile uint32_t s_adc_cap_copy_max;
++static volatile uint32_t s_adc_cap_copy_total;
++static volatile uint32_t s_adc_cap_cpu_hz;
++
++/* RISC-V mcycle low 32 bits; wraps modulo 2^32, valid for these short deltas. */
++static inline uint32_t adc_capture_rdcycle(void)
++{
++    uint32_t v;
++
++    __asm__ volatile ("csrr %0, mcycle" : "=r"(v) : : "memory");
++    return v;
++}
++
++/* Compiler barrier only: same-core ISR/console visibility, no SMP. */
++static inline void adc_capture_barrier(void)
++{
++    __asm__ volatile ("" ::: "memory");
++}
++
++void servo_console_isr_adc3(void)
++{
++    if (s_adc_cap_armed)
++    {
++        s_adc_cap_seq3++;
++    }
++}
++
++void servo_console_isr_adc_capture(const volatile uint32_t raw2[2],
++                                   const volatile uint32_t raw3[2])
++{
++    uint32_t n = s_adc_cap_len;
++    uint32_t copy_start;
++    uint32_t copy_cycles;
++    AdcCaptureSample *s;
++
++    if (!s_adc_cap_armed || (n >= s_adc_cap_max))
++    {
++        return;
++    }
++
++    s = &s_adc_capture[n];
++    copy_start = adc_capture_rdcycle();
++    s->start_cycle = copy_start;
++    s->seq2 = s_adc_cap_seq2 + 1U;
++    s_adc_cap_seq2 = s->seq2;
++    s->seq3_before = s_adc_cap_seq3;
++
++    /* ADC3 is the control source; seq3_before/after exposes unexpected reentry. */
++    s->raw2_u = raw2[0];
++    s->raw2_w = raw2[1];
++    s->raw3_v = raw3[0];
++    s->raw3_vbus = raw3[1];
++    s->sts2 = HPM_ADC2->INT_STS;
++    s->sts3 = HPM_ADC3->INT_STS;
++    s->seq3_after = s_adc_cap_seq3;
++
++    /* mcycle delta is wall time; ADC3 is the control source. */
++    copy_cycles = adc_capture_rdcycle() - copy_start;
++    s_adc_cap_copy_total += copy_cycles;
++    if (copy_cycles > s_adc_cap_copy_max)
++    {
++        s_adc_cap_copy_max = copy_cycles;
++    }
++
++    s_adc_cap_len = n + 1U;
++    if (s_adc_cap_len >= s_adc_cap_max)
++    {
++        s_adc_cap_armed = false;
++        adc_capture_barrier();
++        s_adc_cap_done = true;
++    }
++}
++
+ void servo_console_isr_encoder(uint32_t cnt)
+ {
+     uint32_t n = s_enc_len;
+@@ -663,7 +768,139 @@ static void cmd_scope(int argc, char *argv[])
+     }
+ }
+ 
+-/* 连续打印 N 个字符，用来看串口通道到底能吐出多少字节。 */static void cmd_burst(int argc, char *argv[])
++/* Read-only ADC clock/divider/sample-cycle snapshot. No status write/clear. */
++static void adcinfo_sample(const char *name, ADC16_Type *adc, uint32_t ch)
++{
++    uint32_t cfg = adc->SAMPLE_CFG[ch];
++
++    printf("adcinfo: %s ch=%lu SAMPLE_CFG=0x%08lX sample_cycle=%lu shift=%lu\r\n",
++           name, (unsigned long)ch, (unsigned long)cfg,
++           (unsigned long)ADC16_SAMPLE_CFG_SAMPLE_CLOCK_NUMBER_GET(cfg),
++           (unsigned long)ADC16_SAMPLE_CFG_SAMPLE_CLOCK_NUMBER_SHIFT_GET(cfg));
++}
++
++static void cmd_adcinfo(int argc, char *argv[])
++{
++    uint32_t conv2 = HPM_ADC2->CONV_CFG1;
++    uint32_t conv3 = HPM_ADC3->CONV_CFG1;
++    uint32_t cfg2 = HPM_ADC2->ADC_CFG0;
++    uint32_t cfg3 = HPM_ADC3->ADC_CFG0;
++    uint32_t cov2 = HPM_ADC2->ADC16_CONFIG1;
++    uint32_t cov3 = HPM_ADC3->ADC16_CONFIG1;
++    uint32_t buf2 = HPM_ADC2->BUF_CFG0;
++    uint32_t buf3 = HPM_ADC3->BUF_CFG0;
++
++    (void)argc;
++    (void)argv;
++    printf("adcinfo: cpu_clk=%lu Hz adc2_clk=%lu Hz adc3_clk=%lu Hz ahb0_clk=%lu Hz\r\n",
++           (unsigned long)clock_get_frequency(clock_cpu0),
++           (unsigned long)clock_get_frequency(clock_adc2),
++           (unsigned long)clock_get_frequency(clock_adc3),
++           (unsigned long)clock_get_frequency(clock_ahb0));
++    printf("adcinfo: PLIC feature=0x%08lX preempt=%lu threshold=%lu ADC2_pri=%lu ADC3_pri=%lu\r\n",
++           (unsigned long)HPM_PLIC->FEATURE,
++           (unsigned long)PLIC_FEATURE_PREEMPT_GET(HPM_PLIC->FEATURE),
++           (unsigned long)HPM_PLIC->TARGETCONFIG[HPM_PLIC_TARGET_M_MODE].THRESHOLD,
++           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC2 - 1U],
++           (unsigned long)HPM_PLIC->PRIORITY[IRQn_ADC3 - 1U]);
++    printf("adcinfo: ADC2_tick_not_ready=%lu\r\n",
++           (unsigned long)board_adc2_not_ready_count);
++    printf("adcinfo: ADC2 CONV_CFG1=0x%08lX divider_field=%lu divider=%lu conv_clk=%lu ADC_CFG0=0x%08lX sync_ahb=%lu ahb_en=%lu COV_END=%lu wait_dis=%lu\r\n",
++           (unsigned long)conv2,
++           (unsigned long)ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv2),
++           (unsigned long)(ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv2) + 1U),
++           (unsigned long)ADC16_CONV_CFG1_CONVERT_CLOCK_NUMBER_GET(conv2),
++           (unsigned long)cfg2,
++           (unsigned long)ADC16_ADC_CFG0_SEL_SYNC_AHB_GET(cfg2),
++           (unsigned long)ADC16_ADC_CFG0_ADC_AHB_EN_GET(cfg2),
++           (unsigned long)ADC16_ADC16_CONFIG1_COV_END_CNT_GET(cov2),
++           (unsigned long)ADC16_BUF_CFG0_WAIT_DIS_GET(buf2));
++    printf("adcinfo: ADC3 CONV_CFG1=0x%08lX divider_field=%lu divider=%lu conv_clk=%lu ADC_CFG0=0x%08lX sync_ahb=%lu ahb_en=%lu COV_END=%lu wait_dis=%lu\r\n",
++           (unsigned long)conv3,
++           (unsigned long)ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv3),
++           (unsigned long)(ADC16_CONV_CFG1_CLOCK_DIVIDER_GET(conv3) + 1U),
++           (unsigned long)ADC16_CONV_CFG1_CONVERT_CLOCK_NUMBER_GET(conv3),
++           (unsigned long)cfg3,
++           (unsigned long)ADC16_ADC_CFG0_SEL_SYNC_AHB_GET(cfg3),
++           (unsigned long)ADC16_ADC_CFG0_ADC_AHB_EN_GET(cfg3),
++           (unsigned long)ADC16_ADC16_CONFIG1_COV_END_CNT_GET(cov3),
++           (unsigned long)ADC16_BUF_CFG0_WAIT_DIS_GET(buf3));
++    adcinfo_sample("ADC2", HPM_ADC2, BOARD_BLDC_ADC_CH_U);
++    adcinfo_sample("ADC2", HPM_ADC2, BOARD_BLDC_ADC_CH_W);
++    adcinfo_sample("ADC3", HPM_ADC3, BOARD_BLDC_ADC_CH_V);
++    adcinfo_sample("ADC3", HPM_ADC3, BOARD_BLDC_ADC_VBUS_CH);
++}
++
++static void cmd_adccap(int argc, char *argv[])
++{
++    (void)argc;
++    (void)argv;
++    s_adc_cap_armed = false;
++    s_adc_cap_len = 0U;
++    s_adc_cap_done = false;
++    s_adc_cap_seq2 = 0U;
++    s_adc_cap_seq3 = 0U;
++    s_adc_cap_copy_max = 0U;
++    s_adc_cap_copy_total = 0U;
++    s_adc_cap_cpu_hz = clock_get_frequency(clock_cpu0);
++    s_adc_cap_max = ADC_CAPTURE_POINTS;
++    adc_capture_barrier();
++    s_adc_cap_armed = true;
++    printf("adccap: armed %lu points; adcdump after capture completes\r\n",
++           (unsigned long)ADC_CAPTURE_POINTS);
++}
++
++/* Full raw rows, no statistics-only replacement. Incomplete dump never waits. */
++static void cmd_adcdump(int argc, char *argv[])
++{
++    adc_v2_handle_t adc2 = HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_U_BASE);
++    adc_v2_handle_t adc3 = HPM_ADC_V2_HANDLE(BOARD_BLDC_ADC_V_BASE);
++
++    (void)argc;
++    (void)argv;
++    if (!s_adc_cap_done || (s_adc_cap_len != s_adc_cap_max) || (s_adc_cap_max == 0U))
++    {
++        printf("adcdump: NOT READY n=%lu/%lu armed=%u done=%u\r\n",
++               (unsigned long)s_adc_cap_len, (unsigned long)s_adc_cap_max,
++               (unsigned)s_adc_cap_armed, (unsigned)s_adc_cap_done);
++        return;
++    }
++
++    printf("# ADC raw capture: %lu points; seq2=control tick count; seq3b/a=ADC3 ISR count before/after raw copy\r\n",
++           (unsigned long)s_adc_cap_len);
++    printf("# copy mcycle low32: max=%lu mean=%lu cycles @ cpu=%lu Hz; ADC3 is the control source\r\n",
++           (unsigned long)s_adc_cap_copy_max,
++           (unsigned long)(s_adc_cap_copy_total / s_adc_cap_len),
++           (unsigned long)s_adc_cap_cpu_hz);
++    printf("# ADC2 slots: u=raw2[0], w=raw2[1]; ADC3 slots: v=raw3[0], vbus=raw3[1]\r\n");
++    printf("# DMA word (ADC_SOC_IP_VERSION=3): [15:0]=result [19:16]=reserved [24:20]=adc_ch [28:25]=trig_ch [30:29]=seq_num [31]=cycle_bit; PMT DMA word has no valid bit\r\n");
++    printf("# sts: b31 TRIG_CMPT b30 TRIG_SW_CFLCT b29 TRIG_HW_CFLCT b28 READ_CFLCT b22 DMA_FIFO_FULL b21 AHB_ERR; RW1C read snapshot, b31 cleared by ISR before capture\r\n");
++    printf("# idx cyc seq2 seq3b seq3a u_raw w_raw v_raw vbus_raw u_ch w_ch v_ch vbus_ch u_tr w_tr v_tr vbus_tr sts2 sts3\r\n");
++    for (uint32_t i = 0U; i < s_adc_cap_len; i++)
++    {
++        const AdcCaptureSample *s = &s_adc_capture[i];
++        adc_v2_dma_sample_t u, w, v, vbus;
++
++        hpm_adc_v2_parse_pmt_dma_word(adc2, s->raw2_u, &u);
++        hpm_adc_v2_parse_pmt_dma_word(adc2, s->raw2_w, &w);
++        hpm_adc_v2_parse_pmt_dma_word(adc3, s->raw3_v, &v);
++        hpm_adc_v2_parse_pmt_dma_word(adc3, s->raw3_vbus, &vbus);
++        printf("%4lu %10lu %5lu %5lu %5lu 0x%08lX 0x%08lX 0x%08lX 0x%08lX %2lu %2lu %2lu %2lu %2lu %2lu %2lu %2lu 0x%08lX 0x%08lX\r\n",
++               (unsigned long)i, (unsigned long)s->start_cycle,
++               (unsigned long)s->seq2, (unsigned long)s->seq3_before,
++               (unsigned long)s->seq3_after,
++               (unsigned long)s->raw2_u, (unsigned long)s->raw2_w,
++               (unsigned long)s->raw3_v, (unsigned long)s->raw3_vbus,
++               (unsigned long)u.adc_ch, (unsigned long)w.adc_ch,
++               (unsigned long)v.adc_ch, (unsigned long)vbus.adc_ch,
++               (unsigned long)u.trig_ch, (unsigned long)w.trig_ch,
++               (unsigned long)v.trig_ch, (unsigned long)vbus.trig_ch,
++               (unsigned long)s->sts2, (unsigned long)s->sts3);
++    }
++}
++
++/* 连续打印 N 个字符，用来看串口通道到底能吐出多少字节。 */
++static void cmd_burst(int argc, char *argv[])
+ {
+     uint32_t n = 1000U;
+ 
+@@ -740,6 +977,9 @@ static void cmd_pl(int argc, char *argv[])
+ }
+ 
+ static const ConsoleCommand s_commands[] = {
++    {"adcinfo", cmd_adcinfo, "print ADC clock/divider/sample registers"},
++    {"adccap",  cmd_adccap,  "arm 1024 raw ADC DMA samples (non-blocking)"},
++    {"adcdump", cmd_adcdump, "dump 1024 raw ADC DMA samples after adccap"},
+     {"help",  cmd_help,     "打印命令表"},
+     {"st",    cmd_status,   "打印运行状态"},
+     {"pl",    cmd_pl,       "打印位置环内部量（pos_tar/pos_now/跟随误差/阈值）"},
+diff --git a/embedded_project/HPM6E80/Board/servo_console.h b/embedded_project/HPM6E80/Board/servo_console.h
+index cc44981..017095f 100644
+--- a/embedded_project/HPM6E80/Board/servo_console.h
++++ b/embedded_project/HPM6E80/Board/servo_console.h
+@@ -27,6 +27,11 @@ void servo_console_isr_sample(void);
+ /* 1kHz 位置环里调用：采集编码器计数序列（console 的 escope 命令用）。 */
+ void servo_console_isr_encoder(uint32_t cnt);
+ 
++/* ADC raw DMA capture: ADC3 ISR advances a sequence; ADC3 control tick copies only while armed. */
++void servo_console_isr_adc3(void);
++void servo_console_isr_adc_capture(const volatile uint32_t raw2[2],
++                                   const volatile uint32_t raw3[2]);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff --git a/embedded_project/HPM6E80/CMakeLists.txt b/embedded_project/HPM6E80/CMakeLists.txt
+index 14f0b91..649ad8b 100644
+--- a/embedded_project/HPM6E80/CMakeLists.txt
++++ b/embedded_project/HPM6E80/CMakeLists.txt
+@@ -35,6 +35,8 @@ set(SERVO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
+ 
+ # 板级参数：由 Board/servo_system_cfg.h 选择，这里只给编译开关
+ sdk_compile_definitions(-DBOARD_SERVO_HPM6E80=1)
++# Keep the HPM6E80 debug build at -O2; no fast-math or ABI change.
++sdk_compile_options("-O2")
+ 
+ # yuanhub_math.h 在 HPMSOC 分支下要 hpm_math.h。SDK 的 hpm_math 中间件只做 Andes DSP
+ # 版本（CMake 里硬性要求 nds 工具链），本工程用 Board/hpm_math.h + servo_math_port.c

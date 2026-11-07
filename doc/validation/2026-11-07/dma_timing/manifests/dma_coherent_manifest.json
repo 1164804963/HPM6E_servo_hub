@@ -1,0 +1,132 @@
+{
+  "git_head": "37d80417f37d8f62dd60a61a7e91750dcb9a9060",
+  "source_coherent_patch_sha256": "1be6729faa21bdc205bfccb1702f1bc7729c91ceca25ace0546f3419026d3027",
+  "source_git_diff_sha256": "fe2440c85d03ed1ee51ab2f434ea3ca6e70ab79a0a0eabb2f565f3cc4c8e2854",
+  "source_sha256": {
+    "embedded_project/HPM6E80/Board/board.c": "9548f4e6e1d415abdfd59b025a1938e6605b9f125074bdc2a803dfaadd78a038",
+    "embedded_project/HPM6E80/Board/servo_console.c": "df8e7b9e1e465b7f012d4f57f87385424422806a03cd95d6e8c2ebac3562b817",
+    "embedded_project/HPM6E80/Board/servo_console.h": "c9095ada2199c509350afb7147a69fce0a836225d4527da1428cd81cd1a530ee",
+    "embedded_project/HPM6E80/CMakeLists.txt": "39f26fded968af9fbce7ea4119176b76e62a53f6e0e955e2d5f8deda698101a0"
+  },
+  "build_log": "D:\\Documents\\SoftwareProject\\YeeZi_HPM6E\\MyProject\\HPM6E_servo_hub_dsh\\build-hpm6e80\\diagnosis\\dma_coherent\\build.log",
+  "default_build": {
+    "command": "tools/build_hpm6e80.ps1",
+    "cmake_build_type": "debug",
+    "optimization": "-O2 added in embedded_project/HPM6E80/CMakeLists.txt via sdk_compile_options",
+    "compile_entries": 131,
+    "project_c_entries": 58,
+    "project_last_optimization": {
+      "-O2": 58
+    },
+    "all_last_optimization": {
+      "-O2": 131
+    },
+    "any_O0": false,
+    "fast_math": false,
+    "mabi": [
+      "-mabi=ilp32f"
+    ],
+    "march": [
+      "-march=rv32imafc_zifencei_zba_zbb_zbc_zbs"
+    ],
+    "languages": "C=131; CXX=0"
+  },
+  "artifact": {
+    "elf": {
+      "path": "D:\\Documents\\SoftwareProject\\YeeZi_HPM6E\\MyProject\\HPM6E_servo_hub_dsh\\build-hpm6e80\\diagnosis\\dma_coherent\\demo.elf",
+      "bytes": 1678380,
+      "sha256": "2f3bbf9c4606fcb581ac02bd162fa571716002792f844cb232d59a770c635a76"
+    },
+    "bin": {
+      "path": "D:\\Documents\\SoftwareProject\\YeeZi_HPM6E\\MyProject\\HPM6E_servo_hub_dsh\\build-hpm6e80\\diagnosis\\dma_coherent\\demo.bin",
+      "bytes": 180960,
+      "sha256": "0bbc79407184771061211df150cfe3d6a9320eade8bf548012b58b6f6778b8fc"
+    }
+  },
+  "pre_default_o0": {
+    "elf_sha256": "5f136f46a1f76b91087a88b6ccbdb8bb3e6c82950f4b00e4d5fb80451ba82c4e",
+    "bin_sha256": "8d16c1ee4e499a485197570231d28863382a5a8beb80fdc3316f92d0ba727d5f"
+  },
+  "memory": {
+    "FLASH": {
+      "bytes": 181436,
+      "region": 16,
+      "unit": "MB"
+    },
+    "ILM": {
+      "bytes": 4008,
+      "region": 256,
+      "unit": "KB"
+    },
+    "DLM": {
+      "bytes": 32768,
+      "region": 256,
+      "unit": "KB"
+    },
+    "AXI_SRAM": {
+      "bytes": 98960,
+      "region": 512,
+      "unit": "KB"
+    },
+    "AXI_SRAM_NONCACHEABLE": {
+      "bytes": 1408,
+      "region": 256,
+      "unit": "KB"
+    },
+    "SHARE_RAM": {
+      "bytes": 0,
+      "region": 16,
+      "unit": "KB"
+    },
+    "AHB_SRAM": {
+      "bytes": 0,
+      "region": 32,
+      "unit": "KB"
+    }
+  },
+  "flash_ranges": [
+    {
+      "offset": "0x400",
+      "vma": "0x80000400",
+      "lma_start": "0x80000400",
+      "lma_end": "0x8000108f",
+      "file_size": "0xc90",
+      "mem_size": "0xc90"
+    },
+    {
+      "offset": "0x2000",
+      "vma": "0x80003000",
+      "lma_start": "0x80003000",
+      "lma_end": "0x80003057",
+      "file_size": "0x58",
+      "mem_size": "0x58"
+    },
+    {
+      "offset": "0x3000",
+      "vma": "0x0",
+      "lma_start": "0x80003058",
+      "lma_end": "0x80003fff",
+      "file_size": "0xfa8",
+      "mem_size": "0xfa8"
+    },
+    {
+      "offset": "0x4000",
+      "vma": "0x80004000",
+      "lma_start": "0x80004000",
+      "lma_end": "0x8002c4bb",
+      "file_size": "0x284bc",
+      "mem_size": "0x284bc"
+    },
+    {
+      "offset": "0x2d000",
+      "vma": "0x1200000",
+      "lma_start": "0x8002c4c0",
+      "lma_end": "0x8002c6df",
+      "file_size": "0x220",
+      "mem_size": "0x18290"
+    }
+  ],
+  "flash_max_lma_end": "0x8002c6df",
+  "flash_first_1mb_limit": "0x80100000",
+  "within_first_1mb": true
+}

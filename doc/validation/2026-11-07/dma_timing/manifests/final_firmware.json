@@ -1,0 +1,8 @@
+{
+  "source_commit": "3775c4f4df044e0381bbb734f7b825fc5ff3b8bb",
+  "elf_sha256": "2f3bbf9c4606fcb581ac02bd162fa571716002792f844cb232d59a770c635a76",
+  "bin_sha256": "0bbc79407184771061211df150cfe3d6a9320eade8bf548012b58b6f6778b8fc",
+  "flashed_and_verified": true,
+  "parameters_restored": true,
+  "speed_qualified": false
+}

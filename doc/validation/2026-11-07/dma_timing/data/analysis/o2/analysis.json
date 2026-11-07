@@ -1,0 +1,428 @@
+{
+  "adcinfo": "\r\r\nadcinfo: cpu_clk=600000000 Hz adc2_clk=200000000 Hz adc3_clk=200000000 Hz ahb0_clk=200000000 Hz\r\r\nadcinfo: PLIC feature=0x00000003 preempt=1 threshold=0 ADC2_pri=5 ADC3_pri=6\r\r\nadcinfo: ADC2 CONV_CFG1=0x00000153 divider_field=3 divider=4 conv_clk=21 ADC_CFG0=0x20000004 sync_ahb=0 ahb_en=1 COV_END=1 wait_dis=1\r\r\nadcinfo: ADC3 CONV_CFG1=0x00000153 divider_field=3 divider=4 conv_clk=21 ADC_CFG0=0x20000004 sync_ahb=0 ahb_en=1 COV_END=1 wait_dis=1\r\r\nadcinfo: ADC2 ch=5 SAMPLE_CFG=0x00000014 sample_cycle=20 shift=0\r\r\nadcinfo: ADC2 ch=6 SAMPLE_CFG=0x00000014 sample_cycle=20 shift=0\r\r\nadcinfo: ADC3 ch=4 SAMPLE_CFG=0x00000014 sample_cycle=20 shift=0\r\r\nadcinfo: ADC3 ch=7 SAMPLE_CFG=0x000000A0 sample_cycle=160 shift=0\r\r\nservo> ",
+  "captures": [
+    {
+      "condition": "pwm_off",
+      "n": 1024,
+      "cpu_hz": 600000000,
+      "copy_max_us": 6.958333333333333,
+      "copy_mean_us": 0.4583333333333333,
+      "period_us": {
+        "mean": 49.99983545128706,
+        "min": 44.525,
+        "max": 56.735
+      },
+      "seq2_contiguous": true,
+      "adc3_delta_hist": {
+        "-1": 1023,
+        "0": 1
+      },
+      "adc3_copy_races": 1,
+      "status2": {
+        "0x0": 1024
+      },
+      "status3": {
+        "0x0": 1024
+      },
+      "channels": {
+        "u": {
+          "channel_tags": {
+            "5": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32210.490234375,
+          "std_counts": 98.80683640445922,
+          "std_equiv_mA": 49.75319826274344,
+          "pp_counts": 1111,
+          "tag_mismatch": 0
+        },
+        "w": {
+          "channel_tags": {
+            "6": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32803.916015625,
+          "std_counts": 98.14390133115636,
+          "std_equiv_mA": 49.419383910036615,
+          "pp_counts": 1168,
+          "tag_mismatch": 0
+        },
+        "v": {
+          "channel_tags": {
+            "4": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32544.642578125,
+          "std_counts": 100.27332365641058,
+          "std_equiv_mA": 50.49163331087568,
+          "pp_counts": 1191,
+          "tag_mismatch": 0
+        },
+        "vbus": {
+          "channel_tags": {
+            "7": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 11416.84765625,
+          "std_counts": 142.66395527648822,
+          "std_equiv_mA": null,
+          "pp_counts": 2310,
+          "tag_mismatch": 0
+        }
+      }
+    },
+    {
+      "condition": "pwm_off",
+      "n": 1024,
+      "cpu_hz": 600000000,
+      "copy_max_us": 6.883333333333333,
+      "copy_mean_us": 0.45666666666666667,
+      "period_us": {
+        "mean": 49.99995764092538,
+        "min": 48.675,
+        "max": 51.27166666666667
+      },
+      "seq2_contiguous": true,
+      "adc3_delta_hist": {
+        "-1": 1024
+      },
+      "adc3_copy_races": 1,
+      "status2": {
+        "0x0": 1024
+      },
+      "status3": {
+        "0x0": 1024
+      },
+      "channels": {
+        "u": {
+          "channel_tags": {
+            "5": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32210.765625,
+          "std_counts": 92.22436630432532,
+          "std_equiv_mA": 46.438661011394274,
+          "pp_counts": 1092,
+          "tag_mismatch": 0
+        },
+        "w": {
+          "channel_tags": {
+            "6": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32800.6572265625,
+          "std_counts": 97.98131740825923,
+          "std_equiv_mA": 49.337516395150054,
+          "pp_counts": 1159,
+          "tag_mismatch": 0
+        },
+        "v": {
+          "channel_tags": {
+            "4": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32546.5859375,
+          "std_counts": 94.21780387947436,
+          "std_equiv_mA": 47.442436645853476,
+          "pp_counts": 1091,
+          "tag_mismatch": 0
+        },
+        "vbus": {
+          "channel_tags": {
+            "7": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 11415.7890625,
+          "std_counts": 140.3112139330677,
+          "std_equiv_mA": null,
+          "pp_counts": 2410,
+          "tag_mismatch": 0
+        }
+      }
+    },
+    {
+      "condition": "zero_voltage_pwm_on",
+      "n": 1024,
+      "cpu_hz": 600000000,
+      "copy_max_us": 0.9383333333333334,
+      "copy_mean_us": 0.44999999999999996,
+      "period_us": {
+        "mean": 49.999928315412184,
+        "min": 49.904999999999994,
+        "max": 50.105000000000004
+      },
+      "seq2_contiguous": true,
+      "adc3_delta_hist": {
+        "-1": 1024
+      },
+      "adc3_copy_races": 0,
+      "status2": {
+        "0x0": 1024
+      },
+      "status3": {
+        "0x0": 1024
+      },
+      "channels": {
+        "u": {
+          "channel_tags": {
+            "5": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32208.744140625,
+          "std_counts": 91.61510308953008,
+          "std_equiv_mA": 46.13187258841694,
+          "pp_counts": 983,
+          "tag_mismatch": 0
+        },
+        "w": {
+          "channel_tags": {
+            "6": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32805.046875,
+          "std_counts": 94.54517846767425,
+          "std_equiv_mA": 47.60728285878372,
+          "pp_counts": 671,
+          "tag_mismatch": 0
+        },
+        "v": {
+          "channel_tags": {
+            "4": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32546.97265625,
+          "std_counts": 104.54750543625771,
+          "std_equiv_mA": 52.64385497126014,
+          "pp_counts": 1141,
+          "tag_mismatch": 0
+        },
+        "vbus": {
+          "channel_tags": {
+            "7": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 11411.6572265625,
+          "std_counts": 135.31995030919515,
+          "std_equiv_mA": null,
+          "pp_counts": 2245,
+          "tag_mismatch": 0
+        }
+      }
+    },
+    {
+      "condition": "zero_voltage_pwm_on",
+      "n": 1024,
+      "cpu_hz": 600000000,
+      "copy_max_us": 2.5116666666666667,
+      "copy_mean_us": 0.47,
+      "period_us": {
+        "mean": 49.99993320299772,
+        "min": 40.105000000000004,
+        "max": 59.885
+      },
+      "seq2_contiguous": true,
+      "adc3_delta_hist": {
+        "-1": 990,
+        "0": 34
+      },
+      "adc3_copy_races": 3,
+      "status2": {
+        "0x0": 1024
+      },
+      "status3": {
+        "0x0": 1024
+      },
+      "channels": {
+        "u": {
+          "channel_tags": {
+            "5": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32212.0537109375,
+          "std_counts": 88.92726600190008,
+          "std_equiv_mA": 44.778438996318094,
+          "pp_counts": 1027,
+          "tag_mismatch": 0
+        },
+        "w": {
+          "channel_tags": {
+            "6": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32810.7646484375,
+          "std_counts": 98.25388768684692,
+          "std_equiv_mA": 49.474766443877385,
+          "pp_counts": 966,
+          "tag_mismatch": 0
+        },
+        "v": {
+          "channel_tags": {
+            "4": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "0": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 32548.2666015625,
+          "std_counts": 95.83031582656594,
+          "std_equiv_mA": 48.25440097468072,
+          "pp_counts": 1041,
+          "tag_mismatch": 0
+        },
+        "vbus": {
+          "channel_tags": {
+            "7": 1024
+          },
+          "trigger_tags": {
+            "0": 1024
+          },
+          "queue_tags": {
+            "1": 1024
+          },
+          "cycle_bits": {
+            "1": 1024
+          },
+          "cycle_transitions": 0,
+          "mean_counts": 11413.0322265625,
+          "std_counts": 127.48897752800502,
+          "std_equiv_mA": null,
+          "pp_counts": 2343,
+          "tag_mismatch": 0
+        }
+      }
+    }
+  ],
+  "vbus_unit_note": "VBUS is ADC counts only; current gain is not applicable."
+}

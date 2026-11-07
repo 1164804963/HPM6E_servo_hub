@@ -1,0 +1,1528 @@
+{
+  "timestamp": 1794050802.9629064,
+  "state": {
+    "connected": true,
+    "port": "COM4",
+    "enabled": false,
+    "error": false,
+    "heartbeat": true,
+    "parse_errors": 1,
+    "read_all_active": false,
+    "mode": 0,
+    "is_ctrl": false,
+    "fresh_ids": [
+      30001,
+      30002,
+      30003,
+      30004,
+      30005,
+      30006,
+      30007,
+      30008,
+      30009,
+      30010,
+      30011,
+      30012,
+      30013,
+      30014,
+      30019,
+      30020,
+      30021,
+      30022,
+      30023,
+      30024,
+      30025,
+      30026,
+      30027,
+      30028,
+      30029,
+      30030,
+      30031,
+      30032,
+      30033,
+      30034,
+      30035,
+      30036,
+      30037,
+      30038,
+      30039,
+      30040,
+      30041,
+      30042,
+      30043,
+      30045,
+      30046,
+      30047,
+      30048,
+      30050,
+      30051,
+      30052,
+      30053,
+      30054,
+      30055,
+      30056,
+      30057,
+      30058,
+      30059,
+      30060,
+      30061,
+      30062,
+      30063,
+      30064,
+      30065,
+      30066,
+      30067,
+      30068,
+      30069,
+      30070,
+      30071,
+      30072,
+      30073,
+      30074,
+      30075,
+      30076,
+      30077,
+      30078,
+      30079,
+      30080,
+      30081,
+      30082,
+      30084,
+      30085,
+      30086,
+      30087
+    ],
+    "graphs": [
+      [
+        "参数：AppMotionInfo-负载端位置当前值",
+        "30833"
+      ],
+      [
+        "参数：AppStatusInfo-母线电压当前值",
+        "12.11"
+      ],
+      [
+        "参数：AppMotionInfo-负载端速度当前值",
+        "-0.00"
+      ],
+      [
+        "参数：AppStatusInfo-电机当前温度",
+        "25.00"
+      ],
+      [
+        "参数：AppMotionInfo-电流当前值",
+        "0.00"
+      ],
+      [
+        "参数：AppMotionInfo-力矩指令值",
+        "0.00"
+      ]
+    ]
+  },
+  "checks": {
+    "30001": {
+      "b": true,
+      "fc": true,
+      "flux": true,
+      "j": true,
+      "ld": true,
+      "lq": true,
+      "peak_current": true,
+      "pn": true,
+      "r": true,
+      "rated_current": true,
+      "speed_max_rpm": true,
+      "tp_s": true,
+      "tc_s": true,
+      "enc_line_p_n": true,
+      "kt": true
+    },
+    "30004": {
+      "dt_s": true,
+      "end_fs_Hz": true,
+      "i_max_A": true,
+      "init_fs_Hz": true,
+      "target_time_s": true,
+      "u_max_V": true,
+      "wait_time_s": true
+    },
+    "30006": {
+      "dt_s": true,
+      "end_fs_Hz": true,
+      "start_fs_Hz": true,
+      "target_time_s": true,
+      "i_max_A": true,
+      "search_speed_max_rad_s": true,
+      "wait_time_s": true,
+      "signal_type": true
+    },
+    "30012": {
+      "wn_Hz": true,
+      "run_frq_Hz": true,
+      "enable": true
+    },
+    "30014": {
+      "channel_map": true,
+      "channel_switch": true,
+      "sample_interval": true,
+      "sample_points": true,
+      "trigger_delay": true,
+      "trigger_mode": true,
+      "trigger_source": true,
+      "trigger_threshold": true
+    },
+    "30018": {
+      "waveform_map_info": true
+    },
+    "30019": {
+      "iq_max_A": true,
+      "speed_tar_p_s": true,
+      "acc_tar_p_ss": true,
+      "position_offset_p": true,
+      "speed_offset_p_s": true
+    },
+    "30021": {
+      "aff": true,
+      "vff": true,
+      "enc_line_inv_p_n": true,
+      "j_kt": true,
+      "ki_s": true,
+      "kp_p": true,
+      "kp_s": true,
+      "speed_max_rad_s": true,
+      "tp_s": true,
+      "mode": true,
+      "dob_wn_Hz": true,
+      "dob_enable": true,
+      "dynamic_integration_enable": true
+    },
+    "30022": {
+      "mode": true,
+      "under_voltage_protection_V": true,
+      "over_voltage_protection_V": true,
+      "over_speed_protection_rad_s": true,
+      "under_temperature_protection_d": true,
+      "over_temperature_protection_d": true,
+      "position_following_error_protection": true,
+      "error_enable": true,
+      "over_current_protection_A": true
+    },
+    "30023": {
+      "motor_enable": true,
+      "hw_ready_state": true
+    },
+    "30025": {
+      "idq_tar_A": true,
+      "uabc_tar_V": true,
+      "iq_offset_A": true
+    },
+    "30026": {
+      "i_noise_A": true,
+      "comp_du_V": true,
+      "bandwidth_percentage": true,
+      "dt_s": true,
+      "flux_wb": true,
+      "kp_ld": true,
+      "ki_ld": true,
+      "kp_lq": true,
+      "ki_lq": true,
+      "pwm_duty_cycle_max": true,
+      "elec_angle_compensation": true,
+      "phase_dir": true
+    },
+    "30028": {
+      "frq": true,
+      "width": true,
+      "depth": true
+    },
+    "30030": {
+      "tp_s": true,
+      "wn_Hz": true,
+      "enc_line_inv_p_n": true,
+      "speed_obs_max_rad_s": true
+    },
+    "30032": {
+      "id_max_A": true,
+      "dt_s": true,
+      "method": true,
+      "angle_add_rad": true,
+      "wait_time_s": true,
+      "test_angle_rad": true,
+      "current_slope_percentage": true
+    },
+    "30036": {
+      "elec_angle_add_rad": true,
+      "current_slope_percentage": true,
+      "id_tar_max_A": true
+    },
+    "30039": {
+      "enc_line_p_n": true,
+      "init_pos_p": true,
+      "pn": true,
+      "elec_angle_bias_rad": true,
+      "dir": true
+    },
+    "30042": {
+      "elec_angle_add": true,
+      "enc_line_p_n": true,
+      "id_tar_max_A": true,
+      "current_slope_percentage": true
+    },
+    "30045": {
+      "param_save": true,
+      "system_reset": true,
+      "current_loop_freq": true,
+      "position_loop_freq": true
+    },
+    "30047": {
+      "enc_line_p_n": true,
+      "iq_com_enable": true,
+      "tq_com_enable": true,
+      "fc_com_enable": true,
+      "fc_p_com": true,
+      "fc_n_com": true
+    },
+    "30050": {
+      "pos_tar1_p": true,
+      "pos_tar2_p": true,
+      "dwell_time_s": true,
+      "profile_velocity_p_s": true,
+      "profile_acc_p_ss": true,
+      "profile_dec_p_ss": true,
+      "dt_s": true
+    },
+    "30052": {
+      "dt_s": true,
+      "signal_type": true,
+      "amp": true,
+      "frq_Hz": true,
+      "bias": true,
+      "signal_target": true,
+      "signal_start_pos": true
+    },
+    "30057": {
+      "Load_encoder_resolution": true,
+      "Motor_encoder_resolution": true,
+      "Motor_encoder_type": true,
+      "Load_encoder_type": true,
+      "Motor_encoder_options": true,
+      "Load_pps_2_rpm": true,
+      "Load_rpm_2_pps": true,
+      "Motor_pps_2_rpm": true,
+      "Motor_rpm_2_pps": true,
+      "P_load_2_motor": true,
+      "P_motor_2_load": true,
+      "Load_control_resolution": true,
+      "Motor_control_resolution": true,
+      "Load_encoder_options": true
+    },
+    "30058": {
+      "Polarity": true,
+      "Home_position_offset_value": true,
+      "Can_id": true,
+      "Can_baudrate": true,
+      "Quick_stop_option_code": true,
+      "Brake_engage_time": true,
+      "Brake_release_time": true,
+      "Dynamic_brake_speed_threshold": true,
+      "Brake_release_hold_voltage": true,
+      "Digital_io_outputs_phys": true,
+      "Digital_io_outputs_mask": true,
+      "Brake_control_mode": true,
+      "Brake_rated_voltage": true,
+      "Brake_release_action_voltage": true,
+      "Brake_release_pwm_freq": true,
+      "Brake_engage_delay_time": true,
+      "Brake_release_delay_time": true
+    },
+    "30059": {
+      "Target_position": true,
+      "Profile_velocity": true,
+      "Profile_acceleration": true,
+      "Profile_deceleration": true,
+      "Quick_stop_deceleration": true,
+      "Motion_profile_type": true,
+      "Home_offset": true,
+      "Homing_method": true,
+      "Target_velocity": true,
+      "Target_torque": true,
+      "Torque_slope": true,
+      "Encoder_calibration_speed": true,
+      "MIT_feedforward_torque": true,
+      "MIT_target_position": true,
+      "MIT_max_current": true,
+      "MIT_target_velocity": true,
+      "MIT_kp": true,
+      "MIT_kd": true,
+      "Interp_time_value": true,
+      "Interp_time_index": true,
+      "Homing_speed_search_for_switch": true,
+      "Homing_speed_search_for_zero": true,
+      "Homing_acceleration": true
+    },
+    "30060": {
+      "Position_range_limit_Minimal_position_limit": true,
+      "Position_range_limit_Maximal_position_limit": true,
+      "Software_position_limit_Minimal_position_limit": true,
+      "Software_position_limit_Maximal_position_limit": true,
+      "Max_profile_velocity": true,
+      "Max_motor_speed": true,
+      "Max_acceleration": true,
+      "Max_deceleration": true,
+      "Max_current": true,
+      "Position_limit_enable": true
+    },
+    "30062": {
+      "Following_error_window": true,
+      "Following_error_time_out": true,
+      "Position_window": true,
+      "Position_window_time": true,
+      "Velocity_window": true,
+      "Velocity_window_time": true,
+      "Velocity_threshold": true,
+      "Velocity_threshold_time": true
+    },
+    "30063": {
+      "Motor_rated_current": true,
+      "Motor_rated_torque": true,
+      "Motor_peak_current": true,
+      "Motor_pole_pairs": true,
+      "Motor_maximum_speed": true,
+      "Resistance": true,
+      "Inductance": true,
+      "Reduction_ratio_num": true,
+      "Reduction_ratio_den": true,
+      "Torque_constant": true,
+      "Reduction_ratio": true,
+      "Reduction_ratio_inv": true,
+      "Motor_rotor_inertia": true
+    },
+    "30064": {
+      "Bus_under_voltage_threshold": true,
+      "Bus_over_voltage_threshold": true,
+      "Drive_overload_current_duration": true,
+      "Drive_peak_current_duration": true,
+      "Drive_temperature_threshold_time": true,
+      "Drive_low_temperature_fault_threshold": true,
+      "Drive_high_temperature_fault_threshold": true,
+      "Overspeed_threshold": true,
+      "Drive_overcurrent_threshold": true,
+      "Protection_enable": true,
+      "Motor_low_temperature_fault_threshold": true,
+      "Motor_high_temperature_fault_threshold": true,
+      "Can_timeout": true,
+      "Motor_low_temperature_warning_threshold": true,
+      "Motor_high_temperature_warning_threshold": true,
+      "Mcu_temperature_threshold_time": true,
+      "Mcu_low_temperature_fault_threshold": true,
+      "Mcu_high_temperature_fault_threshold": true,
+      "Mcu_low_temperature_warning_threshold": true,
+      "Mcu_high_temperature_warning_threshold": true,
+      "Drive_low_temperature_warning_threshold": true,
+      "Drive_high_temperature_warning_threshold": true
+    },
+    "30066": {
+      "kp_pos_NM_rad": true,
+      "kd_spd_NM_rad_s": true,
+      "enc_line_inv_p_n": true,
+      "kt_NM_A": true
+    },
+    "30068": {
+      "Comm_control_authority": true,
+      "Internal_control_authority": true
+    },
+    "30071": {
+      "enc_line_p_n": true,
+      "init_pos_p": true,
+      "dir": true
+    },
+    "30081": {
+      "b": true,
+      "fc": true,
+      "flux": true,
+      "kt": true,
+      "j": true,
+      "ld": true,
+      "lq": true,
+      "peak_current_A": true,
+      "pn": true,
+      "r": true,
+      "rated_current_A": true,
+      "speed_max_rpm": true,
+      "dt_s": true,
+      "enc_line_p_n": true,
+      "j_inv": true,
+      "ld_inv": true,
+      "lq_inv": true,
+      "enc_line_init_pos_P": true,
+      "enc_noise": true
+    },
+    "30082": {
+      "Debug_float": true,
+      "Debug_uint32": true,
+      "Debug_int32": true
+    },
+    "30084": {
+      "table_id": true,
+      "table_index_offset": true
+    },
+    "30085": {
+      "Sys_id": true,
+      "Comp_id": true
+    },
+    "30086": {
+      "File_type": true,
+      "File_size": true,
+      "File_direction": true,
+      "File_index_complete": true,
+      "File_status": true
+    },
+    "30087": {
+      "Fw_mode": true,
+      "Fw_app_index": true,
+      "Fw_flash_size": true,
+      "Fw_operating_steps": true
+    }
+  },
+  "mismatches": [],
+  "all_checked_fields_match": true,
+  "packets": {
+    "30001": {
+      "mavpackettype": "PMSMCONFIG",
+      "b": 9.999999747378752e-05,
+      "fc": 0.0010000000474974513,
+      "flux": 0.005850000306963921,
+      "j": 3.000000106112566e-06,
+      "ld": 0.00011700000322889537,
+      "lq": 0.00011700000322889537,
+      "peak_current": 1.5199999809265137,
+      "pn": 1.0,
+      "r": 1.7699999809265137,
+      "rated_current": 1.6970562934875488,
+      "speed_max_rpm": 12000.0,
+      "tp_s": 0.0010000000474974513,
+      "tc_s": 4.999999873689376e-05,
+      "enc_line_p_n": 16384,
+      "kt": 0.008775000460445881
+    },
+    "30002": {
+      "mavpackettype": "ELECIDSININPUT",
+      "i_abc_now_A": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "30003": {
+      "mavpackettype": "ELECIDSINOUTPUT",
+      "state_now": 0,
+      "u_abc_tar_V": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "u_alpha_now_V": 0.0,
+      "i_alpha_now_A": 0.0
+    },
+    "30004": {
+      "mavpackettype": "ELECIDSINCONFIG",
+      "dt_s": 0.0010000000474974513,
+      "end_fs_Hz": 1.0,
+      "i_max_A": 1.6970562934875488,
+      "init_fs_Hz": 500.0,
+      "target_time_s": 0.4000000059604645,
+      "u_max_V": 12.0,
+      "wait_time_s": 0.20000000298023224
+    },
+    "30005": {
+      "mavpackettype": "MECIDOUTPUT",
+      "iq_tar_A": 0.0,
+      "state_now": 0
+    },
+    "30006": {
+      "mavpackettype": "MECIDCONFIG",
+      "dt_s": 0.0010000000474974513,
+      "end_fs_Hz": 1000.0,
+      "start_fs_Hz": 5.0,
+      "target_time_s": 0.4000000059604645,
+      "i_max_A": 1.6970562934875488,
+      "search_speed_max_rad_s": 30.0,
+      "wait_time_s": 0.20000000298023224,
+      "signal_type": 0
+    },
+    "30007": {
+      "mavpackettype": "NOTCHFILTERINPUT",
+      "iq_tar_A": 0.10000000149011612
+    },
+    "30008": {
+      "mavpackettype": "NOTCHFILTERINTERNAL",
+      "u0": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "u1": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "u2": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "y0": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "y1": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "30009": {
+      "mavpackettype": "NOTCHFILTEROUTPUT",
+      "iq_tar_filter_A": 0.10000000149011612
+    },
+    "30010": {
+      "mavpackettype": "MECIDINPUT",
+      "speed_now_rad_s": 0.0
+    },
+    "30011": {
+      "mavpackettype": "INPUTSHAPINGINPUT",
+      "pos_cmd_p": 30229,
+      "pos_cmd_p_init": 30229
+    },
+    "30012": {
+      "mavpackettype": "INPUTSHAPINGCONFIG",
+      "wn_Hz": 0.0,
+      "run_frq_Hz": 999.9999389648438,
+      "enable": 0
+    },
+    "30013": {
+      "mavpackettype": "INPUTSHAPINGOUTPUT",
+      "pos_cmd_shaping_p": 0
+    },
+    "30014": {
+      "mavpackettype": "SCOPECONFIG",
+      "channel_map": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "channel_switch": 0,
+      "sample_interval": 0,
+      "sample_points": 0,
+      "trigger_delay": 0,
+      "trigger_mode": 0,
+      "trigger_source": 0,
+      "trigger_threshold": 0
+    },
+    "30015": {
+      "mavpackettype": "SCOPECONTROL",
+      "control_word": 5,
+      "frame_info": 0,
+      "frame_num": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "status_word": 0
+    },
+    "30016": {
+      "mavpackettype": "SCOPEDATA",
+      "frame_data": [
+        0,
+        7,
+        0,
+        8,
+        40,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "30017": {
+      "mavpackettype": "WAVEFORMDATA",
+      "waveform_data_array": [
+        30833,
+        1094844300,
+        2147484068,
+        1103626238,
+        0,
+        0
+      ]
+    },
+    "30018": {
+      "mavpackettype": "WAVEFORMMAP",
+      "waveform_map_info": [
+        18743296,
+        21561344,
+        20643840,
+        28573696,
+        21495808,
+        21233664
+      ]
+    },
+    "30019": {
+      "mavpackettype": "POSSPEEDCTLINPUT",
+      "pos_tar_p": 14905,
+      "pos_now_p": 30833,
+      "iq_max_A": 1.2000000476837158,
+      "speed_tar_p_s": 0.0,
+      "acc_tar_p_ss": 0.0,
+      "speed_now_rad_s": -6.165713243029195e-44,
+      "position_offset_p": 0,
+      "speed_offset_p_s": 0.0
+    },
+    "30020": {
+      "mavpackettype": "POSSPEEDCTLOUTPUT",
+      "iq_tar_A": 0.10000000149011612,
+      "pos_ctl_error_p": 0,
+      "dob_iq_com_A": 0.10000000149011612
+    },
+    "30021": {
+      "mavpackettype": "POSSPEEDCTLCONFIG",
+      "aff": 0.0,
+      "vff": 1.0,
+      "enc_line_inv_p_n": 6.103515625e-05,
+      "j_kt": 0.0003418803389649838,
+      "ki_s": 7.670000076293945,
+      "kp_p": 20.0,
+      "kp_s": 0.10199999809265137,
+      "speed_max_rad_s": 1256.6370849609375,
+      "tp_s": 0.0010000000474974513,
+      "mode": 0.0,
+      "dob_wn_Hz": 400.0,
+      "dob_enable": 0,
+      "dynamic_integration_enable": 1
+    },
+    "30022": {
+      "mavpackettype": "MOTORCTLSMCONFIG",
+      "mode": 0,
+      "under_voltage_protection_V": 9.0,
+      "over_voltage_protection_V": 15.0,
+      "over_speed_protection_rad_s": 1507.964599609375,
+      "under_temperature_protection_d": -40.0,
+      "over_temperature_protection_d": 115.0,
+      "position_following_error_protection": 1638,
+      "error_enable": 0,
+      "over_current_protection_A": 1.8240000009536743
+    },
+    "30023": {
+      "mavpackettype": "MOTORCTLSMINPUT",
+      "motor_enable": 0,
+      "hw_ready_state": 0
+    },
+    "30024": {
+      "mavpackettype": "MOTORCTLSMOUTPUT",
+      "state": 0,
+      "error": 0,
+      "warning": 0,
+      "mode_now": 2,
+      "motor_enable_last": 0,
+      "state_last": 0
+    },
+    "30025": {
+      "mavpackettype": "CURRENTCTLINPUT",
+      "idq_tar_A": [
+        0.0,
+        0.0
+      ],
+      "iabc_now_A": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "elec_theta_rad": 1.5403997898101807,
+      "dc_bus_now_V": 12.081268310546875,
+      "mode": 0,
+      "uabc_tar_V": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "driver_temp": 0.0,
+      "elec_angle_speed_rad_s": -15.520873069763184,
+      "iq_offset_A": 0.0
+    },
+    "30026": {
+      "mavpackettype": "CURRENTCTLCONFIG",
+      "i_noise_A": 0.019999999552965164,
+      "comp_du_V": 0.0,
+      "bandwidth_percentage": 100.0,
+      "dt_s": 4.999999873689376e-05,
+      "flux_wb": 0.0,
+      "kp_ld": 0.22050000727176666,
+      "ki_ld": 3562.0,
+      "kp_lq": 0.22050000727176666,
+      "ki_lq": 3562.0,
+      "pwm_duty_cycle_max": 0.8999999761581421,
+      "elec_angle_compensation": 0.0,
+      "phase_dir": 1
+    },
+    "30027": {
+      "mavpackettype": "CURRENTCTLOUTPUT",
+      "uabc_tar_comp_V": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "idq_now_A": [
+        0.0,
+        0.0
+      ],
+      "uabc_tar_org_V": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "30028": {
+      "mavpackettype": "NOTCHFILTERCONFIG",
+      "frq": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "width": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "depth": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "30029": {
+      "mavpackettype": "SPEEDOBSPLLINPUT",
+      "pos_now_p": 30833
+    },
+    "30030": {
+      "mavpackettype": "SPEEDOBSPLLCONFIG",
+      "tp_s": 0.0010000000474974513,
+      "wn_Hz": 100.0,
+      "enc_line_inv_p_n": 6.103515625e-05,
+      "speed_obs_max_rad_s": 1507.964599609375
+    },
+    "30031": {
+      "mavpackettype": "SPEEDOBSPLLOUTPUT",
+      "ev_rad_s": -6.165713243029195e-44
+    },
+    "30032": {
+      "mavpackettype": "ELECANGLEIDCONFIG",
+      "id_max_A": 1.6970562934875488,
+      "dt_s": 0.0010000000474974513,
+      "method": 0,
+      "angle_add_rad": 9.999999747378752e-05,
+      "wait_time_s": 1.0,
+      "test_angle_rad": 0.5,
+      "current_slope_percentage": 0.5
+    },
+    "30033": {
+      "mavpackettype": "ELECANGLEIDOUTPUT",
+      "id_tar_A": 0.0,
+      "elec_bias_rad": 0.0,
+      "state_now": 0,
+      "elec_bias_buff_rad": [
+        0.0,
+        0.0
+      ],
+      "step_num": 0
+    },
+    "30034": {
+      "mavpackettype": "ELECANGLEIDINPUT",
+      "pos_now_rad": 0.0
+    },
+    "30035": {
+      "mavpackettype": "DIRECTIONIDINPUT",
+      "enc_counts_sum_p": 0
+    },
+    "30036": {
+      "mavpackettype": "DIRECTIONIDCONFIG",
+      "elec_angle_add_rad": 0.0005000000237487257,
+      "current_slope_percentage": 0.5,
+      "id_tar_max_A": 1.6970562934875488
+    },
+    "30037": {
+      "mavpackettype": "DIRECTIONIDOUTPUT",
+      "elec_angle_tar_rad": 0.0,
+      "direction": 0,
+      "state_now": 0,
+      "id_tar_A": 0.0
+    },
+    "30038": {
+      "mavpackettype": "MOTORPOSSENSORINPUT",
+      "enc_counts_now_p": 14449
+    },
+    "30039": {
+      "mavpackettype": "MOTORPOSSENSORCONFIG",
+      "enc_line_p_n": 16384,
+      "init_pos_p": 0,
+      "pn": 1,
+      "elec_angle_bias_rad": 3.867649793624878,
+      "dir": 1
+    },
+    "30040": {
+      "mavpackettype": "MOTORPOSSENSOROUTPUT",
+      "enc_sum_p": 30833,
+      "elec_angle_now_rad": 1.6734726428985596
+    },
+    "30041": {
+      "mavpackettype": "POLEPAIRSIDINPUT",
+      "enc_counts_sum_p": 0
+    },
+    "30042": {
+      "mavpackettype": "POLEPAIRSIDCONFIG",
+      "elec_angle_add": 0.0005000000237487257,
+      "enc_line_p_n": 16384,
+      "id_tar_max_A": 1.6970562934875488,
+      "current_slope_percentage": 0.5
+    },
+    "30043": {
+      "mavpackettype": "POLEPAIRSIDOUTPUT",
+      "pn_id": 0,
+      "state_now": 0,
+      "elec_angle_tar_rad": 0.0,
+      "id_tar_A": 0.0
+    },
+    "30045": {
+      "mavpackettype": "SYSTEMCONFIG",
+      "param_save": 0,
+      "system_reset": 0,
+      "current_loop_freq": 20000,
+      "position_loop_freq": 1000
+    },
+    "30046": {
+      "mavpackettype": "TQFCIDINPUT",
+      "iq_com_A": 0.0,
+      "pos_abs_p": 0,
+      "pos_init_p": 0,
+      "start": 0
+    },
+    "30047": {
+      "mavpackettype": "TQFCIDCONFIG",
+      "enc_line_p_n": 16384,
+      "iq_com_enable": 0,
+      "tq_com_enable": 0,
+      "fc_com_enable": 0,
+      "fc_p_com": 0.0,
+      "fc_n_com": 0.0
+    },
+    "30048": {
+      "mavpackettype": "TQFCIDOUTPUT",
+      "pos_cmd_p": 0,
+      "state_now": 0
+    },
+    "30050": {
+      "mavpackettype": "RECIPROCALMOTIONCONFIG",
+      "pos_tar1_p": 0,
+      "pos_tar2_p": 0,
+      "dwell_time_s": 0.0,
+      "profile_velocity_p_s": 0.0,
+      "profile_acc_p_ss": 0.0,
+      "profile_dec_p_ss": 0.0,
+      "dt_s": 0.0010000000474974513
+    },
+    "30051": {
+      "mavpackettype": "RECIPROCALMOTIONOUTPUT",
+      "pos_tar_p": 0,
+      "v_tar_p_s": 0.0,
+      "acc_tar_p_ss": 0.0,
+      "state_now": 0
+    },
+    "30052": {
+      "mavpackettype": "REFERENCESIGNALCONFIG",
+      "dt_s": 0.0010000000474974513,
+      "signal_type": 0,
+      "amp": 0.0,
+      "frq_Hz": 0.0,
+      "bias": 0.0,
+      "signal_target": 0,
+      "signal_start_pos": 0
+    },
+    "30053": {
+      "mavpackettype": "REFERENCESIGNALOUTPUT",
+      "signal_out": 0.0,
+      "signal_pos": 0,
+      "signal_vel": 0.0,
+      "signal_acc": 0.0
+    },
+    "30054": {
+      "mavpackettype": "APPCONTROLWORD",
+      "Controlword": 0,
+      "Halt_running_cmd": 0
+    },
+    "30055": {
+      "mavpackettype": "APPSTATUSINFO",
+      "Statusword": 3,
+      "Error_word": 0,
+      "DC_link_circuit_voltage": 12.053356170654297,
+      "Drive_accumulated_heat": 0.0,
+      "Drive_temperature": 0.0,
+      "Alarm_word": 0,
+      "Modes_of_operation_display": 0,
+      "Version": 67043328,
+      "Motor_temperature": 24.999996185302734,
+      "Motor_power": -0.0,
+      "Mcu_temperature": 0.0,
+      "Digital_io_inputs_status": 0,
+      "Brake_state": 0
+    },
+    "30056": {
+      "mavpackettype": "APPOPMODE",
+      "Modes_of_operation": 0
+    },
+    "30057": {
+      "mavpackettype": "APPENCODERCONFIG",
+      "Load_encoder_resolution": 0,
+      "Motor_encoder_resolution": 16384,
+      "Motor_encoder_type": 0,
+      "Load_encoder_type": 0,
+      "Motor_encoder_options": 0,
+      "Load_pps_2_rpm": 0.003662109375,
+      "Load_rpm_2_pps": 273.0666809082031,
+      "Motor_pps_2_rpm": 0.003662109375,
+      "Motor_rpm_2_pps": 273.0666809082031,
+      "P_load_2_motor": 1.0,
+      "P_motor_2_load": 0.0,
+      "Load_control_resolution": 0,
+      "Motor_control_resolution": 16384,
+      "Load_encoder_options": 0
+    },
+    "30058": {
+      "mavpackettype": "APPBASECONFIG",
+      "Polarity": 0,
+      "Home_position_offset_value": 0,
+      "Can_id": 21,
+      "Can_baudrate": 1000000,
+      "Quick_stop_option_code": 2,
+      "Brake_engage_time": 0.0,
+      "Brake_release_time": 0.0,
+      "Dynamic_brake_speed_threshold": 10.0,
+      "Brake_release_hold_voltage": 12.0,
+      "Digital_io_outputs_phys": 0,
+      "Digital_io_outputs_mask": 1,
+      "Brake_control_mode": 0,
+      "Brake_rated_voltage": 24.0,
+      "Brake_release_action_voltage": 0.0,
+      "Brake_release_pwm_freq": 10000,
+      "Brake_engage_delay_time": 0.0,
+      "Brake_release_delay_time": 0.0
+    },
+    "30059": {
+      "mavpackettype": "APPMOTIONPARAM",
+      "Target_position": 0,
+      "Profile_velocity": 10.0,
+      "Profile_acceleration": 10.0,
+      "Profile_deceleration": 10.0,
+      "Quick_stop_deceleration": 15728640.0,
+      "Motion_profile_type": 0,
+      "Home_offset": 0,
+      "Homing_method": 0,
+      "Target_velocity": 0.0,
+      "Target_torque": 0.0,
+      "Torque_slope": 1.0,
+      "Encoder_calibration_speed": 0.0,
+      "MIT_feedforward_torque": 0.0,
+      "MIT_target_position": 0,
+      "MIT_max_current": 1.2000000476837158,
+      "MIT_target_velocity": 0.0,
+      "MIT_kp": 0.009999999776482582,
+      "MIT_kd": 0.009999999776482582,
+      "Interp_time_value": 1,
+      "Interp_time_index": -3,
+      "Homing_speed_search_for_switch": 10.0,
+      "Homing_speed_search_for_zero": 1.0,
+      "Homing_acceleration": 100.0
+    },
+    "30060": {
+      "mavpackettype": "APPRESTRICTPARAM",
+      "Position_range_limit_Minimal_position_limit": -9223372036854775808,
+      "Position_range_limit_Maximal_position_limit": 9223372036854775807,
+      "Software_position_limit_Minimal_position_limit": -9223372036854775808,
+      "Software_position_limit_Maximal_position_limit": 9223372036854775807,
+      "Max_profile_velocity": 12000.0,
+      "Max_motor_speed": 12000.0,
+      "Max_acceleration": 15728640.0,
+      "Max_deceleration": 15728640.0,
+      "Max_current": 1.2000000476837158,
+      "Position_limit_enable": 0
+    },
+    "30061": {
+      "mavpackettype": "APPMOTIONINFO",
+      "Position_demand_value": 30833,
+      "Position_actual_value_inc": 30833,
+      "Position_actual_value": 30833,
+      "Following_error_actual_value": 0,
+      "Velocity_demand_value": 0.0,
+      "Velocity_actual_value": -5.885453550164232e-43,
+      "Torque_demand_value": 0.0,
+      "Torque_actual_value": 0.0,
+      "Current_actual_value": 0.0,
+      "D_current_actual_value": 0.0,
+      "U_current_actual_value": 0.0,
+      "V_current_actual_value": 0.0,
+      "W_current_actual_value": 0.0,
+      "Motor_position_demand_value": 30229,
+      "Motor_position_actual_value": 30833,
+      "Motor_following_error_actual_value": 0,
+      "Motor_velocity_demand_value": 0.0,
+      "Motor_velocity_actual_value": -5.885453550164232e-43,
+      "U_adc_mid_val": 32200,
+      "V_adc_mid_val": 32538,
+      "W_adc_mid_val": 32803,
+      "Current_loop_time": 5.170000076293945,
+      "Position_loop_time": 30.10500144958496,
+      "Current_loop_cycle": 0.0,
+      "Position_loop_cycle": 0.0,
+      "Interp_period": 0.0010000000474974513,
+      "Emergency_brake_requested": 0,
+      "Target_update_state": 0,
+      "Homing_step": 0,
+      "Encoder_zero_crossing_state": 0,
+      "Homing_state": 0
+    },
+    "30062": {
+      "mavpackettype": "APPWINDOWPARAM",
+      "Following_error_window": 10000,
+      "Following_error_time_out": 0.019999999552965164,
+      "Position_window": 100,
+      "Position_window_time": 0.019999999552965164,
+      "Velocity_window": 10.0,
+      "Velocity_window_time": 0.019999999552965164,
+      "Velocity_threshold": 10.0,
+      "Velocity_threshold_time": 0.019999999552965164
+    },
+    "30063": {
+      "mavpackettype": "APPMOTORCONFIG",
+      "Motor_rated_current": 1.2000000476837158,
+      "Motor_rated_torque": 0.0,
+      "Motor_peak_current": 1.5199999809265137,
+      "Motor_pole_pairs": 1.0,
+      "Motor_maximum_speed": 12000.0,
+      "Resistance": 3.5399999618530273,
+      "Inductance": 0.00023400000645779073,
+      "Reduction_ratio_num": 1,
+      "Reduction_ratio_den": 1,
+      "Torque_constant": 8.774999618530273,
+      "Reduction_ratio": 1.0,
+      "Reduction_ratio_inv": 1.0,
+      "Motor_rotor_inertia": 0.030000001192092896
+    },
+    "30064": {
+      "mavpackettype": "APPPROTECTCONFIG",
+      "Bus_under_voltage_threshold": 9.0,
+      "Bus_over_voltage_threshold": 15.0,
+      "Drive_overload_current_duration": 2.0,
+      "Drive_peak_current_duration": 0.20000000298023224,
+      "Drive_temperature_threshold_time": 2.0,
+      "Drive_low_temperature_fault_threshold": -40.0,
+      "Drive_high_temperature_fault_threshold": 115.0,
+      "Overspeed_threshold": 14400.0009765625,
+      "Drive_overcurrent_threshold": 2.0,
+      "Protection_enable": 65535,
+      "Motor_low_temperature_fault_threshold": -40.0,
+      "Motor_high_temperature_fault_threshold": 100.0,
+      "Can_timeout": 0.5,
+      "Motor_low_temperature_warning_threshold": -20.0,
+      "Motor_high_temperature_warning_threshold": 85.0,
+      "Mcu_temperature_threshold_time": 2.0,
+      "Mcu_low_temperature_fault_threshold": -40.0,
+      "Mcu_high_temperature_fault_threshold": 115.0,
+      "Mcu_low_temperature_warning_threshold": -25.0,
+      "Mcu_high_temperature_warning_threshold": 105.0,
+      "Drive_low_temperature_warning_threshold": -25.0,
+      "Drive_high_temperature_warning_threshold": 105.0
+    },
+    "30065": {
+      "mavpackettype": "MITCTLINPUT",
+      "tq_set_NM": 0.0,
+      "pos_tar_p": 0,
+      "pos_now_p": 0,
+      "iq_max_A": 0.0,
+      "speed_tar_p_s": 0.0,
+      "speed_now_rad_s": 0.0
+    },
+    "30066": {
+      "mavpackettype": "MITCTLCONFIG",
+      "kp_pos_NM_rad": 1.0,
+      "kd_spd_NM_rad_s": 1.0,
+      "enc_line_inv_p_n": 6.103515625e-05,
+      "kt_NM_A": 0.008775000460445881
+    },
+    "30067": {
+      "mavpackettype": "MITCTLOUTPUT",
+      "iq_tar_A": 0.0
+    },
+    "30068": {
+      "mavpackettype": "APPPERMISSIONCONFIG",
+      "Comm_control_authority": 0,
+      "Internal_control_authority": 0
+    },
+    "30069": {
+      "mavpackettype": "SYSTEMCMD",
+      "Sys_cmd": 0
+    },
+    "30070": {
+      "mavpackettype": "LOADPOSSENSORINPUT",
+      "enc_counts_now_p": 0
+    },
+    "30071": {
+      "mavpackettype": "LOADPOSSENSORCONFIG",
+      "enc_line_p_n": 0,
+      "init_pos_p": 0,
+      "dir": 1
+    },
+    "30072": {
+      "mavpackettype": "LOADPOSSENSOROUTPUT",
+      "enc_sum_p": 0
+    },
+    "30073": {
+      "mavpackettype": "SYSTEMSTATUS",
+      "Storage_status": 2,
+      "Storage_cmd": 0
+    },
+    "30074": {
+      "mavpackettype": "ENCODERCALIBRATIONCMD",
+      "Calibration_cmd": 0,
+      "Calibration_time": 5
+    },
+    "30075": {
+      "mavpackettype": "ENCODERCALIBRATIONSTATUS",
+      "Calibration_status": 0
+    },
+    "30076": {
+      "mavpackettype": "CUSTOMINFO",
+      "User_module_code": 0
+    },
+    "30077": {
+      "mavpackettype": "HEARTBIT",
+      "Sys_init_flag": 0
+    },
+    "30078": {
+      "mavpackettype": "HISTORICALINFO",
+      "Error_records_list": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "30079": {
+      "mavpackettype": "SIMPLANTINPUT",
+      "uabc_tar_V": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tl_Nm": 0.0
+    },
+    "30080": {
+      "mavpackettype": "SIMPLANTOUTPUT",
+      "iabc_now_A": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "enc_counts_P": 0,
+      "hall_state": 0,
+      "dc_bus_V": 0.0
+    },
+    "30081": {
+      "mavpackettype": "SIMPLANTCONFIG",
+      "b": 9.999999747378752e-05,
+      "fc": 0.0010000000474974513,
+      "flux": 0.005850000306963921,
+      "kt": 0.008775000460445881,
+      "j": 3.000000106112566e-06,
+      "ld": 0.00011700000322889537,
+      "lq": 0.00011700000322889537,
+      "peak_current_A": 0.0,
+      "pn": 1.0,
+      "r": 1.7699999809265137,
+      "rated_current_A": 0.0,
+      "speed_max_rpm": 0.0,
+      "dt_s": 4.999999873689376e-05,
+      "enc_line_p_n": 16384,
+      "j_inv": 333333.3125,
+      "ld_inv": 8547.0087890625,
+      "lq_inv": 8547.0087890625,
+      "enc_line_init_pos_P": 0,
+      "enc_noise": 1.0
+    },
+    "30082": {
+      "mavpackettype": "APPDEBUGPARAM",
+      "Debug_float": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "Debug_uint32": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "Debug_int32": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "30084": {
+      "mavpackettype": "TABLECONFIG",
+      "table_id": 0,
+      "table_index_offset": 0
+    },
+    "30085": {
+      "mavpackettype": "APPMAVLINKCONFIG",
+      "Sys_id": 0,
+      "Comp_id": 0
+    },
+    "30086": {
+      "mavpackettype": "APPFILETRANSFERCONFIG",
+      "File_type": 0,
+      "File_size": 0,
+      "File_direction": 0,
+      "File_index_complete": 0,
+      "File_status": 0
+    },
+    "30087": {
+      "mavpackettype": "APPFWUPGRADEPARAM",
+      "Fw_mode": 0,
+      "Fw_app_index": 0,
+      "Fw_flash_size": 0,
+      "Fw_operating_steps": 0
+    }
+  },
+  "firmware": "coherent-O2 ELF2f3bbf9c4606fcb581ac02bd162fa571716002792f844cb232d59a770c635a76",
+  "physical_position_may_differ_after_authorized_motion": true,
+  "fresh_waveform_map_responses": 4,
+  "parse_errors_before_verification": 1,
+  "parse_errors_during_second_read": 0
+}

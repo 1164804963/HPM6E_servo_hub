@@ -1,0 +1,87 @@
+{
+  "raw_sigma_mA": {
+    "min": 41.254,
+    "max": 56.5262,
+    "n_phase_values": 54
+  },
+  "speed": {
+    "priority-O0": {
+      "dt_s_nominal": 0.008,
+      "target_mask_start": 74,
+      "target_mask_end": 764,
+      "target_mask_s_nominal": 5.528,
+      "target_rpm_mean": 10.0,
+      "target_rpm_std": 0.0,
+      "target_rpm_peak": 10.0,
+      "feedback_rpm_mean": 10.0569,
+      "feedback_rpm_std": 33.3395,
+      "feedback_rpm_peak": 362.5488,
+      "position_net_counts": 15189,
+      "position_diff_mean_rpm": 10.0768
+    },
+    "priority-O2": {
+      "dt_s_nominal": 0.008,
+      "target_mask_start": 79,
+      "target_mask_end": 844,
+      "target_mask_s_nominal": 6.128,
+      "target_rpm_mean": 10.0,
+      "target_rpm_std": 0.0,
+      "target_rpm_peak": 10.0,
+      "feedback_rpm_mean": 9.824,
+      "feedback_rpm_std": 27.9629,
+      "feedback_rpm_peak": 291.5955,
+      "position_net_counts": 16439,
+      "position_diff_mean_rpm": 9.8368
+    },
+    "coherent-O2": {
+      "dt_s_nominal": 0.008,
+      "target_mask_start": 75,
+      "target_mask_end": 837,
+      "target_mask_s_nominal": 6.104,
+      "target_rpm_mean": 10.0,
+      "target_rpm_std": 0.0,
+      "target_rpm_peak": 10.0,
+      "feedback_rpm_mean": 9.8374,
+      "feedback_rpm_std": 29.8707,
+      "feedback_rpm_peak": 321.8079,
+      "position_net_counts": 16396,
+      "position_diff_mean_rpm": 9.8497
+    }
+  },
+  "current_regression": {
+    "id_mean_mA": 195.65625,
+    "id_std_mA": 75.4694099350028,
+    "iq_mean_mA": -0.8828125,
+    "iq_std_mA": 30.681483904626315
+  },
+  "timing_representative": [
+    {
+      "label": "O0 first",
+      "dataset": "first",
+      "capture": 1,
+      "condition": "zero_voltage_pwm_on",
+      "repeat": 0
+    },
+    {
+      "label": "priority",
+      "dataset": "priority",
+      "capture": 2,
+      "condition": "zero_voltage_pwm_on",
+      "repeat": 0
+    },
+    {
+      "label": "priority-O2",
+      "dataset": "o2",
+      "capture": 2,
+      "condition": "zero_voltage_pwm_on",
+      "repeat": 0
+    },
+    {
+      "label": "coherent-O2",
+      "dataset": "coherent",
+      "capture": 2,
+      "condition": "zero_voltage_pwm_on",
+      "repeat": 0
+    }
+  ]
+}
