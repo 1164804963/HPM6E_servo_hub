@@ -1,0 +1,40 @@
+{
+  "partial_only": true,
+  "backed_up_start": "0x80000000",
+  "backed_up_bytes": 4194304,
+  "sha256": "822609d23aedc11f1dc4c692306a86773b2b493c4f9f0dcb35da32333cea9d08",
+  "elf_sha256": "ec5f0444ccec6e99d21ab0c1ef8334f93a9613ddb85c9bc3f090d2211bf16d23",
+  "segments": [
+    {
+      "address": "0x80000400",
+      "size": 3216,
+      "match": false,
+      "different_bytes": 2
+    },
+    {
+      "address": "0x80003000",
+      "size": 88,
+      "match": true,
+      "different_bytes": 0
+    },
+    {
+      "address": "0x80003058",
+      "size": 4080,
+      "match": false,
+      "different_bytes": 145
+    },
+    {
+      "address": "0x80004048",
+      "size": 247964,
+      "match": false,
+      "different_bytes": 140730
+    },
+    {
+      "address": "0x800408e8",
+      "size": 544,
+      "match": false,
+      "different_bytes": 124
+    }
+  ],
+  "all_flash_segments_match_current_elf": false
+}

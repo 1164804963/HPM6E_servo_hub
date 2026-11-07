@@ -1,0 +1,67 @@
+{
+  "label": "baseline",
+  "error": null,
+  "conditions": {
+    "pwm_off": {
+      "U": {
+        "n": 100,
+        "mean": 32213.43,
+        "std_counts": 114.36636349906384,
+        "pp_counts": 969,
+        "rms_equiv_A": 0.05758804314375467
+      },
+      "V": {
+        "n": 100,
+        "mean": 32546.74,
+        "std_counts": 121.10223945080455,
+        "pp_counts": 975,
+        "rms_equiv_A": 0.06097982638361435
+      },
+      "W": {
+        "n": 100,
+        "mean": 32809.59,
+        "std_counts": 98.6397582113825,
+        "pp_counts": 560,
+        "rms_equiv_A": 0.04966906770287509
+      },
+      "VBUS": {
+        "n": 100,
+        "mean": 11400.07,
+        "std_counts": 152.7285340072378,
+        "pp_counts": 1865,
+        "rms_equiv_A": null
+      }
+    },
+    "zero_voltage_pwm_on": {
+      "U": {
+        "n": 100,
+        "mean": 32214.7,
+        "std_counts": 85.61606157725313,
+        "pp_counts": 682,
+        "rms_equiv_A": 0.043111114990987444
+      },
+      "V": {
+        "n": 100,
+        "mean": 32555.01,
+        "std_counts": 73.56867471961147,
+        "pp_counts": 465,
+        "rms_equiv_A": 0.03704477334208951
+      },
+      "W": {
+        "n": 100,
+        "mean": 32796.17,
+        "std_counts": 140.21070251589214,
+        "pp_counts": 895,
+        "rms_equiv_A": 0.07060170262183289
+      },
+      "VBUS": {
+        "n": 100,
+        "mean": 11411.2,
+        "std_counts": 160.5574040647145,
+        "pp_counts": 1804,
+        "rms_equiv_A": null
+      }
+    }
+  },
+  "final_disabled": true
+}

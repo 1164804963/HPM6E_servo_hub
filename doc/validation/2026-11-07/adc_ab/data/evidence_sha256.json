@@ -1,0 +1,192 @@
+[
+  {
+    "path": "data/analysis_console.log",
+    "bytes": 1842,
+    "sha256": "613ba43432d043c572f63832a03485d7bf0f7c9f7dd896d0417204d1ad1b9196"
+  },
+  {
+    "path": "data/final_params_verified.json",
+    "bytes": 34648,
+    "sha256": "4ede74f1374fba097ba50611bcf17ebfc771a40adf3e21785d012ba0fbdc2dd0"
+  },
+  {
+    "path": "data/logs/backup_flash.log",
+    "bytes": 1472,
+    "sha256": "30405c21c1a8ca2bb7e7866a5c463c9b5383673e2da38f46ea65e1c69d6ebc61"
+  },
+  {
+    "path": "data/logs/flash_baseline.log",
+    "bytes": 2294,
+    "sha256": "d2e8e9ec3fda0878559b6e8112f1d85159396e0e66f06cadc018cc3b95205e2b"
+  },
+  {
+    "path": "data/logs/flash_clock8.log",
+    "bytes": 2292,
+    "sha256": "99df8d08d538919b659d33207925167672b25b32e8968830edebb1a4ebfdf9a5"
+  },
+  {
+    "path": "data/logs/flash_rollback_original.log",
+    "bytes": 1873,
+    "sha256": "7ebd64f79ce4ad6215e4bfee40018d0a86aba13491231dd4bd9765ee9354d12c"
+  },
+  {
+    "path": "data/logs/flash_window80.log",
+    "bytes": 2294,
+    "sha256": "ff1b78c732211f71cb360b37e98aeeb688e65168e967c0740faf3d0cc7dc71ab"
+  },
+  {
+    "path": "data/logs/probe_info.log",
+    "bytes": 48253,
+    "sha256": "4fd03051d8d91af1bee3722ec4439162d7ea88021069cc6d837a8b5ae6ae8052"
+  },
+  {
+    "path": "data/logs/repeat_first1MB.log",
+    "bytes": 1292,
+    "sha256": "c5bc1b55a990c3f2430d6769b68ca792ea4b642df7b9620e6e3ffc01d3787579"
+  },
+  {
+    "path": "data/logs/verify_restored4MB.log",
+    "bytes": 1292,
+    "sha256": "c5bc1b55a990c3f2430d6769b68ca792ea4b642df7b9620e6e3ffc01d3787579"
+  },
+  {
+    "path": "data/measurements/baseline/raw_console.json",
+    "bytes": 159644,
+    "sha256": "5f1b20272c041be9cce25f9b2e3340c8afbc7717532a9dc732d34495a1268364"
+  },
+  {
+    "path": "data/measurements/baseline/summary.json",
+    "bytes": 1535,
+    "sha256": "a346803128b381dcc2e6c5762620dc6af4e2302653a871a54bb095cd70a32660"
+  },
+  {
+    "path": "data/measurements/clock8/raw_console.json",
+    "bytes": 159436,
+    "sha256": "e02cad7eadf851ed4730c0c85cff1737a3ad5dd0bc7c177e828089b66f0ba43d"
+  },
+  {
+    "path": "data/measurements/clock8/summary.json",
+    "bytes": 1536,
+    "sha256": "5584a50ecc3d1fce16713d9066042c03f0211bf94ad2d3a479eec72d33a342c7"
+  },
+  {
+    "path": "data/measurements/original/raw_console.json",
+    "bytes": 159589,
+    "sha256": "d02e3769845e3badf8e982e8b24eb3ad25958b7ce7f961ad0db564d168df96a0"
+  },
+  {
+    "path": "data/measurements/original/summary.json",
+    "bytes": 1534,
+    "sha256": "d5dd700465b06d08ab57a870e0f570993af42b4bcaeed622888db026b0815bc5"
+  },
+  {
+    "path": "data/measurements/restored/raw_console.json",
+    "bytes": 159410,
+    "sha256": "f4600bc6cfcef4b666445453cb637c233b4d8dde22032e6e1f9e2e874e2ffe83"
+  },
+  {
+    "path": "data/measurements/restored/summary.json",
+    "bytes": 1538,
+    "sha256": "321cf977cc897e67fe53133b1609ec69f9747bd0e6a8c4425083dae4cdbf8dac"
+  },
+  {
+    "path": "data/measurements/window80/raw_console.json",
+    "bytes": 159412,
+    "sha256": "dab2a5e8e3e19e1a82bedae8c716f5e7deccf61d3c678525e5cef5394e706fd7"
+  },
+  {
+    "path": "data/measurements/window80/summary.json",
+    "bytes": 1538,
+    "sha256": "f87a8445c0d02635721d6180ad77d9ea009ebf74e52cba194b34bf1be12be156"
+  },
+  {
+    "path": "data/original_parameter_snapshot.json",
+    "bytes": 17381,
+    "sha256": "fd20eeaabcf9a1074ddabbf0e96d6e62577a24e18db25b754748f5670775ea3b"
+  },
+  {
+    "path": "data/partial_manifest.json",
+    "bytes": 896,
+    "sha256": "9d4155188724286e6cbb09fd2e4da4195ec914dd582dde620802d44144317410"
+  },
+  {
+    "path": "data/restoration_manifest.json",
+    "bytes": 298,
+    "sha256": "028de345c0cfae60b34292c50f0dfcf70de983abff933d77d3e91180d987b73a"
+  },
+  {
+    "path": "data/sigma_table.json",
+    "bytes": 6185,
+    "sha256": "a8268f3eccc71ae8fa9987afd04159b59440fc5dd600c96219881336c783199a"
+  },
+  {
+    "path": "data/variant_verified.json",
+    "bytes": 1569,
+    "sha256": "ed691ba79f92db9113b352f6fd349ad03ec56ac95e9cf96bd346fdad727e855d"
+  },
+  {
+    "path": "figures/adc_three_phase_std.png",
+    "bytes": 93888,
+    "sha256": "f6da0ab583a28bfdec95f47feeb00309595cd791c96122a7f5851f04d1d4bf07"
+  },
+  {
+    "path": "figures/adc_u_demeaned.png",
+    "bytes": 143924,
+    "sha256": "5e114e1b75879386bbcacc4101d395b07ba6d862fd589b90f4da4fa9e5d0565a"
+  },
+  {
+    "path": "patches/baseline_20_4/board.patch",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "patches/baseline_20_4/manifest.txt",
+    "bytes": 469,
+    "sha256": "19e8f46b7cf9c56802f2c5ddcb0788633a1651065952d8392682342b96a77f00"
+  },
+  {
+    "path": "patches/clock8_20_8/board.patch",
+    "bytes": 530,
+    "sha256": "e5e23de4cb2df302ddab1ce57bd480cd74c84794e6e232cf4d4a4b41abfa7adf"
+  },
+  {
+    "path": "patches/clock8_20_8/manifest.txt",
+    "bytes": 369,
+    "sha256": "439b94c0cccc6180281bb639c17e04066357a3ba40ba5a18d3481174fe1ac301"
+  },
+  {
+    "path": "patches/window80_80_4/board.patch",
+    "bytes": 567,
+    "sha256": "bd81cac0ee495f13ffba0291b72ade6bc4f56d10424490e1c59f3d0412179f13"
+  },
+  {
+    "path": "patches/window80_80_4/manifest.txt",
+    "bytes": 369,
+    "sha256": "60d44539b3b1223bab8d402ff7a96a22fd50e473353650d6d708413c864cacec"
+  },
+  {
+    "path": "REPORT.md",
+    "bytes": 7706,
+    "sha256": "fd730555682832c6005b9aa0d5b42eada88a85f2edf13789cf5b0e0a25d89a45"
+  },
+  {
+    "path": "scripts/adc_ab_collect.py",
+    "bytes": 3366,
+    "sha256": "727b8f6852919bf4670a5114cf7156670c31504edc58b00375827120dbdff17d"
+  },
+  {
+    "path": "scripts/adc_ab_partial_verify.py",
+    "bytes": 1253,
+    "sha256": "61eeec6bf76d60994e455fc0b56da97d60e135c7d764ba077e9c95214ea3fa55"
+  },
+  {
+    "path": "scripts/adc_ab_variant_verify.py",
+    "bytes": 1200,
+    "sha256": "98ab1664a52c9019aa05a2a2a31127f5d1b52546b31240b6332b99d8dc66b263"
+  },
+  {
+    "path": "scripts/make_adc_ab_report.py",
+    "bytes": 7102,
+    "sha256": "0f3a2d12325bcbd3e1fb9b7355198122e2d4de0f52252ad029f4cea635243d5c"
+  }
+]
