@@ -216,11 +216,18 @@ void bsp_set_pwm_state(bool state)
 {
     if (state)
     {
-        if (s_cal_status != CURRENT_CALIBRATION_STATUS_OK)
-        {
-            /* 未完成零漂校准不允许放开桥臂 */
-            return;
-        }
+        /* 开波这一层不再做"零漂未校准就不许开波"的门禁。
+         *
+         * 原因：零漂标定本身要求桥臂已放开、相电压为 0 才能采到运行时零点
+         * （见 sys_current_calibration_step 的说明），如果开波反过来又要求校准已完成，
+         * 就形成互锁：标定等开波、开波等标定。一旦上电自检那次标定没成功，
+         * 之后永远开不了波；而调用方（motor_ctl_loop）又只在失能->使能的单个上升沿
+         * 请求一次开波，于是状态机停在 ENABLE、hw_ready_state 恒 0、ModeRun 永不执行，
+         * 表现为"辨识一直卡在辨识中"。
+         *
+         * "能不能跑模式"的判据保留在 hw_ready_state（= PWM 已开 && 校准 OK）里，
+         * 由控制层自己决定是否执行模式运算，不需要在这里挡。
+         */
         board_set_pwm_enable(true);
     }
     else

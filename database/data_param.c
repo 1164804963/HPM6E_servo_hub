@@ -1002,10 +1002,21 @@ uint8_t get_app_Brake_state(void)
 uint32_t set_app_Modes_of_operation(int8_t val)
 {
     /* USER CODE BEGIN set_app_Modes_of_operation 0 */
+#if defined(PORT_PATCH_ID_MODE_RESEND) && (PORT_PATCH_ID_MODE_RESEND)
+    /* [移植补丁] 辨识模式（负值）允许重复下发：上位机再点一次"开始辨识"会重新写同一个
+     * 模式值，如果这里直接 return，辨识 APP 不会重新 Init（不会重设辨识电流、不会复位
+     * 状态机），现场表现为"必须先点停止辨识，再点开始辨识"才能重试。
+     * 见 doc/PORTING_PATCHES.md 补丁 5。 */
+    if (val == get_app_Modes_of_operation_display() && val >= 0)
+    {
+        return APP_PARAM_SUCCESS;
+    }
+#else
     if (val == get_app_Modes_of_operation_display())
     {
         return APP_PARAM_SUCCESS;
     }
+#endif
     /* USER CODE END set_app_Modes_of_operation 0 */
     kAppOpMode.Modes_of_operation = val;
     /* USER CODE BEGIN set_app_Modes_of_operation 1 */

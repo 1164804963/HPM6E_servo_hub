@@ -241,13 +241,36 @@ void MotorCtlSmStateInit(Axis *const axis, AxisDw *const axis_dw,
 // 控制层参数关联设置接口函数  失能状态下调用
 void MotorCtlParamSetUpdata(Axis *const axis)
 {
-   // 电机额定电流 峰值电流
-   axis->elec_id_sin_config.i_max_A = axis->pmsm_config.rated_current;
-   axis->mec_id_config.i_max_A = axis->pmsm_config.rated_current;
-   axis->elec_angle_id_config.id_max_A = axis->pmsm_config.rated_current;
-   axis->pole_pairs_id_config.id_tar_max_A = axis->pmsm_config.rated_current;
+   /* 各辨识模块的"辨识电流"只做兜底，不再每周期强制覆盖。
+    *
+    * 原实现在这里直接把它们写成 pmsm_config.rated_current（= 电机额定电流的峰值，√2 倍）。
+    * 而本函数被 AppParamSyncUser() 在位置环（1kHz）、失能状态下反复调用，后果是：
+    *   1) 上位机/辨识 APP 写进去的辨识电流会在 1ms 内被改回去，辨识电流事实上不可配置；
+    *   2) 该值（本机 1.697A）直接顶到 App 层 0.9×驱动器峰值 的保护线上。
+    * 辨识电流现在由各辨识 APP 的 Init() 用 get_app_Motor_rated_current() 设置
+    * （见 app/Identify/app_id_*_mode.c），这里只在"还没被设置过"时用额定值兜底，
+    * 因此 fresh boot 后的默认行为与原工程一致。 */
+   if (axis->elec_id_sin_config.i_max_A <= 0.0f)
+   {
+      axis->elec_id_sin_config.i_max_A = axis->pmsm_config.rated_current;
+   }
+   if (axis->mec_id_config.i_max_A <= 0.0f)
+   {
+      axis->mec_id_config.i_max_A = axis->pmsm_config.rated_current;
+   }
+   if (axis->elec_angle_id_config.id_max_A <= 0.0f)
+   {
+      axis->elec_angle_id_config.id_max_A = axis->pmsm_config.rated_current;
+   }
+   if (axis->pole_pairs_id_config.id_tar_max_A <= 0.0f)
+   {
+      axis->pole_pairs_id_config.id_tar_max_A = axis->pmsm_config.rated_current;
+   }
+   if (axis->direction_id_config.id_tar_max_A <= 0.0f)
+   {
+      axis->direction_id_config.id_tar_max_A = axis->pmsm_config.rated_current;
+   }
    axis->motor_ctl_sm_config.over_current_protection_A = axis->pmsm_config.peak_current * 1.2f;
-   axis->direction_id_config.id_tar_max_A = axis->pmsm_config.rated_current;
 
    // 极对数
    axis->motor_pos_sensor_config.pn = axis->pmsm_config.pn;

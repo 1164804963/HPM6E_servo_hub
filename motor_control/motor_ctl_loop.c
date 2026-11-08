@@ -222,14 +222,43 @@ void PosSpeedLoopCtrl(void)
     {
         if (sys_get_current_calibration_status() == CURRENT_CALIBRATION_STATUS_OK)
         {
+#if defined(PORT_PATCH_PWM_KEEPALIVE) && (PORT_PATCH_PWM_KEEPALIVE)
+            /* [移植补丁] 每周期都请求开波（bsp_set_pwm_state 幂等，已开时内部直接返回）。
+             * 原工程只在 state_last == DISABLE 的那一个 1ms 周期请求一次；
+             * 本板的零漂门禁 / 20kHz 板级过流会在中途把桥臂关掉，
+             * 那之后就再也不会有第二次请求，state_last 恒为 ENABLE，
+             * 于是 hw_ready_state 永远为 0、ModeRun() 永不执行，
+             * 上层看到的是"电机抖一下之后一直卡住、且没有任何报错"。
+             * 见 doc/PORTING_PATCHES.md 补丁 1。 */
+            if (!bsp_get_pwm_state())
+            {
+                bsp_set_pwm_state(PWM_ENABLE);
+            }
+#else
             if (kAxis.motor_ctl_sm_output.state_last == MOTOR_CTL_SM_STATE_DISABLE)
             {
                 bsp_set_pwm_state(PWM_ENABLE);
             }
+#endif
         }
         else
         {
+#if defined(PORT_PATCH_CAL_AUTOSTART) && (PORT_PATCH_CAL_AUTOSTART)
+            /* [移植补丁] 零漂标定必须在桥臂放开、相电压为 0 的条件下采样，
+             * 所以先开波再累计（上游 CurrentCalibrationStep 的做法）。
+             * 原逻辑是"校准没好就不开波"，而标定又要求已开波，形成互锁：
+             * 上电自检那次没标成功，之后就永远开不了波。见补丁 2。 */
+            if (kAxis.motor_ctl_sm_output.error == MOTOR_CTL_SM_NONE_ERROR)
+            {
+                if (!bsp_get_pwm_state())
+                {
+                    bsp_set_pwm_state(PWM_ENABLE);
+                }
+                sys_current_calibration_step();
+            }
+#else
             sys_current_calibration_step();
+#endif
         }
     }
     else // 失能状态    其他状态都失能电机  包括错误状态

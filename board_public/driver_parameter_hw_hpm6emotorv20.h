@@ -41,10 +41,50 @@ extern "C"
 
 #define CURRENT_SAMP_NOISE_A            (0.02f)     // 电流采样噪声绝对值
 #define VOLTAGE_COMPENSATION_V          (0.00f)     // 死区电压补偿值：死区由 U9 DT/MODE 引脚设定，软件不叠加
-#define DRIVER_RATED_CURRENT_A          (1.20f)     // 驱动器额定电流 iq峰值电流
-#define DRIVER_PEAK_CURRENT_A           (1.52f)     // 驱动器峰值电流 iq峰值电流
-#define DRIVER_OVERCURRENT_LIMIT_A      (2.00f)     // 驱动器过电流保护阈值
+
+/* 电流保护基准（motor: EC1636-12120 12V，板子实测可输出 2.5~3A）
+ *   DRIVER_RATED_CURRENT_A  —— 过载积分基准，取"电机额定"，保住电机热保护：
+ *                              电机数据 最大效率点 0.45A / 最大功率点 1.52A，
+ *                              1.52A 也只能短时运行，不能当连续额定用。
+ *   DRIVER_PEAK_CURRENT_A   —— 峰值保护基准（阈值 = 0.9×该值），按板子能力给 3A；
+ *                              原来填 1.52A 导致阈值只有 1.368A，而方向辨识电流
+ *                              √2×额定 = 1.697A，一使能就必然被判过流。
+ *   DRIVER_OVERCURRENT_LIMIT_A —— 20kHz 板级逐周期过流 + App 层单相过流阈值，
+ *                              必须 ≥ 0.9×峰值，否则板级会先于软件封桥。
+ * 注意：改这三个值要同步改上位机"保护参数→驱动器过流阈值"，否则上位机会把旧值写回来。 */
+#define DRIVER_RATED_CURRENT_A          (1.20f)     // 驱动器额定电流（过载积分基准）
+#define DRIVER_PEAK_CURRENT_A           (3.00f)     // 驱动器峰值电流（峰值保护阈值 = 0.9×3.0 = 2.7A）
+#define DRIVER_OVERCURRENT_LIMIT_A      (3.00f)     // 驱动器过电流保护阈值（板级逐周期 + App 单相）
 #define DRIVER_PWM_READY_TIME           (0)         // PWM使能后等待时间 (单位 位置环周期数)
+
+/* ============================================================================
+ * 移植补丁开关（PORT PATCH SWITCHES）
+ *
+ * 只在本板定义。通用层（motor_control / app / database）里的这几处改动全部用
+ *     #if defined(PORT_PATCH_xxx) && (PORT_PATCH_xxx)  ...  #else 原工程逻辑 ... #endif
+ * 包起来了：换到 Y01 或其它没定义这些宏的平台，编译出来就是原工程的行为，一行不变。
+ *
+ * 每条补丁的"现象 / 根因 / 为什么只能在这里改 / 何时可以删"见
+ *     doc/PORTING_PATCHES.md
+ * ========================================================================== */
+#ifndef PORT_PATCH_PWM_KEEPALIVE
+#define PORT_PATCH_PWM_KEEPALIVE        (1)  // 桥臂被关掉后每周期重试开波（防 hw_ready 死锁）
+#endif
+#ifndef PORT_PATCH_CAL_AUTOSTART
+#define PORT_PATCH_CAL_AUTOSTART        (1)  // 零漂未完成时先开波再标定（解开"标定↔开波"互锁）
+#endif
+#ifndef PORT_PATCH_FAST_OC_VISIBLE
+#define PORT_PATCH_FAST_OC_VISIBLE      (1)  // 板级 20kHz 过流上报到 App 错误位
+#endif
+#ifndef PORT_PATCH_CLEAR_ERROR_FIX
+#define PORT_PATCH_CLEAR_ERROR_FIX      (1)  // 清错命令期间不要回写失能（否则错误永远清不掉）
+#endif
+#ifndef PORT_PATCH_ID_MODE_RESEND
+#define PORT_PATCH_ID_MODE_RESEND       (1)  // 辨识模式（负值）允许重复下发
+#endif
+
+/* 关掉全部补丁（= 完全回到上游逻辑）时可以用编译选项覆盖：
+ *     -DPORT_PATCH_PWM_KEEPALIVE=0 -DPORT_PATCH_CAL_AUTOSTART=0 ... */
 
 // 温度：PF8 = MCP9700(10mV/℃, 0℃=500mV) 与选配 NTC 共用节点
 #define MOS_TEMP_VOLTAGE_K              (3300.0f / ADC_RESOLTION)

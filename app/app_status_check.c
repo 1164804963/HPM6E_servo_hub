@@ -378,6 +378,17 @@ static inline bool AppPositionFollowingErrorCheck(void)
  */
 static inline bool AppDriverOverCurrentErrorCheck(void)
 {
+#if defined(PORT_PATCH_FAST_OC_VISIBLE) && (PORT_PATCH_FAST_OC_VISIBLE)
+    /* [移植补丁] 本板 board_check_over_current() 在 20kHz 里一旦发现相电流超限，
+     * 会直接 board_set_pwm_enable(false) 封锁桥臂，但只置了 bsp 层的
+     * error_bus_current_oc，App 层看不到 —— 现场表现是"电机抖一下就没了、
+     * 界面没有任何报错"。这里把它一并上报到本错误位（上位机"软件过流保护"）。
+     * 见 doc/PORTING_PATCHES.md 补丁 3。 */
+    if (kAppCheck.p_bsp_error != NULL && kAppCheck.p_bsp_error->bit_band.error_bus_current_oc)
+    {
+        return true;
+    }
+#endif
 
     kAppCheck.iabc_now[0] = get_app_U_current_actual_value(); // 获取当前三相电流
     kAppCheck.iabc_now[1] = get_app_V_current_actual_value(); // 获取当前三相电流
@@ -840,8 +851,20 @@ void AppStatusScanFast(void)
     // 发生错误失能电机
     if (kAppCheck.error.all != 0)
     {
+        /* [移植补丁] 上位机正在发"清除错误"(3) 时不要回写 0：
+         * 本函数 1ms 跑一次，回写会把清错命令在同一个周期里冲掉，
+         * 清错条件（0 -> 3 上升沿）永远不成立，错误就再也清不掉，只能断电重启。
+         * 见 doc/PORTING_PATCHES.md 补丁 4。 */
+#if defined(PORT_PATCH_CLEAR_ERROR_FIX) && (PORT_PATCH_CLEAR_ERROR_FIX)
+        if (get_app_Controlword() != APP_CTRL_CLEAR_ERROR)
+        {
+            // TODO：根据不同错误类型执行不同保护动作，目前统一失能
+            set_app_Controlword(APP_CTRL_DISABLE);
+        }
+#else
         // TODO：根据不同错误类型执行不同保护动作，目前统一失能
         set_app_Controlword(APP_CTRL_DISABLE);
+#endif
     }
 
     AppMotorEnableStateCheck();
@@ -888,8 +911,17 @@ void AppStatusScanSlow(void)
     // 发生错误失能电机
     if (kAppCheck.error.all != 0)
     {
+#if defined(PORT_PATCH_CLEAR_ERROR_FIX) && (PORT_PATCH_CLEAR_ERROR_FIX)
+        // [移植补丁] 清错期间不回写控制字，否则清错命令会被冲掉（见补丁 4）
+        if (get_app_Controlword() != APP_CTRL_CLEAR_ERROR)
+        {
+            // TODO：根据不同错误类型执行不同保护动作，目前统一失能
+            set_app_Controlword(APP_CTRL_DISABLE);
+        }
+#else
         // TODO：根据不同错误类型执行不同保护动作，目前统一失能
         set_app_Controlword(APP_CTRL_DISABLE);
+#endif
 
         // 低速进行错误记录存储兼容高速部分
         if (kAppCheck.error_record_addr[0] != kAppCheck.error.all) // 错误中，再新增其它错误再加入新记录

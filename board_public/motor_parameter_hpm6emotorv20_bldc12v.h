@@ -1,7 +1,7 @@
 #ifndef MOTOR_PARAMETER_HPM6EMOTORV20_BLDC12V_H
 #define MOTOR_PARAMETER_HPM6EMOTORV20_BLDC12V_H
 
-// 模组参数：12V 微型无刷电机 + MT6816(14bit SPI) 电机端编码器，无减速器。
+// 模组参数：12V 微型无刷电机 + MT6816(14bit SPI) 电机端编码器 + 107:1 行星减速器。
 // 数值取自现有已跑通固件 app/motor/bldc_foc.c 的 motor_init()，见各条注释。
 
 #ifdef __cplusplus
@@ -45,10 +45,16 @@ extern "C"
 #define PMSM_LOAD_ENC_LINE_P_N          (0u)
 #define PMSM_LOAD_ENC_MULTI_LINE_P_N    (0u)
 #define PMSM_LOAD_ENC_DIR               (0u)
-// 负载端（齿轮/减速机...）参数：直驱无减速器
-#define GEAR_RATIO_NUM                  (1u)
+// 负载端（齿轮/减速机...）参数：电机轴经 107:1 行星减速器输出（编码器仍在电机端）
+//   负载端位置 = 电机端位置 / 107，负载端速度 = 电机端速度 / 107。
+//   走的是 data_param.c 的 get_app_Position_actual_value_inc()：
+//   负载端无编码器 且 Reduction_ratio_num != 1 → PosUnitMotorToLoad() 换算。
+//   方向辨识等控制层算法仍用电机端编码器(enc_sum_p)，不受此值影响。
+// 注意：减速比会被 FlashDB 参数覆盖（app_store_param.c:304-305），
+//       已存过参数的板子升级后需要"恢复出厂设置"或在上位机里改 107/1 并保存才生效。
+#define GEAR_RATIO_NUM                  (107u)
 #define GEAR_RATIO_DEN                  (1u)
-#define GEAR_RATIO                      (1.0f)
+#define GEAR_RATIO                      (107.0f)
 #define GEAR_BACKLASH_LOAD              (0.0f)
 #define GEAR_BACKLASH_MOTOR_PULSE       (GEAR_BACKLASH_LOAD * GEAR_RATIO / 360.0f * PMSM_MOTOR_ENC_LINE_P_N)
 
