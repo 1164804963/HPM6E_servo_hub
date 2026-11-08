@@ -121,12 +121,38 @@ axis->direction_id_config.id_tar_max_A = get_app_Motor_rated_current();
 
 ---
 
-## 四、已知未修（与本次问题无关，单独排）
+## 四、五个补丁的实机验证记录
+
+| 补丁 | 结论 | 验证方法与实测数据 |
+|---|---|---|
+| `PORT_PATCH_PWM_KEEPALIVE` | ✅ 有效 | 方向辨识 `state_now` 0→2→3，编码器 +32642 counts（≈2 圈），全程 `Error_word=0` |
+| `PORT_PATCH_CAL_AUTOSTART` | ✅ **必要** | A/B 对照：开关改 0 烧一版 → 上电后 `hw_ready` **恒为 0**、`state` 永远进不了 ENABLE，**且 `Error_word` 仍为 0（静默死锁）**；改回 1 后使能正常（`hw_ready=1`） |
+| `PORT_PATCH_FAST_OC_VISIBLE` | ✅ 有效 | 临时把 `DRIVER_OVERCURRENT_LIMIT_A` 调到 0.4 A 烧一版（App 单相阈值仍为 3.0 A，由 FlashDB 恢复），给 1.2 A 电流 → 0.3 s 内 `Error_word` 置 **bit14（16384）= 驱动器过流**、`Controlword` 自动归 0。若没有该补丁，板级 20 kHz 只静默封桥，App 侧 `Error_word` 会是 0 |
+| `PORT_PATCH_CLEAR_ERROR_FIX` | ✅ 有效 | `Error_word=2`（驱动器过载）锁存后，发 `Controlword 0→3→0` → 读回 **0** |
+| `PORT_PATCH_ID_MODE_RESEND` | ✅ 有效 | 进入 -4 后把 `ElecAngleIdConfig.id_max_A` 人为改成 1.6 → 重复下发 `Modes_of_operation=-4` → 约 0.4~0.8 s 后 `id_max_A` 回到 **1.2**（`IdElecAngleModeInit()` 重新执行）。延迟来自上位机发送队列，不是固件 |
+
+> 注意：验证 `ID_MODE_RESEND` 不能看 `state_now`——上游 APP 的 `Init()` 不清 `state_now`，
+> 应看 `Init()` 有副作用的参数（如 `ElecAngleIdConfig.id_max_A`）。
+> 验证完记得把临时改过的宏恢复（`DRIVER_OVERCURRENT_LIMIT_A=3.00f`，
+> 开关全部 `(1)`），并重新编译烧录。
+
+---
+
+## 五、已知未修（与本次问题无关，单独排）
 
 1. **速度观测器噪声**：位置静止（编码器 ±1 count）时，`ev_rad_s` 仍在 ±22 rad/s 抖动，
-   真实平均速度只有 0.5 rad/s。怀疑 PLL 带宽（100 Hz）/ `enc_line_inv_p_n` / 编码器量化。
+   真实平均速度只有 0.5 rad/s。~~怀疑 PLL 带宽（100 Hz）/ `enc_line_inv_p_n` / 编码器量化。~~
+   **已定性**：用同板同电机的 my_ecat_cia402（v122）对照，关波时编码器抖动 0~1 count、
+   开波保持时抖动 123 counts（本工程 74~136），两边一致；且对方 `encoderinfo` 的
+   transfer/parity/magnetic 全为 0。结合“0.02 A 比 1.2 A 抖动更大”（电气噪声应随电流增大），
+   结论是**电机静止通电时的定位力（齿槽）微振 ≈2.7° 机械角**，不是观测器或编码器问题，
+   对方工程也是用 2θ 的 Iq 前馈去补偿，而不是改滤波器。**暂不处理。**
 2. **编码器多圈值异常**：静止或使能沿附近出现 −59017 → −50064 → −91780、
-   42524 → 60323 → 42482 这类回跳。怀疑 `MotorCtlSmStateInit()` 每次使能按
-   `motor_circle_int_n` 重算 `init_pos_p`，或 `drv_encoder.c` 三点中值挡不住连续坏帧。
-   这一项会直接污染方向辨识的判据（判方向就是比编码器差值），建议优先。
+   42524 → 60323 → 42482 这类回跳。**已定性**：在“磁场固定、转子不动”的窗口内实测
+   `enc_sum_p` 只跟随原始抖动（±42 counts），**没有整圈累加错误**；那些回跳的时间点都落在
+   “使能瞬间转子被磁场拉正（实测 −5102 → +1564 counts，约 77°）”或“链路冻结时的缓存假象”上。
+   多圈累加逻辑本身正常，**暂不处理**；若以后要动，注意 `drv_encoder.c` 已有 3 点中值，
+   挡得住孤立尖峰但挡不住连续 ±30 counts 的抖动。
 3. `servo_bringup_self_test()` 的零漂标定失败只打串口，上位机看不到。
+4. 速度模式低速不稳：目标 1 输出 rpm（≈107 电机 rpm）实测冲到 ~1770 rpm 后回落，
+   且 `PosSpeedCtlInput.speed_tar_p_s` 读回一直为 0（与出力对不上），待单独排查。
