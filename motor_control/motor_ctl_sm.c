@@ -819,9 +819,20 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
    if (axis->tq_fc_id_output.state_now == IDENTIFICATION_MODE_STATE_FINISH) // 辨识完成 自动失能
    {
       axis->tq_fc_id_input.start = 0;
+#if defined(PORT_PATCH_TQFC_LEAVE_COMP_OFF) && (PORT_PATCH_TQFC_LEAVE_COMP_OFF)
+      /* [移植补丁] 辨识完成时不自动打开补偿开关。
+       * 上游这里直接把 tq_com_enable / fc_com_enable 置 1，等于"辨识完立刻投入补偿"。
+       * 实测本机这样做会直接把环路搞崩：辨识出 fc_p_com≈0.143A，一启用，
+       * 速度模式在给定 0 时就自己飙到 −889rad/s（±0.143A 的符号在零速附近来回翻，
+       * 形成自持振荡）。关掉补偿开关后同样的测试立刻稳定（±1.7rad/s）。
+       * 所以改成只把数据算出来，是否启用由人确认后再手动打开。见补丁 12。 */
+      axis->tq_fc_id_config.tq_com_enable = 0; // 不自动启用转矩脉动补偿
+      axis->tq_fc_id_config.fc_com_enable = 0; // 不自动启用摩擦补偿
+#else
       // 开启所有补偿开关
       axis->tq_fc_id_config.tq_com_enable = 1; // 开启转矩脉动补偿
       axis->tq_fc_id_config.fc_com_enable = 1; // 开启摩擦补偿
+#endif
 
       axis->motor_ctl_sm_output.state = MOTOR_CTL_SM_STATE_DISABLE;
    }

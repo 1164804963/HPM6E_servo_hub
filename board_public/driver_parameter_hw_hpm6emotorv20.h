@@ -121,6 +121,11 @@ extern "C"
 #ifndef PORT_PATCH_TQFC_ID_DOB
 #define PORT_PATCH_TQFC_ID_DOB             (1)  // 1=辨识期间打开 DOB
 #endif
+/* [移植补丁] 辨识完成后不自动启用补偿。上游会在 FINISH 时把 tq_com/fc_com 置 1，
+ * 实测本机一启用就自持振荡（给定 0 也飞到 -889rad/s）。改成只算数据不启用。见补丁 12。 */
+#ifndef PORT_PATCH_TQFC_LEAVE_COMP_OFF
+#define PORT_PATCH_TQFC_LEAVE_COMP_OFF     (1)  // 1=辨识后保持补偿关闭（推荐）
+#endif
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
 #define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）
