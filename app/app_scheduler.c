@@ -39,6 +39,33 @@ void AppInit(void)
 // 运行应用程序
 void AppRun(uint8_t hw_ready_state)
 {
+#if defined(PORT_PATCH_APP_ENSURE_ENABLED) && (PORT_PATCH_APP_ENSURE_ENABLED)
+    /* [移植补丁] 兜底：把运行模式对应的 APP 拉起来。
+     * 实测：写 opmode=1（速度模式）时，控制层模式确实切到了 SPEED（mode_now=1），
+     * 但 set_app(APP_PV_MODE) 没有生效——kAppInfo[APP_PV_MODE] 一直是
+     * enable=false / app_state=IDLE，于是 PvModeRun() 从不执行，
+     * pos_speed_ctl_input.speed_tar_p_s 恒为 0，速度模式电机纹丝不动。
+     * （用 Home_offset 做探针实测：enable=0、state=0；手动补调 set_app 后
+     *  立即变成 RUNNING，speed_tar_p_s 变成正确的 58436 P/s。）
+     * 这里每周期检查一次，没使能就补调 set_app。见 doc/PORTING_PATCHES.md 补丁 13。 */
+    {
+        int8_T md = get_app_Modes_of_operation();
+
+        if ((md == MOTOR_CTL_SM_MODE_SPEED) && !kAppInfo[APP_PV_MODE].enable)
+        {
+            set_app(APP_PV_MODE);
+        }
+        else if ((md == MOTOR_CTL_SM_MODE_POSITION) && !kAppInfo[APP_PP_MODE].enable)
+        {
+            set_app(APP_PP_MODE);
+        }
+        else if ((md == MOTOR_CTL_SM_MODE_TORQUE) && !kAppInfo[APP_PT_MODE].enable)
+        {
+            set_app(APP_PT_MODE);
+        }
+    }
+#endif
+
     // 遍历应用程序列表
     for (int i = 0; i < APP_NUM; i++)
     {

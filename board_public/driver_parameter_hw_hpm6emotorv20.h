@@ -126,6 +126,12 @@ extern "C"
 #ifndef PORT_PATCH_TQFC_LEAVE_COMP_OFF
 #define PORT_PATCH_TQFC_LEAVE_COMP_OFF     (1)  // 1=辨识后保持补偿关闭（推荐）
 #endif
+/* [移植补丁] 运行模式切换后确保对应 APP 被使能。
+ * 实测写 opmode 时 set_app() 没生效，APP 一直 IDLE，导致 PvModeRun 不执行、
+ * 速度给定恒 0。见补丁 13。 */
+#ifndef PORT_PATCH_APP_ENSURE_ENABLED
+#define PORT_PATCH_APP_ENSURE_ENABLED      (1)  // 1=每周期检查并补调 set_app
+#endif
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
 #define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）
