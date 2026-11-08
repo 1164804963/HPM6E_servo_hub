@@ -585,6 +585,68 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
    float lpf_k = 0.38f;                        // 低通滤波系数
    float speed_tar_rpm = TQ_FC_COM_MIN_SPEED_RAD_S * MATH_RAD2RPM; // 转矩脉动辨识速度低速 10RPM
 
+#if defined(PORT_PATCH_ID_ABORT_ON_RUNAWAY) && (PORT_PATCH_ID_ABORT_ON_RUNAWAY)
+   /* [移植补丁] 辨识跑飞 / 卡死保护。
+    * 本机低速位置环压不住（编码器开波抖动折合 ±48rpm，远超 10rpm 设计转速），
+    * 转矩脉动辨识实测会反向飞转；而阶段 1 的完成条件是
+    *     (enc_sum_p - pos_init_p) >= enc_line_p_n   // 必须"正向"转满一圈
+    * 反向飞转时这个差值越来越负，永远不成立 → 状态机卡在 STABLE_INCENTIVE，
+    * APP 一直 RUNNING，上位机表现为"一直辨识中、停不下来、没有结果"。
+    * 这里加两条兜底：转速超限持续 200ms，或总时长超过 60s，就置错误并关波。 */
+   {
+      static uint16_t s_over_speed_ms = 0;
+      static uint16_t s_total_ms = 0;
+      uint8_t abort_id = 0;
+
+      if (axis->tq_fc_id_output.state_now == IDENTIFICATION_MODE_STATE_ERROR)
+      {
+         axis->current_ctl_input.idq_tar_A[0] = 0.0f;
+         axis->current_ctl_input.idq_tar_A[1] = 0.0f;
+         axis->current_ctl_input.mode = 1;
+         axis->motor_ctl_sm_output.state = MOTOR_CTL_SM_STATE_DISABLE;
+         return;
+      }
+
+      if (axis->motor_ctl_sm_output.state != MOTOR_CTL_SM_STATE_ENABLE)
+      {
+         s_over_speed_ms = 0;
+         s_total_ms = 0;
+      }
+      else if (axis->tq_fc_id_output.state_now != IDENTIFICATION_MODE_STATE_FINISH)
+      {
+         if (MATH_ABS(axis->pos_speed_ctl_input.speed_now_rad_s) > TQ_FC_ID_ABORT_SPEED_RAD_S)
+         {
+            if (++s_over_speed_ms > 200U)
+            {
+               abort_id = 1;
+            }
+         }
+         else
+         {
+            s_over_speed_ms = 0;
+         }
+
+         if (++s_total_ms > TQ_FC_ID_TIMEOUT_MS)
+         {
+            abort_id = 1;
+         }
+      }
+
+      if (abort_id != 0U)
+      {
+         s_over_speed_ms = 0;
+         s_total_ms = 0;
+         axis->tq_fc_id_input.start = 0;
+         axis->tq_fc_id_output.state_now = IDENTIFICATION_MODE_STATE_ERROR;
+         axis->current_ctl_input.idq_tar_A[0] = 0.0f;
+         axis->current_ctl_input.idq_tar_A[1] = 0.0f;
+         axis->current_ctl_input.mode = 1;
+         axis->motor_ctl_sm_output.state = MOTOR_CTL_SM_STATE_DISABLE;
+         return;
+      }
+   }
+#endif
+
    if (axis->tq_fc_id_output.state_now == IDENTIFICATION_MODE_STATE_IDLE)
    {
       axis->tq_fc_id_input.start = 1;            // 启动转矩脉动辨识

@@ -98,6 +98,14 @@ extern "C"
 #ifndef PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY
 #define PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY  (1)  // 1=辨识结果不自动生效（推荐）
 #endif
+/* [移植补丁] 转矩脉动与摩擦辨识的跑飞/卡死保护。
+ * 本机低速位置环压不住，辨识会反向飞转，而阶段 1 要求"正向转满一圈"，
+ * 于是永远出不来（上位机一直"辨识中"、只能手动停）。见补丁 8。 */
+#ifndef PORT_PATCH_ID_ABORT_ON_RUNAWAY
+#define PORT_PATCH_ID_ABORT_ON_RUNAWAY     (1)  // 1=速度超限或超时则中止辨识
+#endif
+#define TQ_FC_ID_ABORT_SPEED_RAD_S         (10.0f)    // 超过约 95rpm 判定为跑飞（设计转速仅 1rad/s）
+#define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）
 
 /* 关掉全部补丁（= 完全回到上游逻辑）时可以用编译选项覆盖：
  *     -DPORT_PATCH_PWM_KEEPALIVE=0 -DPORT_PATCH_CAL_AUTOSTART=0 ... */
