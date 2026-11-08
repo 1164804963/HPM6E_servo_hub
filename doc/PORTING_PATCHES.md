@@ -91,20 +91,33 @@
 
 ---
 
-## 三、应用层修改（不属于通用驱动，风险最低）
+## 三、应用层修改（只有一行）
 
-`app/Identify/app_id_dir_mode.c`（方向辨识 APP）：
+**原则**：`app/` 属于原工程，除必须外不动。前后评估过两轮，真正必要的只有**一行**：
 
-1. `Init()` 补上辨识电流：`min(电机额定, 0.81×电机峰值)`。
-   上游其它 5 个辨识 APP 都设了，唯独方向辨识漏了，导致用控制层默认的 √2×额定。
-2. `Init()` 清掉上次残留的 `state_now / direction / elec_angle_tar`。
-3. `Run()`：完成返回 `SUCCESS`、急停/超时返回 `FAIL`（原来永远 `RUNNING`）；
-   加 `s_armed`，必须看到过"非完成"状态才认 FINISH，防止残留的 3 直接判成功。
+`app/Identify/app_id_dir_mode.c` → `IdDirModeInit()`：
 
-> 另外 5 个辨识 APP（电角度 / 机械特性 / 极对数 / 转矩脉动 / 电气特性）存在同样问题：
-> `Run()` 永远返回 RUNNING，且结果判断挂在"抱闸已松"的条件里。本机
-> `Brake_control_mode=0(自动)` 能松到位所以暂时没问题，换无抱闸/手动抱闸模式会卡住。
-> **目前未改**，如果需要可以照方向辨识的写法补齐。
+```c
+axis->direction_id_config.id_tar_max_A = get_app_Motor_rated_current();
+```
+
+上游另外 5 个辨识 APP 都在 `Init()` 里设了辨识电流，**唯独方向辨识漏了**，于是沿用控制层
+默认的 `pmsm_config.rated_current`（= √2 × 电机额定 = 1.697A），连续保持 25 s 会累积成
+驱动器过载（`Error_word` bit1）被强制失能。补这一行后与其它 5 个 APP 一致。
+
+**明确不改的（评估后放弃）**：
+
+| 曾经考虑过 | 放弃原因 |
+|---|---|
+| `Init()` 清残留 `state_now` | 控制层在“失能→使能”沿的 `ModeCheckInInit()` 已经会清 |
+| `Run()`/`Start()` 判 FINISH 返回 SUCCESS | 控制层在 FINISH 时自己会关 PWM 失能；上位机按 `state_now==3` 判断，本来就正常 |
+| 完成后把 `Controlword` 归零 | 残留 1 不会重新使能（没有上升沿），无实际影响 |
+| 使能 1 s 超时返回 FAIL | 同样只是显示层面，不影响辨识本身 |
+
+> 遗留（保留上游行为）：6 个辨识 APP 的 `Run()` 仍永远返回 `RUNNING`，成功后 APP 不自己结束。
+> 若以后要改，注意一个坑：**FINISH 时控制层会关 PWM → `hw_ready_state=0` → `AppRun()`
+> 不再调用 `Run()`**，所以收尾判断必须放在 `Start()`（READY 状态下会被反复调用）里，
+> 放 `Run()` 里永远走不到。
 
 ---
 

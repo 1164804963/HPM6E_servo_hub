@@ -43,16 +43,19 @@ extern "C"
 #define VOLTAGE_COMPENSATION_V          (0.00f)     // 死区电压补偿值：死区由 U9 DT/MODE 引脚设定，软件不叠加
 
 /* 电流保护基准（motor: EC1636-12120 12V，板子实测可输出 2.5~3A）
- *   DRIVER_RATED_CURRENT_A  —— 过载积分基准，取"电机额定"，保住电机热保护：
- *                              电机数据 最大效率点 0.45A / 最大功率点 1.52A，
- *                              1.52A 也只能短时运行，不能当连续额定用。
+ *   DRIVER_RATED_CURRENT_A  —— 过载积分基准：取电机"最大功率点"1.52A（填 1.50A）。
+ *                              不能取 1.20A：各辨识模式都会连续保持额定电流 10~20s，
+ *                              基准等于辨识电流时，实测的轻微超调就会被积分成越限，
+ *                              电角度辨识实测 3s 就报 Error_word=2（驱动器过载）被强制失能。
+ *                              取 1.50A 后：≤1.5A 不计入积分，>1.5A 仍按 2s 窗口保护，
+ *                              电机本体温升另有 100℃ 温度保护兜底。
  *   DRIVER_PEAK_CURRENT_A   —— 峰值保护基准（阈值 = 0.9×该值），按板子能力给 3A；
  *                              原来填 1.52A 导致阈值只有 1.368A，而方向辨识电流
  *                              √2×额定 = 1.697A，一使能就必然被判过流。
  *   DRIVER_OVERCURRENT_LIMIT_A —— 20kHz 板级逐周期过流 + App 层单相过流阈值，
  *                              必须 ≥ 0.9×峰值，否则板级会先于软件封桥。
  * 注意：改这三个值要同步改上位机"保护参数→驱动器过流阈值"，否则上位机会把旧值写回来。 */
-#define DRIVER_RATED_CURRENT_A          (1.20f)     // 驱动器额定电流（过载积分基准）
+#define DRIVER_RATED_CURRENT_A          (1.50f)     // 驱动器额定电流（过载积分基准，取电机最大功率点）
 #define DRIVER_PEAK_CURRENT_A           (3.00f)     // 驱动器峰值电流（峰值保护阈值 = 0.9×3.0 = 2.7A）
 #define DRIVER_OVERCURRENT_LIMIT_A      (3.00f)     // 驱动器过电流保护阈值（板级逐周期 + App 单相）
 #define DRIVER_PWM_READY_TIME           (0)         // PWM使能后等待时间 (单位 位置环周期数)
