@@ -1081,6 +1081,16 @@ uint32_t set_app_Modes_of_operation(int8_t val)
     case MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION:
         axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION;
         callback_registry.set_app_callback(APP_TQ_FC_ID_MODE);
+#if defined(PORT_PATCH_TQFC_POS_TAR_INIT) && (PORT_PATCH_TQFC_POS_TAR_INIT)
+        /* [移植补丁] 每次切入转矩脉动辨识时复位它的状态机。
+         * 上一次跑飞被中止会留下 ERROR(-1)，而 TqFcIdStep 在 ERROR 分支里每周期
+         * 强制失能，于是永远等不到"失能→使能"的沿，ModeCheckInInit 跑不到，
+         * ERROR 就再也清不掉——表现为"再点一次辨识电机根本不动"。
+         * 位置目标也在这里一起对齐，避免陈旧值造成几十万 counts 的跟随误差。 */
+        axis->tq_fc_id_output.state_now = IDENTIFICATION_MODE_STATE_IDLE;
+        axis->tq_fc_id_input.start = 0;
+        axis->pos_speed_ctl_input.pos_tar_p = axis->motor_pos_sensor_output.enc_sum_p;
+#endif
         break;
     default:
         axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_IDLE;

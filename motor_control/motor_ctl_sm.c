@@ -448,6 +448,17 @@ static void ModeCheckInInit(Axis *const axis, AxisDw *const axis_dw)
    case MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION:
       tq_fc_id_Init(&axis->tq_fc_id_output, &(axis_dw->tq_fc_id_InstanceData.rtdw));
       axis->tq_fc_id_input.pos_init_p = axis->motor_pos_sensor_output.enc_sum_p;
+#if defined(PORT_PATCH_TQFC_POS_TAR_INIT) && (PORT_PATCH_TQFC_POS_TAR_INIT)
+      /* [移植补丁] 重新进入本辨识时：
+       * 1) 复位状态机——上一次中止会留下 ERROR(-1)，不复位的话再进就直接报错、
+       *    电机使能不上（TqFcIdStep 在 ERROR 分支里每周期强制失能）。
+       * 2) 位置目标对齐到当前位置——否则 pos_tar_p 是陈旧值，位置环跟随误差可达
+       *    几十万 counts，kp_p=20 一乘直接把速度给定顶到几百万 p/s → 飞车。
+       * 见 doc/PORTING_PATCHES.md 补丁 9。 */
+      axis->tq_fc_id_output.state_now = IDENTIFICATION_MODE_STATE_IDLE;
+      axis->tq_fc_id_input.start = 0;
+      axis->pos_speed_ctl_input.pos_tar_p = axis->motor_pos_sensor_output.enc_sum_p;
+#endif
       break;
    case MOTOR_CTL_SM_MODE_MECHANICAL_IDENTIFICATION:
       break;
@@ -614,19 +625,28 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
       }
       else if (axis->tq_fc_id_output.state_now != IDENTIFICATION_MODE_STATE_FINISH)
       {
-         if (MATH_ABS(axis->pos_speed_ctl_input.speed_now_rad_s) > TQ_FC_ID_ABORT_SPEED_RAD_S)
+         s_total_ms++;
+
+         /* 启动宽限：使能瞬间速度观测器会有 ±20rad/s 甚至更大的尖峰（实测），
+          * 所以不看速度、改看位置跟随误差——它才是"跟不上目标/跑飞"的直接指标。 */
+         if (s_total_ms > TQ_FC_ID_GRACE_MS)
          {
-            if (++s_over_speed_ms > 200U)
+            int32_T perr = axis->pos_speed_ctl_output.pos_ctl_error_p;
+
+            if ((perr > TQ_FC_ID_ABORT_ERR_P) || (perr < -TQ_FC_ID_ABORT_ERR_P))
             {
-               abort_id = 1;
+               if (++s_over_speed_ms > 200U)
+               {
+                  abort_id = 1;
+               }
+            }
+            else
+            {
+               s_over_speed_ms = 0;
             }
          }
-         else
-         {
-            s_over_speed_ms = 0;
-         }
 
-         if (++s_total_ms > TQ_FC_ID_TIMEOUT_MS)
+         if (s_total_ms > TQ_FC_ID_TIMEOUT_MS)
          {
             abort_id = 1;
          }
@@ -651,6 +671,16 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
    {
       axis->tq_fc_id_input.start = 1;            // 启动转矩脉动辨识
       axis->tq_fc_id_input.pos_abs_p = 0;        // 绝对位置计数器清零
+#if defined(PORT_PATCH_TQFC_POS_TAR_INIT) && (PORT_PATCH_TQFC_POS_TAR_INIT)
+      /* [移植补丁] 把位置目标对齐到当前位置再开始。
+       * 上游这里没有初始化 pos_tar_p，它会保留上一次的陈旧值；而位置环
+       * speed_tar = kp_p * (pos_tar - pos_now)，kp_p=20。实测进辨识瞬间
+       * pos_tar_p=6899、pos_now_p=-534146，跟随误差 541045 counts，
+       * 速度给定直接到 1e7 p/s（远超限幅）→ 电机反向飞转、剧烈震动，
+       * 而且阶段 1 要求"正向转满一圈"永远不成立 → 卡住不结束。
+       * 见 doc/PORTING_PATCHES.md 补丁 9。 */
+      axis->pos_speed_ctl_input.pos_tar_p = axis->motor_pos_sensor_output.enc_sum_p;
+#endif
       axis->pos_speed_ctl_config.dob_enable = 0; // 关闭扰动观测器
       axis->tq_fc_id_config.tq_com_enable = 0;   // 关闭转矩脉动补偿
       axis->tq_fc_id_config.fc_com_enable = 0;   // 关闭摩擦补偿
@@ -901,14 +931,12 @@ static void ElecAngleIdStep(Axis *const axis, AxisDw *const axis_dw)
 
             // 辨识成功赋值给位置传感器模块
 #if defined(PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY) && (PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY)
-            /* [移植补丁] 不把辨识结果写回零点，改为恢复标定值。
-             * 原因：d 轴对齐对 PMSM 天然有 180° 模糊（转子被 N 极或 S 极吸住都能"对齐"），
-             * 本机辨识结果 3.852rad(220.7°)，而正确值是 41.6°（=221.6-180，用闭环稳定性
-             * 和另一台同型机组交叉验证过）。自动写回会把本来正确的零点改反，之后任何闭环
-             * 模式（速度模式、转矩脉动辨识）都会剧烈震动甚至飞车。
-             * 注意：进入本模式时 ModeCheckInInit 已经把零点清 0（辨识需要），所以这里必须
-             * 恢复成标定值，否则辨识结束后零点是 0，同样不能用。
-             * 见 doc/PORTING_PATCHES.md 补丁 7。 */
+            /* [移植补丁] 辨识完成后把零点恢复成标定值，而不是直接采用测量值。
+             * 原因：本模式进入时 ModeCheckInInit 会把零点清 0（辨识需要），所以结束时
+             * 必须写一个有效值回去，否则零点留在 0；而直接写测量值会让"跑一次辨识"
+             * 就把标定值覆盖掉（实测测量值 220.7°、标定值 221.6°，差 0.9°，量级一致，
+             * 但没必要让辨识去改这个标定）。测量值仍保留在
+             * ElecAngleIdOutput.elec_bias_rad 里供人工核对。见补丁 7。 */
             axis->motor_pos_sensor_config.elec_angle_bias_rad = PMSM_ELEC_ANGLE_BIAS_RAD;
 #else
             axis->motor_pos_sensor_config.elec_angle_bias_rad = axis->elec_angle_id_output.elec_bias_rad;

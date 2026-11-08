@@ -104,7 +104,13 @@ extern "C"
 #ifndef PORT_PATCH_ID_ABORT_ON_RUNAWAY
 #define PORT_PATCH_ID_ABORT_ON_RUNAWAY     (1)  // 1=速度超限或超时则中止辨识
 #endif
-#define TQ_FC_ID_ABORT_SPEED_RAD_S         (10.0f)    // 超过约 95rpm 判定为跑飞（设计转速仅 1rad/s）
+/* [移植补丁] 转矩脉动辨识开始时把位置目标对齐到当前位置。
+ * 上游没初始化 pos_tar_p，进辨识瞬间跟随误差可达 54 万 counts → 直接飞车。见补丁 9。 */
+#ifndef PORT_PATCH_TQFC_POS_TAR_INIT
+#define PORT_PATCH_TQFC_POS_TAR_INIT       (1)  // 1=进入辨识时 pos_tar_p = pos_now_p
+#endif
+#define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
+#define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
 #define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）
 
 /* 关掉全部补丁（= 完全回到上游逻辑）时可以用编译选项覆盖：
