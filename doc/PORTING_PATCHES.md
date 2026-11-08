@@ -156,3 +156,26 @@ axis->direction_id_config.id_tar_max_A = get_app_Motor_rated_current();
 3. `servo_bringup_self_test()` 的零漂标定失败只打串口，上位机看不到。
 4. 速度模式低速不稳：目标 1 输出 rpm（≈107 电机 rpm）实测冲到 ~1770 rpm 后回落，
    且 `PosSpeedCtlInput.speed_tar_p_s` 读回一直为 0（与出力对不上），待单独排查。
+
+---
+
+## 2026-11-08 重大结论：速度模式号是 2 不是 1（之前"失控"是模式用错）
+
+`motor_ctl_sm.h` 里：
+```
+#define MOTOR_CTL_SM_MODE_TORQUE (1)   // 1：力矩模式
+#define MOTOR_CTL_SM_MODE_SPEED  (2)   // 2：速度模式   ← 速度模式是 2！
+```
+
+**长期误判**：一直用 opmode=1 当"速度模式"测试，实际切的是**力矩模式 TorqueStep**。
+TorqueStep 直接透传上位机帧写进来的 `idq_tar_A`，不理会 `speed_tar_p_s`，
+电机按残留 `idq_tar` 乱转→过速保护，被误判成"速度环正反馈失控"。
+
+用 opmode=2 纠正后实测（GDB 直写 config.mode=2 同样成立）：
+- state=1(ENABLE) 稳定，err=0，不再暴走
+- 5 输出 rpm：speed_tar_p_s=146091 正确下发，speed_now 达 254 rad/s，iq_tar 顶限幅闭环出力
+- 2/5/1 rpm 反复测均不失控
+
+**整条链路（使能-模式-电流环-速度环）已打通**。剩下是速度环极性/增益整定 + 低速定位力，
+属调参范畴。相关补丁：13（APP 使能补丁，13b 恢复 cw）、15（set_app_Modes_of_operation 恒真检查、
+MotorCtlSmConfig 回写、opmode=0 回写保护）、14（零漂标定存 Flash，已端到端验证）。
