@@ -119,7 +119,7 @@ extern "C"
 //   要提速的话应先降低编码器噪声（硬件屏蔽/滤波），再往上调增益。
 #define POS_SPEED_CTL_CONFIG_KP_P                   (2.00e+01f)         // 位置环比例增益 1/s
 #define POS_SPEED_CTL_CONFIG_KI_S                   (5.00e-01f)         // 速度环积分增益
-#define POS_SPEED_CTL_CONFIG_KP_S                   (1.00e-02f)         // 速度环比例增益 A/(rad/s)
+#define POS_SPEED_CTL_CONFIG_KP_S                   (5.00e-02f)         // 速度环比例增益 A/(rad/s)
 #define POS_SPEED_CTL_CONFIG_J_KT                   (0.0f)              // 惯性前馈，待惯量单位确认后填
 #define POS_SPEED_CTL_CONFIG_AFF                    (0.0f)              // 加速度前馈增益
 #define POS_SPEED_CTL_CONFIG_VFF                    (1.0f)              // 速度前馈增益
@@ -132,7 +132,7 @@ extern "C"
 // 观测器是 PLL 的欧拉离散实现，稳定条件大约是 wn_Hz < 0.16 * fs（1kHz 时约 160Hz）；
 // 原固件 4kHz 位置环用 800Hz，比值 0.2，照搬到 1kHz 就是 200Hz —— 实测发散（速度估到
 // 上千 rpm，控制层直接报过速）。这里取 100Hz，留足裕量。
-#define SPEED_OBS_PLL_WN_HZ                         (100.0f)            // 速度观测器带宽（Hz）
+#define SPEED_OBS_PLL_WN_HZ                         (30.0f)             // 速度观测器带宽（Hz）
 
 // MT6816 协议定义（与现有固件 encoder_mt6816.c 一致）
 typedef enum
