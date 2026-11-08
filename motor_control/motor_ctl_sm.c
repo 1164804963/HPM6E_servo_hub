@@ -594,7 +594,17 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
    uint32_T index = 0;
    float fc_hz = 100.0f;                       // 100Hz截止频率
    float lpf_k = 0.38f;                        // 低通滤波系数
+#if defined(PORT_PATCH_TQFC_ID_SPEED) && (PORT_PATCH_TQFC_ID_SPEED)
+   /* [移植补丁] 辨识转速从 10rpm 提到 TQ_FC_ID_SPEED_RPM。
+    * 原因：本机电机静止通电时有 ±1.5~2.7° 的定位力微振（编码器实测 ±30~120 counts），
+    * 若振动在几十 Hz，其峰值角速度达 10~15 rad/s，比 10rpm(1.05rad/s) 的目标速度
+    * 大一个数量级——位置环被扰动主导，实测 kp_p 从 0.5 调到 20 都只是原地振荡、
+    * 净转动≈0。提高辨识转速后信噪比提高一个数量级，环才有可能压住。
+    * 代价：转矩脉动表的转速分辨率变差，但总比跑不了强。见补丁 10。 */
+   float speed_tar_rpm = TQ_FC_ID_SPEED_RPM;
+#else
    float speed_tar_rpm = TQ_FC_COM_MIN_SPEED_RAD_S * MATH_RAD2RPM; // 转矩脉动辨识速度低速 10RPM
+#endif
 
 #if defined(PORT_PATCH_ID_ABORT_ON_RUNAWAY) && (PORT_PATCH_ID_ABORT_ON_RUNAWAY)
    /* [移植补丁] 辨识跑飞 / 卡死保护。
@@ -681,7 +691,16 @@ static void TqFcIdStep(Axis *const axis, AxisDw *const axis_dw)
        * 见 doc/PORTING_PATCHES.md 补丁 9。 */
       axis->pos_speed_ctl_input.pos_tar_p = axis->motor_pos_sensor_output.enc_sum_p;
 #endif
+#if defined(PORT_PATCH_TQFC_ID_DOB) && (PORT_PATCH_TQFC_ID_DOB)
+      /* [移植补丁] 辨识期间保留扰动观测器（DOB）。
+       * 上游这里把 dob_enable 关 0，而摩擦系数正是从 dob_iq_com_A 采出来的
+       * （fc_n_com 由 iq_com_A 低通得到），DOB 一关那条通路恒为 0，
+       * 实测辨识跑完 fc_p_com / fc_n_com 都是 0.0，等于摩擦项白辨识。
+       * 见补丁 11。 */
+      axis->pos_speed_ctl_config.dob_enable = 1; // 保留扰动观测器（摩擦辨识需要它）
+#else
       axis->pos_speed_ctl_config.dob_enable = 0; // 关闭扰动观测器
+#endif
       axis->tq_fc_id_config.tq_com_enable = 0;   // 关闭转矩脉动补偿
       axis->tq_fc_id_config.fc_com_enable = 0;   // 关闭摩擦补偿
       axis->tq_fc_id_output.state_now = IDENTIFICATION_MODE_STATE_SEARCH;

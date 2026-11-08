@@ -109,6 +109,18 @@ extern "C"
 #ifndef PORT_PATCH_TQFC_POS_TAR_INIT
 #define PORT_PATCH_TQFC_POS_TAR_INIT       (1)  // 1=进入辨识时 pos_tar_p = pos_now_p
 #endif
+/* [移植补丁] 转矩脉动/摩擦辨识的运行转速。
+ * 上游固定 1.0rad/s(≈10rpm)，本机在这个速度上被定位力微振淹没（扰动峰值速度比目标
+ * 大一个数量级），位置环怎么调都只是原地振荡。提到 120rpm 换取信噪比。见补丁 10。 */
+#ifndef PORT_PATCH_TQFC_ID_SPEED
+#define PORT_PATCH_TQFC_ID_SPEED           (1)  // 1=用下面这个转速，0=用上游 1.0rad/s
+#endif
+#define TQ_FC_ID_SPEED_RPM                 (120.0f)   // 辨识转速（电机端 rpm）
+/* [移植补丁] 辨识期间保留扰动观测器。上游把它关 0，而摩擦系数是从 dob_iq_com_A
+ * 采的，关掉之后 fc_p_com/fc_n_com 恒为 0，摩擦项白辨识。见补丁 11。 */
+#ifndef PORT_PATCH_TQFC_ID_DOB
+#define PORT_PATCH_TQFC_ID_DOB             (1)  // 1=辨识期间打开 DOB
+#endif
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
 #define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）
