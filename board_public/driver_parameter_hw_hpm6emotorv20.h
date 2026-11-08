@@ -92,6 +92,12 @@ extern "C"
 #ifndef PORT_PATCH_ID_CURRENT_FROM_CONFIG
 #define PORT_PATCH_ID_CURRENT_FROM_CONFIG  (1)  // 极对数辨识电流取配置值而非 √2×额定
 #endif
+/* [移植补丁] 电角度辨识完成时不自动把结果写回零点。
+ * 原因是 d 轴对齐对 PMSM 有 180° 模糊，本机辨识值 220.7° 而正确值 41.6°；
+ * 自动写回会把正确的零点改反，导致后续闭环模式震动/飞车。见补丁 7。 */
+#ifndef PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY
+#define PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY  (1)  // 1=辨识结果不自动生效（推荐）
+#endif
 
 /* 关掉全部补丁（= 完全回到上游逻辑）时可以用编译选项覆盖：
  *     -DPORT_PATCH_PWM_KEEPALIVE=0 -DPORT_PATCH_CAL_AUTOSTART=0 ... */

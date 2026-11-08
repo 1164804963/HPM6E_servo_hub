@@ -838,7 +838,19 @@ static void ElecAngleIdStep(Axis *const axis, AxisDw *const axis_dw)
             }
 
             // 辨识成功赋值给位置传感器模块
+#if defined(PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY) && (PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY)
+            /* [移植补丁] 不把辨识结果写回零点，改为恢复标定值。
+             * 原因：d 轴对齐对 PMSM 天然有 180° 模糊（转子被 N 极或 S 极吸住都能"对齐"），
+             * 本机辨识结果 3.852rad(220.7°)，而正确值是 41.6°（=221.6-180，用闭环稳定性
+             * 和另一台同型机组交叉验证过）。自动写回会把本来正确的零点改反，之后任何闭环
+             * 模式（速度模式、转矩脉动辨识）都会剧烈震动甚至飞车。
+             * 注意：进入本模式时 ModeCheckInInit 已经把零点清 0（辨识需要），所以这里必须
+             * 恢复成标定值，否则辨识结束后零点是 0，同样不能用。
+             * 见 doc/PORTING_PATCHES.md 补丁 7。 */
+            axis->motor_pos_sensor_config.elec_angle_bias_rad = PMSM_ELEC_ANGLE_BIAS_RAD;
+#else
             axis->motor_pos_sensor_config.elec_angle_bias_rad = axis->elec_angle_id_output.elec_bias_rad;
+#endif
 
             axis->elec_angle_id_output.step_num = 0;
             axis->elec_angle_id_output.state_now = IDENTIFICATION_MODE_STATE_FINISH;
