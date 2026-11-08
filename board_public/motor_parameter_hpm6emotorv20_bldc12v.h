@@ -23,10 +23,15 @@ extern "C"
 #define PMSM_TORQUE_CONSTANT_MNM_A      (8.775f)                        // 电机转矩常数 mN*M/A
 
 // 电角度零点：编码器角减去这个偏置才是电角度（见 motor_pos_sensor.c）。
-// L1 实测：mode 127 + 电压矢量打在 0° 时转子停住，当时的编码器角 = 221.6°，
-// 填进来以后电角度 0 就对应转子 d 轴与 A 相轴线重合。
-// 这是单台电机的标定值，参数存储（FlashDB）做完之前先写死在这里。
-#define PMSM_ELEC_ANGLE_BIAS_DEG        (221.6f)
+// L1 实测：mode 127 + 电压矢量打在 0° 时转子停住，当时的编码器角 = 221.6°。
+// 【重要修正】电压矢量对齐天然有 180° 模糊（转子被 N 极或 S 极吸住都能停住），
+// 221.6° 落在错误的那一支上：d 轴实际反了 180°，q 轴电流产生的转矩方向相反。
+// 后果（实测）：
+//   - 速度模式：给定 0 也会自己飙到 8650rpm（速度环变正反馈）；
+//   - 转矩脉动/摩擦辨识：电流全用来顶住转子，剧烈震动但 3s 只转 0.32 圈（6rpm）。
+// 正确值 = 221.6 - 180 = 41.6°，实测闭环稳定；与另一台同型机组的零点
+// 0.700rad(=40.1°) 相差 1.5°，与「电角度辨识结果减 π」(3.852 - π = 40.7°) 相差 0.9°，三者吻合。
+#define PMSM_ELEC_ANGLE_BIAS_DEG        (41.6f)
 #define PMSM_ELEC_ANGLE_BIAS_RAD        (PMSM_ELEC_ANGLE_BIAS_DEG / 57.29578f)
 
 // 编码器类型通过宏定义指定
@@ -101,12 +106,18 @@ extern "C"
 // 位置速度环：按实测惯量重算（J = 3e-6 kg*m^2，kt = 8.775 mN*m/A）
 //   速度环对象: dw/dt = (kt/J) * iq = 2933 * iq      [1/s^2 per A]
 //   生成代码里 P 通道 = kp_s，I 通道 = ki_s * (kt/J)（见 pos_speed_ctl_pip.c 的 1/j_kt）
-//   取 wn = 150 rad/s (24Hz)、阻尼 1：kp_s = 2*wn/(kt/J) = 0.102，ki_s = wn^2/(kt/J) = 7.67
-//   带宽留到 24Hz 是因为速度环只有 1kHz 采样、还串着 1ms 的电流环延迟，
-//   原来的 kp_s=0.219 对应 ~100Hz 穿越频率，实测电机在 65Hz 上来回荡。
+//   【实测标定（2026-11-08）】本机编码器在开波状态下有 ±30~120 counts 的读数抖动
+//   （电机静止通电时的定位力微振，见 PORTING_PATCHES.md 第五节），折合速度噪声约 ±5 rad/s。
+//   速度环增益过高会把这份噪声放大成自激：
+//     kp_s=0.102 / ki_s=7.67  → 速度模式一起使能就飞到 −906 rad/s（-8650rpm）
+//     kp_s=0.020 / ki_s=1.00  → 仍然飞车（−920 rad/s）
+//     kp_s=0.040 / ki_s=2.00  → 仍然飞车（−914 rad/s）
+//     kp_s=0.010 / ki_s=0.50  → 稳定，speed_now 只有 ±1.3 rad/s，err=0
+//   对应 wn = sqrt(ki_s * kt/J) ≈ 38 rad/s（6Hz）。稳定边界在 0.01~0.02 之间，留了余量。
+//   要提速的话应先降低编码器噪声（硬件屏蔽/滤波），再往上调增益。
 #define POS_SPEED_CTL_CONFIG_KP_P                   (2.00e+01f)         // 位置环比例增益 1/s
-#define POS_SPEED_CTL_CONFIG_KI_S                   (7.67e+00f)         // 速度环积分增益
-#define POS_SPEED_CTL_CONFIG_KP_S                   (1.02e-01f)         // 速度环比例增益 A/(rad/s)
+#define POS_SPEED_CTL_CONFIG_KI_S                   (5.00e-01f)         // 速度环积分增益
+#define POS_SPEED_CTL_CONFIG_KP_S                   (1.00e-02f)         // 速度环比例增益 A/(rad/s)
 #define POS_SPEED_CTL_CONFIG_J_KT                   (0.0f)              // 惯性前馈，待惯量单位确认后填
 #define POS_SPEED_CTL_CONFIG_AFF                    (0.0f)              // 加速度前馈增益
 #define POS_SPEED_CTL_CONFIG_VFF                    (1.0f)              // 速度前馈增益

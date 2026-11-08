@@ -85,6 +85,13 @@ extern "C"
 #ifndef PORT_PATCH_ID_MODE_RESEND
 #define PORT_PATCH_ID_MODE_RESEND       (1)  // 辨识模式（负值）允许重复下发
 #endif
+/* [移植补丁] 极对数辨识电流改用 pole_pairs_id_config.id_tar_max_A。
+ * 上游 PolePairsIdStep() 直接写 pmsm_config.rated_current（= √2 × 电机额定 = 1.697A），
+ * 完全无视 APP Init 设置的 id_tar_max_A；该电流持续 7s 就会把过载积分顶爆
+ * （实测 Error_word=2，辨识必然失败）。见 doc/PORTING_PATCHES.md 补丁 6。 */
+#ifndef PORT_PATCH_ID_CURRENT_FROM_CONFIG
+#define PORT_PATCH_ID_CURRENT_FROM_CONFIG  (1)  // 极对数辨识电流取配置值而非 √2×额定
+#endif
 
 /* 关掉全部补丁（= 完全回到上游逻辑）时可以用编译选项覆盖：
  *     -DPORT_PATCH_PWM_KEEPALIVE=0 -DPORT_PATCH_CAL_AUTOSTART=0 ... */

@@ -1,5 +1,8 @@
 #include "motor_ctl_sm.h"
 #include "yuanhub_math.h"
+/* [移植适配] 本文件用到 board_public 的 PORT_PATCH_* 开关（驱动参数头经由
+ * data_type_define.h → servo_system_cfg.h 引入），否则 #if 判不到、会静默走 #else 上游分支。 */
+#include "data_type_define.h"
 
 // 所有电机控制对象进行实例化  Axis  AxisDw
 
@@ -904,7 +907,16 @@ static void PolePairsIdStep(Axis *const axis, AxisDw *const axis_dw)
 
    axis->current_ctl_input.elec_angle_speed_rad_s = 0.0f;
    axis->current_ctl_input.elec_theta_rad = axis->pole_pairs_id_output.elec_angle_tar_rad;
+#if defined(PORT_PATCH_ID_CURRENT_FROM_CONFIG) && (PORT_PATCH_ID_CURRENT_FROM_CONFIG)
+   /* [移植补丁] 用辨识配置里的电流，而不是 pmsm_config.rated_current。
+    * 上游这里直接写 pmsm_config.rated_current（= √2 × 电机额定 = 1.697A），
+    * 完全无视 APP Init 设置的 pole_pairs_id_config.id_tar_max_A；
+    * 1.697A 持续约 7s 就会把过载积分顶爆（实测 Error_word bit1，辨识必然失败）。
+    * 见 doc/PORTING_PATCHES.md 补丁 6。 */
+   axis->current_ctl_input.idq_tar_A[0] = axis->pole_pairs_id_config.id_tar_max_A;
+#else
    axis->current_ctl_input.idq_tar_A[0] = axis->pmsm_config.rated_current;
+#endif
    axis->current_ctl_input.idq_tar_A[1] = 0.0f;
    axis->current_ctl_input.mode = 1; // 电流控制模式
 
