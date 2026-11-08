@@ -28,6 +28,11 @@ static void servo_app_init(void)
     AppInit();
     AppStatusScanInit();
     AppStoreInit();
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
+    /* [移植补丁 14] FlashDB 参数已读完，接着从 Flash 恢复电流零漂标定结果，
+     * 这样上电第一次使能就能直接跑，不需要先"使能一次做标定再使能一次"。 */
+    bsp_current_calibration_restore_from_flash();
+#endif
     ScopeInit();
     AppBrakeControlInit();
     AppMotionPreConditionInit();

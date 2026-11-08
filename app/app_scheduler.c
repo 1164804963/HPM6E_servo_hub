@@ -1,4 +1,8 @@
 #include "app_scheduler.h"
+#if defined(PORT_PATCH_APP_ENSURE_ENABLED) && (PORT_PATCH_APP_ENSURE_ENABLED)
+#include "motor_ctl_loop.h"   /* [移植补丁 13b] extern Axis kAxis */
+#include "data_param.h"       /* [移植补丁 13b] kAppControlWord/kAppMotionParam */
+#endif
 
 // 应用程序信息结构体
 AppInfo kAppInfo[APP_NUM];
@@ -51,17 +55,38 @@ void AppRun(uint8_t hw_ready_state)
     {
         int8_T md = get_app_Modes_of_operation();
 
-        if ((md == MOTOR_CTL_SM_MODE_SPEED) && !kAppInfo[APP_PV_MODE].enable)
+        /* [移植补丁 13b] 补调 set_app 会让 PvModeInit 执行
+         * set_app_Controlword(DISABLE)，把本周期的使能清掉。所以：
+         *  1) 只在状态机已经处于 ENABLE（真正在跑）时才补调；
+         *  2) 补调后立刻把 Controlword / motor_enable 恢复成当前值，
+         *     这样不会破坏"失能→使能"沿，也不会让电机掉使能。 */
+        if ((md == MOTOR_CTL_SM_MODE_SPEED) && !kAppInfo[APP_PV_MODE].enable &&
+            (kAxis.motor_ctl_sm_output.state == MOTOR_CTL_SM_STATE_ENABLE))
         {
+            uint16_t cw_save = kAppControlWord.Controlword;
+
             set_app(APP_PV_MODE);
+            /* 恢复被 PvModeInit 清掉的使能 */
+            kAppControlWord.Controlword = cw_save;
+            kAxis.motor_ctl_sm_input.motor_enable = cw_save;
         }
-        else if ((md == MOTOR_CTL_SM_MODE_POSITION) && !kAppInfo[APP_PP_MODE].enable)
+        else if ((md == MOTOR_CTL_SM_MODE_POSITION) && !kAppInfo[APP_PP_MODE].enable &&
+                 (kAxis.motor_ctl_sm_output.state == MOTOR_CTL_SM_STATE_ENABLE))
         {
+            uint16_t cw_save = kAppControlWord.Controlword;
+
             set_app(APP_PP_MODE);
+            kAppControlWord.Controlword = cw_save;
+            kAxis.motor_ctl_sm_input.motor_enable = cw_save;
         }
-        else if ((md == MOTOR_CTL_SM_MODE_TORQUE) && !kAppInfo[APP_PT_MODE].enable)
+        else if ((md == MOTOR_CTL_SM_MODE_TORQUE) && !kAppInfo[APP_PT_MODE].enable &&
+                 (kAxis.motor_ctl_sm_output.state == MOTOR_CTL_SM_STATE_ENABLE))
         {
+            uint16_t cw_save = kAppControlWord.Controlword;
+
             set_app(APP_PT_MODE);
+            kAppControlWord.Controlword = cw_save;
+            kAxis.motor_ctl_sm_input.motor_enable = cw_save;
         }
     }
 #endif

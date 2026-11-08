@@ -193,6 +193,12 @@ typedef struct {
     float app_motion_param_Homing_speed_search_for_switch;
     float app_motion_param_Homing_speed_search_for_zero;
     float app_motion_param_Homing_acceleration;
+    /* [移植补丁 14] 电流零漂标定结果。标定成功后存这里，上电直接恢复，
+     * 省掉每次上电都要先"使能一次做标定"才能让电机转。
+     * cal_drift_magic = CURRENT_CAL_DRIFT_MAGIC 表示下面三路有效。 */
+    uint32_t current_cal_drift_magic;
+    uint16_t current_cal_drift[3];
+    uint16_t current_cal_drift_crc;
 }FLASH_PARAM_STRUCT;
 extern FLASH_PARAM_STRUCT kFlashStorage;
 

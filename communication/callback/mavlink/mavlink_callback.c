@@ -1014,7 +1014,15 @@ void MavlinkRecvCallback(Axis *axis, AxisDw *axis_dw, uint8_t rx_data[], uint32_
                 break;
             case MAVLINK_MSG_ID_MotorCtlSmConfig:
                 mavlink_msg_motorctlsmconfig_decode(&msg, (mavlink_motorctlsmconfig_t *)&motor_ctl_sm_config_t);
+#if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
+                /* [移植补丁 15] 运行模式 mode 只由 AppOpMode(30056) 控制。
+                 * 上位机做参数同步时会周期下发 MotorCtlSmConfig，其中带的 mode
+                 * 是它自己缓存的旧值（通常是 0），原来这行会把它写回来，
+                 * 把刚切好的速度/位置模式立刻覆盖成 IDLE，表现为"切模式没反应"。
+                 * 这里不再从本帧写 mode。 */
+#else
                 if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){axis->motor_ctl_sm_config.mode = motor_ctl_sm_config_t.mode;}
+#endif
                 if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){axis->motor_ctl_sm_config.under_voltage_protection_V = motor_ctl_sm_config_t.under_voltage_protection_V;}
                 if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){axis->motor_ctl_sm_config.over_voltage_protection_V = motor_ctl_sm_config_t.over_voltage_protection_V;}
                 if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){axis->motor_ctl_sm_config.over_speed_protection_rad_s = motor_ctl_sm_config_t.over_speed_protection_rad_s;}

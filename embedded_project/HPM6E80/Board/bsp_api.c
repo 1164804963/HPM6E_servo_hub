@@ -12,6 +12,10 @@
 #include "hpm_pwmv2_drv.h"
 #include "hpm_interrupt.h"
 
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
+#include "app_store_param.h"   /* [移植补丁 14] kFlashStorage */
+#endif
+
 /* ---------------------------------------------------------------------------
  * 硬件状态与校准
  * 上位机（Portable 层）只通过 bsp_api.h 看到电压/电流/温度与校准状态，
@@ -35,6 +39,86 @@ static CURRENT_CALIBRATION_STATUS s_cal_status = CURRENT_CALIBRATION_STATUS_READ
 static uint32_t s_cal_sum[3];
 static uint32_t s_cal_count;
 static uint16_t s_cal_drift[3];
+
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
+/* 前置声明：放到 s_cal 恢复函数之前，避免定义在后面导致隐式声明冲突 */
+static float bsp_raw_to_current(uint16_t raw, uint16_t drift);
+
+/* [移植补丁 14] 电流零漂标定结果的 Flash 持久化。
+ *
+ * 背景（GDB 实测）：s_cal_status/s_cal_drift 只在 RAM，复位即回 READY(0)。
+ * hw_ready 要求 cal==OK，所以每次上电都必须先使能一次让标定跑完 1 秒，
+ * 否则电机永远不动（现象：使能了但电机纹丝不动、无报警）。
+ *
+ * 做法：标定成功后把三路漂移 + 魔数 + 校验和写进 kFlashStorage，走现有
+ * "AllParam" 那条 FlashDB KV（SysCmd=2 存盘时一并落盘）。
+ * 上电时 try_restore 校验通过就把 s_cal_drift/s_cal_status 直接置成可用。 */
+#define CURRENT_CAL_DRIFT_MAGIC   (0x43414C31UL)   /* 'CAL1' */
+
+static uint16_t cal_drift_crc16(const uint16_t *d)
+{
+    /* 简单校验：三个漂移值的字节异或 + 固定种子 */
+    uint16_t crc = 0x5A5AU;
+
+    for (uint32_t i = 0; i < 3U; i++)
+    {
+        crc = (uint16_t)(crc ^ d[i]);
+        crc = (uint16_t)((crc << 3) | (crc >> 13));
+    }
+    return crc;
+}
+
+/* 保存到 RAM 里的 kFlashStorage（真正的落盘由 SysCmd=2 触发 flash_param_update） */
+static void cal_drift_store_to_shadow(void)
+{
+    kFlashStorage.current_cal_drift_magic = CURRENT_CAL_DRIFT_MAGIC;
+    kFlashStorage.current_cal_drift[0] = s_cal_drift[0];
+    kFlashStorage.current_cal_drift[1] = s_cal_drift[1];
+    kFlashStorage.current_cal_drift[2] = s_cal_drift[2];
+    kFlashStorage.current_cal_drift_crc = cal_drift_crc16(s_cal_drift);
+}
+
+/* 从 kFlashStorage 尝试恢复。成功返回 true。 */
+static bool cal_drift_try_restore(void)
+{
+    const uint16_t d[3] = {
+        kFlashStorage.current_cal_drift[0],
+        kFlashStorage.current_cal_drift[1],
+        kFlashStorage.current_cal_drift[2],
+    };
+
+    if (kFlashStorage.current_cal_drift_magic != CURRENT_CAL_DRIFT_MAGIC)
+    {
+        return false;
+    }
+    if (kFlashStorage.current_cal_drift_crc != cal_drift_crc16(d))
+    {
+        return false;
+    }
+    /* 恢复出来的漂移还要过一遍量程检查，防止存进去的是脏数据 */
+    for (uint32_t i = 0; i < 3U; i++)
+    {
+        float center_current = bsp_raw_to_current(d[i], (uint16_t)UVW_CURRENT_MID_VAL);
+
+        if (center_current > CURRENT_CALIBRATION_LIMIT || center_current < -CURRENT_CALIBRATION_LIMIT)
+        {
+            return false;
+        }
+    }
+    s_cal_drift[0] = d[0];
+    s_cal_drift[1] = d[1];
+    s_cal_drift[2] = d[2];
+    s_cal_status = CURRENT_CALIBRATION_STATUS_OK;
+    s_hardware_self_test_status = true;
+    return true;
+}
+
+/* 公开接口：上电初始化（在 FlashDB 读完参数之后）调用一次 */
+void bsp_current_calibration_restore_from_flash(void)
+{
+    (void)cal_drift_try_restore();
+}
+#endif
 
 static VOLTAGE_CHECK_STATUS s_bus_check_status = VOLTAGE_STATUS_UNKNOWN;
 static uint32_t s_bus_under_cnt;
@@ -195,6 +279,10 @@ void sys_current_calibration_step(void)
     s_cal_status = CURRENT_CALIBRATION_STATUS_OK;
     /* 自检通过：零漂可信即可参与使能判定，母线是否正常由 sys_bus_voltage_check 单独跟踪。 */
     s_hardware_self_test_status = true;
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
+    /* [移植补丁 14] 标定成功→写入影子结构，SysCmd=2 时随 AllParam 一起落盘 */
+    cal_drift_store_to_shadow();
+#endif
     /* 注意：这里不能 printf。本函数会被 1ms 中断调用，而 newlib 的 printf 带 stdout 锁，
      * 主循环正在打印时被中断打断就会死等同一把锁（现场表现为串口卡死后不再响应）。
      * 校准结果由 sys_get_current_calibration_drift() 读，打印交给主循环里的调试台。 */

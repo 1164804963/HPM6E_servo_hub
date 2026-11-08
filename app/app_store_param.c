@@ -200,6 +200,17 @@ void flash_param_update(void)
     kFlashStorage.app_motion_param_Homing_speed_search_for_switch = kAppMotionParam.Homing_speed_search_for_switch;
     kFlashStorage.app_motion_param_Homing_speed_search_for_zero = kAppMotionParam.Homing_speed_search_for_zero;
     kFlashStorage.app_motion_param_Homing_acceleration = kAppMotionParam.Homing_acceleration;
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
+    /* [移植补丁 14] 电流零漂标定是 RAM 里的运行时状态，不是可写参数。
+     * 首次建库（KV 还不存在）时不能让这三个字段落成默认值/垃圾，
+     * 否则上电会误判"已有有效漂移"。这里强制置成无效，等真正标定成功后
+     * 再由 bsp_api.c 的 cal_drift_store_to_shadow() 写入。 */
+    kFlashStorage.current_cal_drift_magic = 0U;
+    kFlashStorage.current_cal_drift[0] = 0U;
+    kFlashStorage.current_cal_drift[1] = 0U;
+    kFlashStorage.current_cal_drift[2] = 0U;
+    kFlashStorage.current_cal_drift_crc = 0U;
+#endif
 }
 
 void flash_param_init(void)

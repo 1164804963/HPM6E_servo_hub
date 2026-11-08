@@ -1,4 +1,4 @@
-﻿#ifndef DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
+#ifndef DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
 #define DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
 
 // 整个驱动器硬件参数：HPM6EMotorV20（HPM6E8YIGN1 + STDRIVE101 + 6x BSC040N10NS5）
@@ -130,7 +130,20 @@ extern "C"
  * 实测写 opmode 时 set_app() 没生效，APP 一直 IDLE，导致 PvModeRun 不执行、
  * 速度给定恒 0。见补丁 13。 */
 #ifndef PORT_PATCH_APP_ENSURE_ENABLED
-#define PORT_PATCH_APP_ENSURE_ENABLED      (0)  // 1=每周期检查并补调 set_app
+#define PORT_PATCH_APP_ENSURE_ENABLED      (1)  // 1=每周期检查并补调 set_app
+#endif
+/* [移植补丁 14] 电流零漂标定结果存 Flash。标定成功后写入 kFlashStorage，
+ * 上电从 Flash 恢复，省掉每次上电"先使能做标定"这一步。
+ * 注意：真正落盘需要上位机发 SysCmd=2（存盘），与其它参数一致。 */
+#ifndef PORT_PATCH_CAL_DRIFT_STORE_FLASH
+#define PORT_PATCH_CAL_DRIFT_STORE_FLASH   (1)  // 1=启用标定结果持久化
+#endif
+/* [移植补丁 15] 直接下发运行模式。上游 set_app_Modes_of_operation 里
+ * "val == get_app_Modes_of_operation_display()" 恒真（display 就是回读自己），
+ * 导致 0/1/2/3 这些非负运行模式全被吞，只有负值辨识模式能切。
+ * 打开后改为与"控制层当前实际模式"比较。见补丁 15。 */
+#ifndef PORT_PATCH_OPMODE_DIRECT_APPLY
+#define PORT_PATCH_OPMODE_DIRECT_APPLY     (1)  // 1=修掉恒真重复检查
 #endif
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定

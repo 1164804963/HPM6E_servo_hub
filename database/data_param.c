@@ -1002,6 +1002,40 @@ uint8_t get_app_Brake_state(void)
 uint32_t set_app_Modes_of_operation(int8_t val)
 {
     /* USER CODE BEGIN set_app_Modes_of_operation 0 */
+#if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
+    /* [移植补丁 15] 修上游"重复模式检查"的恒真 bug。
+     *
+     * get_app_Modes_of_operation_display() 内部就是
+     *   return kAppOpMode.Modes_of_operation;
+     * 所以原来的 "if (val == get_app_Modes_of_operation_display()) return;"
+     * 在写非负模式时恒成立 —— 0/1/2/3 这些运行模式全被直接 return 吞掉，
+     * motor_ctl_sm_config.mode 永远不变、set_app_callback 永远不触发，
+     * 表现出来的就是"切速度模式没反应、使能后电机不动、标定也永远做不完"。
+     * （辨识模式是负值，被 val>=0 条件排除，所以只有辨识能切——这正是
+     *  之前只有辨识能用、运行模式全废的原因。）
+     *
+     * 修法：把"重复"的判据改成控制层当前实际模式，而不是回读自身。
+     * 只有"请求的模式 == 控制层当前模式"才跳过；其余一律真正下发。 */
+    {
+        extern Axis kAxis;
+
+        /* [移植补丁 15b] 挡住上位机的"状态轮询回写 0"。
+         * 上位机在周期同步时会把它自身缓存的旧 opmode（通常是 0）反复发下来，
+         * set_app_Modes_of_operation(0) 于是每周期把刚切好的运行模式清回 IDLE，
+         * 表现为"切速度模式没反应、电机不动、标定做不完"。
+         * 判据：请求 IDLE(0) 且控制层当前处于运行/辨识模式时，视为回写噪声忽略。
+         * 真正要回到 IDLE，应先失能（Controlword=0）再发 0，届时控制层已 idle。 */
+        if ((val == MOTOR_CTL_SM_MODE_IDLE) &&
+            (kAxis.motor_ctl_sm_config.mode != MOTOR_CTL_SM_MODE_IDLE))
+        {
+            return APP_PARAM_SUCCESS;
+        }
+        if (val == (int8_t)kAxis.motor_ctl_sm_config.mode)
+        {
+            return APP_PARAM_SUCCESS;
+        }
+    }
+#else
 #if defined(PORT_PATCH_ID_MODE_RESEND) && (PORT_PATCH_ID_MODE_RESEND)
     /* [移植补丁] 辨识模式（负值）允许重复下发：上位机再点一次"开始辨识"会重新写同一个
      * 模式值，如果这里直接 return，辨识 APP 不会重新 Init（不会重设辨识电流、不会复位
@@ -1016,6 +1050,7 @@ uint32_t set_app_Modes_of_operation(int8_t val)
     {
         return APP_PARAM_SUCCESS;
     }
+#endif
 #endif
     /* USER CODE END set_app_Modes_of_operation 0 */
     kAppOpMode.Modes_of_operation = val;

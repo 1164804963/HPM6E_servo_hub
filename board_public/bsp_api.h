@@ -39,6 +39,8 @@ void sys_current_calibration_step(void);
 CURRENT_CALIBRATION_STATUS sys_get_current_calibration_status(void);
 /* 获取UVW三相电流校准值 */
 void sys_get_current_calibration_drift(uint16_t *drift);
+/* [移植补丁 14] 上电从 Flash 恢复电流零漂标定结果（在 FlashDB 读完参数后调用） */
+void bsp_current_calibration_restore_from_flash(void);
 /* 设置PWM输出状态 */
 void bsp_set_pwm_state(bool state);
 /* 更新PWM输出准备状态 */
