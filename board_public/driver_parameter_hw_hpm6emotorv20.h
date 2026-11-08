@@ -1,4 +1,4 @@
-#ifndef DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
+﻿#ifndef DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
 #define DRIVER_PARAMETER_HW_HPM6EMOTORV20_H
 
 // 整个驱动器硬件参数：HPM6EMotorV20（HPM6E8YIGN1 + STDRIVE101 + 6x BSC040N10NS5）
@@ -130,7 +130,7 @@ extern "C"
  * 实测写 opmode 时 set_app() 没生效，APP 一直 IDLE，导致 PvModeRun 不执行、
  * 速度给定恒 0。见补丁 13。 */
 #ifndef PORT_PATCH_APP_ENSURE_ENABLED
-#define PORT_PATCH_APP_ENSURE_ENABLED      (1)  // 1=每周期检查并补调 set_app
+#define PORT_PATCH_APP_ENSURE_ENABLED      (0)  // 1=每周期检查并补调 set_app
 #endif
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
