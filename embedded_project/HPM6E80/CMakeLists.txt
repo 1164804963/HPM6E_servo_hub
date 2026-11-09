@@ -93,4 +93,53 @@ sdk_src(Board/encoder_mt6816.c)
 # 应用入口
 sdk_app_src(Board/main.c)
 
+# --- EtherCAT 从站（HPM6E80 内置 ESC）------------------------------------
+# 上层：本工程已有的 ETG SSC 协议栈 + CiA402 应用层（YuanHub，已对接 kAxis），
+#       位于 communication/protocol/EtherCAT_LAN925x/Src。
+# 底层：改用 SDK 的 HPM 内置 ESC port 层（hpm_ecat_hw/phy + Flash 模拟 EEPROM），
+#       替换原 LAN9252(SPI) 的 ecat_app_hw.c/ecat_drv_sqi.c。
+set(ECAT_SRC "${SERVO_ROOT}/communication/protocol/EtherCAT_LAN925x/Src")
+set(HPM_ECAT_PORT "${HPM_SDK_BASE}/samples/ethercat/port")
+
+sdk_inc("${ECAT_SRC}")
+sdk_inc("${HPM_ECAT_PORT}")
+
+# 协议栈 + 应用层（含 EoE/FoE 的 SSC 协议层：mailbox.c 无条件调用 EOE_Init/FOE_Init，
+# 且 BL_Start/BL_Stop 在 bootmode.c，故一并编入。这些 SSC 文件不依赖 lwIP。）
+sdk_src("${ECAT_SRC}/ecatappl.c")
+sdk_src("${ECAT_SRC}/ecatslv.c")
+sdk_src("${ECAT_SRC}/ecatcoe.c")
+sdk_src("${ECAT_SRC}/coeappl.c")
+sdk_src("${ECAT_SRC}/mailbox.c")
+sdk_src("${ECAT_SRC}/objdef.c")
+sdk_src("${ECAT_SRC}/sdoserv.c")
+sdk_src("${ECAT_SRC}/emcy.c")
+sdk_src("${ECAT_SRC}/ecateoe.c")
+sdk_src("${ECAT_SRC}/eoeappl.c")
+sdk_src("${ECAT_SRC}/ecatfoe.c")
+sdk_src("${ECAT_SRC}/foeappl.c")
+sdk_src("${ECAT_SRC}/bootmode.c")
+sdk_src("${ECAT_SRC}/ecat_app.c")
+
+# HPM 内置 ESC 硬件适配层
+sdk_src("${HPM_ECAT_PORT}/hpm_ecat_hw.c")
+sdk_src("${HPM_ECAT_PORT}/hpm_ecat_phy.c")
+sdk_src("${HPM_ECAT_PORT}/hpm_ecat_e2p_emulation.c")
+# 旧版 SSC 与 SDK port 的兼容补齐（EepromReadSize 等）
+sdk_src(Board/ecat_port_compat.c)
+
+# 使用 Flash 模拟 EEPROM；ESC 走内置 ESC
+sdk_compile_definitions(-DESC_EEPROM_EMULATION=1)
+sdk_compile_definitions(-DECAT_EEPROM_EMULATION=1)
+sdk_compile_definitions(-DCONFIG_HPM_ESC=1)
+# 不用 ecat_app.c 自带的 main（那是 Y01 独立入口），入口用本项目 Board/main.c
+sdk_compile_definitions(-DUSE_DEFAULT_MAIN=0)
+
+# Flash 模拟 EEPROM 组件（SDK 中间件），port 层的 hpm_ecat_e2p_emulation 依赖它
+set(HPM_EEPROM_EMU "${HPM_SDK_BASE}/components/eeprom_emulation")
+sdk_inc("${HPM_EEPROM_EMU}")
+sdk_inc("${HPM_EEPROM_EMU}/port")
+sdk_src("${HPM_EEPROM_EMU}/eeprom_emulation.c")
+sdk_src("${HPM_EEPROM_EMU}/port/hpm_nor_flash.c")
+
 generate_ide_projects()

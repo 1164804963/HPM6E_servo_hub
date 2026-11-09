@@ -569,6 +569,13 @@ void PDI_Isr(void)
 
     COE_UpdateSyncErrorStatus();
 
+    /* [ECAT 适配] 响应 ESC 的 EEPROM 模拟访问命令（read/write/reload）。
+     * 旧版 SSC 没有这段，HPM 内置 ESC 的 EEPROM 模拟需要它才能被主站读取。 */
+    {
+        extern void ecat_eeprom_cmd_poll(void);
+        ecat_eeprom_cmd_poll();
+    }
+
 }
 
 void Sync0_Isr(void)

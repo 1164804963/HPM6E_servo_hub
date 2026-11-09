@@ -15,6 +15,13 @@
 #include "servo_console.h"
 #include "servo_host.h"
 
+/* [ECAT] EtherCAT 从站（HPM6E80 内置 ESC） */
+#include "hpm_ecat_hw.h"      /* ecat_hardware_init / ecat_eeprom_emulation_* */
+#include "ecatappl.h"         /* MainInit / MainLoop 的框架 */
+#include "applInterface.h"    /* PROTO MainInit / MainLoop / APPL_GenerateMapping */
+#include "ecatslv.h"          /* nPdInputSize / nPdOutputSize */
+#include "ecat_def.h"
+
 /*
  * 初始化顺序（与 Y01 板的 HalInit() 一致，这里显式写开）：
  * 参数库 -> 控制层 -> 应用层 -> 波形/存储/抱闸。
@@ -73,16 +80,44 @@ int main(void)
     }
     servo_bringup_print_l0();
 
+#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+    /* 5.1 EtherCAT 从站初始化（HPM6E80 内置 ESC + Flash 模拟 EEPROM）。
+     *     顺序对齐 SDK ecat_cia402 例程：board_init_ethercat 已在 board_init_servo
+     *     里做过 ESC 时钟/PHY 复位；这里做 ESC 外设+PHY+EEPROM 初始化、
+     *     SSC 协议栈初始化、EEPROM 模拟回调挂接、生成 PDO 映射。 */
+    {
+        hpm_stat_t ecat_stat;
+
+        board_init_ethercat(HPM_ESC);       /* 幂等：ESC 引脚/时钟/PHY 复位 */
+        ecat_stat = ecat_hardware_init(HPM_ESC);
+        if (ecat_stat != status_success)
+        {
+            printf("main: ethercat hardware init FAILED (%d)\r\n", (int)ecat_stat);
+        }
+        else
+        {
+            /* Flash 模拟 EEPROM 的读写回调（新版 SSC 的 pAPPL_EEPROM_* 机制）。
+             * 旧版 SSC 无此机制，靠 PDI 中断里 ecat_eeprom_cmd_poll 主动轮询响应，
+             * 见 Board/ecat_port_compat.c，所以这里不需要挂 pAPPL_EEPROM_*。 */
+            MainInit();                     /* SSC 协议栈初始化 */
+            APPL_GenerateMapping(&nPdInputSize, &nPdOutputSize);
+            printf("main: ethercat slave init done, ESC link ready\r\n");
+        }
+    }
+#endif
+
     /* 6. 应用初始化完成后才放行 20kHz 控制节拍。 */
     board_start_ctrl_tick();
 
-    /* 7. 主循环：通信（MAVLink 收发）已全部改到 UART0 中断里完成，
-     *    控制全在 20kHz/1kHz 中断里。这里只保留调试台心跳，与 Y01“主循环空”结构一致。
-     *    （调试台 servo_console 是本板适配物，Y01 无对应功能。） */
+    /* 7. 主循环：控制全在 20kHz/1kHz 中断里；EtherCAT 协议栈在主循环轮询
+     *    MainLoop() 驱动（与 Y01/EtherCAT 例程一致）。MAVLink 收发在 UART0 中断。 */
     servo_console_init();
     servo_host_init();
     while (1)
     {
+#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+        MainLoop();          /* EtherCAT 从站协议栈主循环 */
+#endif
         servo_console_poll();
     }
 }

@@ -46,7 +46,9 @@ V5.01 : Start file change log
 #include "ecat_def.h"
 
 #include  "esc.h"
-#include "ecat_app_hw.h"
+/* [ECAT 适配] 底层由 Y01 的 LAN9252(ecat_app_hw.h) 换成 HPM6E80 内置 ESC 的
+ * port 层 hpm_ecat_hw.h（提供同一套 HW_EscRead/Write/HW_Init 等 SSC 约定接口）。 */
+#include "hpm_ecat_hw.h"
 
 #ifndef _ECATSLV_H_
 #define _ECATSLV_H_
