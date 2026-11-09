@@ -76,13 +76,13 @@ int main(void)
     /* 6. 应用初始化完成后才放行 20kHz 控制节拍。 */
     board_start_ctrl_tick();
 
-    /* 7. 主循环只做非实时的事情：上位机 MAVLink 通道 + 串口调试台。控制全在中断里。
-     *    两条通道共用 UART0，由 servo_host_poll() 按字节分流。 */
+    /* 7. 主循环：通信（MAVLink 收发）已全部改到 UART0 中断里完成，
+     *    控制全在 20kHz/1kHz 中断里。这里只保留调试台心跳，与 Y01“主循环空”结构一致。
+     *    （调试台 servo_console 是本板适配物，Y01 无对应功能。） */
     servo_console_init();
     servo_host_init();
     while (1)
     {
-        servo_host_poll();
         servo_console_poll();
     }
 }

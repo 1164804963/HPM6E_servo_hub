@@ -15,6 +15,7 @@
 #include "current_ctl_loop_task.h"
 #include "motor_ctl_loop.h"
 #include "servo_console.h"
+#include "servo_host.h"
 #include "drv_encoder.h"
 #include "system_timer.h"
 
@@ -261,6 +262,14 @@ void isr_adc_bus(void)
     board_control_tick();
 }
 
+/* 上位机 UART0 中断：接收（数据可用/line-idle）+ 发送（TX slot avail）。
+ * 具体收发改由 servo_host.c 的环形缓冲/中断服务实现。 */
+SDK_DECLARE_EXT_ISR_M(BOARD_CONSOLE_UART_IRQ, isr_host_uart)
+void isr_host_uart(void)
+{
+    servo_host_uart_isr();
+}
+
 /*
  * 逐周期过流兜底。
  * 控制层的过流保护在 1kHz 位置环里查，最坏要 1ms 才发现；电流环一旦因为
@@ -426,6 +435,10 @@ void board_init_servo(void)
     board_init_pwm();
     board_init_adc();
     board_init_1ms_timer();
+
+    /* 上位机 UART0 接收/发送中断：把 IRQ 挂到 servo_host 的中断处理，
+     * 这样主循环不需要轮询（与 Y01 中断驱动一致）。 */
+    intc_m_enable_irq_with_priority(BOARD_CONSOLE_UART_IRQ, 5);
 
     /* 上电默认封锁输出，由 CiA402 状态机后续放开 */
     board_set_pwm_enable(false);

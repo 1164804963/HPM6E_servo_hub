@@ -13,6 +13,8 @@ extern "C" {
  */
 void servo_host_init(void);
 void servo_host_poll(void);
+/* UART0 中断服务（接收/发送都在这里处理，主循环不再轮询） */
+void servo_host_uart_isr(void);
 
 #ifdef __cplusplus
 }
