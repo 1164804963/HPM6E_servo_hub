@@ -120,6 +120,64 @@ void bsp_current_calibration_restore_from_flash(void)
 }
 #endif
 
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
+/* [移植补丁 16] 电角度零点标定值的 Flash 持久化。
+ *
+ * 背景：原程序电角度零点靠"每次上电跑一次电角度辨识"现场获得，辨识不可靠时
+ * 零点会错（甚至反相 180° 导致速度环正反馈飞车）。本板先在头文件写死实测标定值
+ * （PMSM_ELEC_ANGLE_BIAS_RAD）顶着，但那是编译期常量、改一次就得重刷固件。
+ *
+ * 做法：把标定值 + 魔数 + 校验存进 kFlashStorage（随 AllParam 那条 KV 走 SysCmd=2 落盘）。
+ * 上电时若校验通过且值在合理范围，就用 Flash 里的值覆盖头文件静态值；
+ * 否则保留头文件默认值。这样以后标定一次、存盘，就再也不依赖重刷固件。
+ *
+ * 零点合理范围：0~2π（弧度）。超出即视为脏数据（含 NaN 判断）。 */
+#define CURRENT_ELEC_BIAS_MAGIC   (0x454C4231UL)   /* 'ELB1' */
+
+static uint16_t elec_bias_crc16(float bias)
+{
+    union { float f; uint32_t u; } v;
+    uint16_t crc = 0x3C3CU;
+
+    v.f = bias;
+    crc = (uint16_t)(crc ^ (uint16_t)(v.u & 0xFFFFU));
+    crc = (uint16_t)((crc << 7) | (crc >> 9));
+    crc = (uint16_t)(crc ^ (uint16_t)((v.u >> 16) & 0xFFFFU));
+    crc = (uint16_t)((crc << 7) | (crc >> 9));
+    return crc;
+}
+
+/* 保存电角度零点到 RAM 影子（落盘由 SysCmd=2 触发 flash_param_update） */
+void bsp_elec_bias_store_to_shadow(float bias_rad)
+{
+    kFlashStorage.elec_angle_bias_magic = CURRENT_ELEC_BIAS_MAGIC;
+    kFlashStorage.elec_angle_bias_rad = bias_rad;
+    kFlashStorage.elec_angle_bias_crc = elec_bias_crc16(bias_rad);
+}
+
+/* 从 Flash 尝试恢复电角度零点。成功返回 true 并写入 out_bias_rad。 */
+bool bsp_elec_bias_restore_from_flash(float *out_bias_rad)
+{
+    float bias = kFlashStorage.elec_angle_bias_rad;
+
+    if (kFlashStorage.elec_angle_bias_magic != CURRENT_ELEC_BIAS_MAGIC)
+    {
+        return false;
+    }
+    if (kFlashStorage.elec_angle_bias_crc != elec_bias_crc16(bias))
+    {
+        return false;
+    }
+    /* 合理性检查：弧度必须落在 0~2π 且非 NaN（NaN 与自身比较恒不等） */
+    if (!((bias >= 0.0f) && (bias < 6.2832f)))
+    {
+        return false;
+    }
+    *out_bias_rad = bias;
+    return true;
+}
+#endif
+
 static VOLTAGE_CHECK_STATUS s_bus_check_status = VOLTAGE_STATUS_UNKNOWN;
 static uint32_t s_bus_under_cnt;
 static uint32_t s_bus_normal_cnt;

@@ -199,6 +199,12 @@ typedef struct {
     uint32_t current_cal_drift_magic;
     uint16_t current_cal_drift[3];
     uint16_t current_cal_drift_crc;
+    /* [移植补丁 16] 电角度零点标定值。上电从 Flash 恢复，避免零点写死在头文件里。
+     * 有效标志：elec_angle_bias_magic == CURRENT_ELEC_BIAS_MAGIC。
+     * bias 为弧度制（与 motor_pos_sensor_config.elec_angle_bias_rad 同单位）。 */
+    uint32_t elec_angle_bias_magic;
+    float elec_angle_bias_rad;
+    uint16_t elec_angle_bias_crc;
 }FLASH_PARAM_STRUCT;
 extern FLASH_PARAM_STRUCT kFlashStorage;
 

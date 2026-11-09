@@ -211,6 +211,12 @@ void flash_param_update(void)
     kFlashStorage.current_cal_drift[2] = 0U;
     kFlashStorage.current_cal_drift_crc = 0U;
 #endif
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
+    /* [移植补丁 16] 首次建库时把电角度零点置无效，等有效标定值写入后再生效。 */
+    kFlashStorage.elec_angle_bias_magic = 0U;
+    kFlashStorage.elec_angle_bias_rad = 0.0f;
+    kFlashStorage.elec_angle_bias_crc = 0U;
+#endif
 }
 
 void flash_param_init(void)

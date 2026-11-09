@@ -44,10 +44,25 @@ bool servo_bringup_self_test(void)
                         bsp_get_encoder_cnt(ENCODER_ID_MOTOR),
                         0, 0);
 
-    /* 电角度零点：L1 标定值写在 board_public 的电机参数头里，掉电保存做好之前先在这里补上。
+    /* 电角度零点：优先从 FlashDB 恢复（补丁 16），没有有效值才用头文件里的实测标定值。
      * 填错 180° 时电流环仍然是"稳"的（dq 两轴一起反），但 q 轴出力方向反过来，
      * 速度环会变成正反馈，现象是电机飞转、iq 一直顶在限幅。 */
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
+    {
+        float flash_bias = 0.0f;
+
+        if (bsp_elec_bias_restore_from_flash(&flash_bias))
+        {
+            kAxis.motor_pos_sensor_config.elec_angle_bias_rad = flash_bias;
+        }
+        else
+        {
+            kAxis.motor_pos_sensor_config.elec_angle_bias_rad = PMSM_ELEC_ANGLE_BIAS_RAD;
+        }
+    }
+#else
     kAxis.motor_pos_sensor_config.elec_angle_bias_rad = PMSM_ELEC_ANGLE_BIAS_RAD;
+#endif
 
     printf("bringup: encoder ready, cnt=%u turns=%d, elec bias=%.1f deg\r\n",
            (unsigned)bsp_get_encoder_cnt(ENCODER_ID_MOTOR),

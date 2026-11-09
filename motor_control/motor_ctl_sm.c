@@ -1,5 +1,8 @@
 #include "motor_ctl_sm.h"
 #include "yuanhub_math.h"
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
+#include "bsp_api.h"   /* [移植补丁 16] bsp_elec_bias_store_to_shadow / restore */
+#endif
 /* [移植适配] 本文件用到 board_public 的 PORT_PATCH_* 开关（驱动参数头经由
  * data_type_define.h → servo_system_cfg.h 引入），否则 #if 判不到、会静默走 #else 上游分支。 */
 #include "data_type_define.h"
@@ -960,7 +963,24 @@ static void ElecAngleIdStep(Axis *const axis, AxisDw *const axis_dw)
             }
 
             // 辨识成功赋值给位置传感器模块
-#if defined(PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY) && (PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY)
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
+            /* [移植补丁 16] 辨识完成后：
+             *  1) 把测量值写入 Flash 影子（候选标定值），SysCmd=2 存盘后下次上电生效；
+             *  2) 但本次运行仍写回"当前有效零点"，不立即用测量值覆盖正在用的零点，
+             *     避免跑一次辨识就改变行为（真实测量值保留在 ElecAngleIdOutput.elec_bias_rad）。
+             * 当前有效零点：优先 Flash 已存值，否则头文件静态标定值。 */
+            {
+                float effective_bias = PMSM_ELEC_ANGLE_BIAS_RAD;
+                float flash_bias = 0.0f;
+
+                bsp_elec_bias_store_to_shadow(axis->elec_angle_id_output.elec_bias_rad);
+                if (bsp_elec_bias_restore_from_flash(&flash_bias))
+                {
+                    effective_bias = flash_bias;
+                }
+                axis->motor_pos_sensor_config.elec_angle_bias_rad = effective_bias;
+            }
+#elif defined(PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY) && (PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY)
             /* [移植补丁] 辨识完成后把零点恢复成标定值，而不是直接采用测量值。
              * 原因：本模式进入时 ModeCheckInInit 会把零点清 0（辨识需要），所以结束时
              * 必须写一个有效值回去，否则零点留在 0；而直接写测量值会让"跑一次辨识"

@@ -138,6 +138,11 @@ extern "C"
 #ifndef PORT_PATCH_CAL_DRIFT_STORE_FLASH
 #define PORT_PATCH_CAL_DRIFT_STORE_FLASH   (1)  // 1=启用标定结果持久化
 #endif
+/* [移植补丁 16] 电角度零点存 Flash。辨识测得零点写入 FlashDB，上电从 Flash 恢复，
+ * 不再依赖头文件静态值、也无需重刷固件。默认用头文件 PMSM_ELEC_ANGLE_BIAS_RAD 兜底。 */
+#ifndef PORT_PATCH_ELEC_BIAS_STORE_FLASH
+#define PORT_PATCH_ELEC_BIAS_STORE_FLASH   (1)  // 1=启用零点持久化
+#endif
 /* [移植补丁 15] 直接下发运行模式。上游 set_app_Modes_of_operation 里
  * "val == get_app_Modes_of_operation_display()" 恒真（display 就是回读自己），
  * 导致 0/1/2/3 这些非负运行模式全被吞，只有负值辨识模式能切。
