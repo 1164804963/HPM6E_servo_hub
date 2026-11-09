@@ -130,7 +130,7 @@ extern "C"
  * 实测写 opmode 时 set_app() 没生效，APP 一直 IDLE，导致 PvModeRun 不执行、
  * 速度给定恒 0。见补丁 13。 */
 #ifndef PORT_PATCH_APP_ENSURE_ENABLED
-#define PORT_PATCH_APP_ENSURE_ENABLED      (1)  // 1=每周期检查并补调 set_app
+#define PORT_PATCH_APP_ENSURE_ENABLED      (0)  // 1=每周期检查并补调 set_app
 #endif
 /* [移植补丁 14] 电流零漂标定结果存 Flash。标定成功后写入 kFlashStorage，
  * 上电从 Flash 恢复，省掉每次上电"先使能做标定"这一步。
