@@ -437,8 +437,11 @@ void board_init_servo(void)
     board_init_1ms_timer();
 
     /* 上位机 UART0 接收/发送中断：把 IRQ 挂到 servo_host 的中断处理，
-     * 这样主循环不需要轮询（与 Y01 中断驱动一致）。 */
-    intc_m_enable_irq_with_priority(BOARD_CONSOLE_UART_IRQ, 5);
+     * 这样主循环不需要轮询（与 Y01 中断驱动一致）。
+     * 优先级必须低于控制中断（ADC/定时器=6，RISC-V 数值越小优先级越高），
+     * 否则上位机频繁收发会抢占 20kHz 电流环/1kHz 速度环，导致控制节拍抖动、
+     * 速度环采样时机错乱进而电机振荡。这里取 10，低于 6。 */
+    intc_m_enable_irq_with_priority(BOARD_CONSOLE_UART_IRQ, 10);
 
     /* 上电默认封锁输出，由 CiA402 状态机后续放开 */
     board_set_pwm_enable(false);
