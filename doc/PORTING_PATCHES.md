@@ -91,6 +91,144 @@
 
 ---
 
+### 补丁 6 · 极对数辨识电流取配置值
+
+- **开关**：`PORT_PATCH_ID_CURRENT_FROM_CONFIG`
+- **位置**：`motor_control/motor_ctl_sm.c` → `PolePairsIdStep()`
+- **现象**：极对数辨识约 7 s 后触发过载保护。
+- **根因**：辨识电流写死为 √2×额定（1.697 A），超过驱动额定 1.5 A。
+- **修法**：改用 `pole_pairs_id_config.id_tar_max_A`（上位机配置值，1.2 A）。
+- **注**：极对数辨识不建议使用——`pn_id` 会 1→2→3 爬升并可能覆盖 `pmsm_config.pn`。
+
+---
+
+### 补丁 7 · 电角度辨识不自动生效
+
+- **开关**：`PORT_PATCH_ELEC_BIAS_NO_AUTOAPPLY`（被补丁 16 取代，见下）
+- **位置**：`motor_control/motor_ctl_sm.c` → `ElecAngleIdStep()` 完成分支
+- **现象**：跑一次电角度辨识，就把出厂标定零点覆盖成测量值。
+- **根因**：原逻辑辨识完成直接 `elec_angle_bias_rad = elec_bias_rad`（测量值）；
+  而本模式进入时 `ModeCheckInInit` 已把零点清 0，结束时必须写回一个有效值。
+- **修法**：完成后恢复成标定值 `PMSM_ELEC_ANGLE_BIAS_RAD`（221.6°），测量值（≈220.7°）
+  保留在 `ElecAngleIdOutput.elec_bias_rad` 供人工核对。
+- **后续**：补丁 16 把"标定值来源"从写死头文件改为 FlashDB，本补丁的语义并入补丁 16。
+
+---
+
+### 补丁 8 · 电角度辨识零点 180° 错误修正（历史）
+
+- **位置**：`board_public/motor_parameter_hpm6emotorv20_bldc12v.h` → `PMSM_ELEC_ANGLE_BIAS_DEG`
+- **结论**：最终确认正确值为 **221.6°**。曾经误判为 41.6°，是被一次 541,045 counts
+  的位置跟随误差污染了 A/B 结果；该误差修掉后，221.6° 给出正确转向、速度模式稳定。
+  180° 错时电流环仍"稳"（dq 同反），但 q 轴出力反向→速度环正反馈→飞车、iq 顶限幅。
+
+---
+
+### 补丁 9 · 辨识跑飞/超时中止
+
+- **开关**：`PORT_PATCH_ID_ABORT_ON_RUNAWAY`
+- **位置**：`motor_control/motor_ctl_sm.c` → `TqFcIdStep()`
+- **现象**：转矩脉动辨识卡在"辨识中"下不来、无结果。
+- **根因**：本机低速压不住，辨识会反向飞转；而阶段 1 完成条件要求"正向转满一圈"，
+  反向时差值越来越负，永远不成立。
+- **修法**：位置跟随误差超 `TQ_FC_ID_ABORT_ERR_P`(2 圈) 持续 200 ms，或总时长超 60 s，
+  就置错误并关波。含 1 s 启动宽限（使能瞬间观测器尖峰不算）。
+
+---
+
+### 补丁 10 · 辨识转速提高
+
+- **开关**：`PORT_PATCH_TQFC_ID_SPEED`（转速宏 `TQ_FC_ID_SPEED_RPM`=120）
+- **位置**：`motor_control/motor_ctl_sm.c` → `TqFcIdStep()`
+- **根因**：本机静止通电有 ±1.5~2.7° 定位力微振（编码器 ±30~120 counts），
+  折合峰值角速度 10~15 rad/s，远大于 10 rpm 目标速度（1.05 rad/s），位置环被扰动主导。
+- **修法**：辨识转速提到 120 rpm，提高信噪比。代价是转矩脉动表转速分辨率变差。
+
+---
+
+### 补丁 11 · 辨识期间打开 DOB
+
+- **开关**：`PORT_PATCH_TQFC_ID_DOB`
+- **位置**：`motor_control/motor_ctl_sm.c` → `TqFcIdStep()`
+- **修法**：辨识期间使能负载扰动观测器，帮助压住低速扰动。
+
+---
+
+### 补丁 12 · 辨识后不自动启用补偿
+
+- **开关**：`PORT_PATCH_TQFC_LEAVE_COMP_OFF`
+- **位置**：`motor_control/motor_ctl_sm.c` → `TqFcIdStep()` FINISH 分支
+- **现象**：辨识"成功"后，速度模式一使能就抖甚至飞车（给定 0 也飞到 −889 rad/s）。
+- **根因**：上游在辨识完成时自动置 `tq_com_enable=1 / fc_com_enable=1`，直接投入补偿。
+  实测辨识出的 `fc_p_com≈±0.143 A` 符号在零速附近来回翻，形成自持振荡。A/B 证实：
+  补偿关则 `speed_now ±1.7 rad/s` 稳定，补偿开则飞车。
+- **修法**：辨识完成只算数据、不自动启用；是否启用由人确认后手动打开。
+
+---
+
+### 补丁 13 · 运行模式切换后确保对应 APP 被使能（13b，当前默认关）
+
+- **开关**：`PORT_PATCH_APP_ENSURE_ENABLED`（**默认 0**）
+- **位置**：`app/app_scheduler.c` → `AppRun()`
+- **现象**：写 opmode=速度模式后 `motor_ctl_sm_config.mode` 切了，但 `PvModeRun()`
+  从不执行、`speed_tar_p_s` 恒 0、电机不动。
+- **根因（补丁 15 已修）**：`set_app_Modes_of_operation` 的重复检查恒真，`set_app(APP_PV_MODE)`
+  没被调用，PV 应用一直 IDLE。13b 是"每周期兜底补调 set_app"的绕路方案。
+- **副作用**：`PvModeInit()` 会 `set_app_Controlword(DISABLE)`，13b 靠事后恢复 cw 兜底，
+  本质是跟自己的副作用打架（曾导致补丁把使能吃掉的时序问题）。
+- **现状**：根因已被补丁 15 修复，13b 冗余；因暂无法烧录验证"关掉后仍正常"，**代码保留、
+  默认关闭**。验证通过后可整块删除。
+
+---
+
+### 补丁 14 · 电流零漂标定结果存 Flash
+
+- **开关**：`PORT_PATCH_CAL_DRIFT_STORE_FLASH`
+- **位置**：`bsp_api.c`（存/取）、`main.c`（上电恢复）、`app_store_param.*`（结构字段）
+- **现象**：每次上电都要先"使能一次做标定"电机才能转，否则不动、无报警。
+- **根因**：`s_cal_status/s_cal_drift` 只在 RAM，复位回 READY；`hw_ready` 要求 cal==OK。
+- **修法**：标定成功后把三路漂移+魔数('CAL1')+CRC 写进 `kFlashStorage`（随 AllParam 走
+  SysCmd=2 落盘）；上电从 Flash 恢复，校验通过即置 cal=OK。
+- **验证**：已端到端验证——标定后 `s_cal_drift=[32214,32560,32819]`，存盘复位后上电
+  `cal_status=OK`、`drift≈[32217,32563,32841]`，不再需要先使能做标定。
+
+---
+
+### 补丁 15 · 运行模式切换的恒真检查 + 帧回写覆盖
+
+- **开关**：`PORT_PATCH_OPMODE_DIRECT_APPLY`
+- **位置**：`database/data_param.c` → `set_app_Modes_of_operation()`；
+  `communication/callback/mavlink/mavlink_callback.c` → `MotorCtlSmConfig` 帧处理
+- **现象**：切速度/位置模式没反应、使能后电机不动、标定做不完。
+- **根因**（三处叠加）：
+  1. `get_app_Modes_of_operation_display()` 内部就是回读 `kAppOpMode`，导致
+     `if(val==display) return` 在写非负模式时恒成立——0/1/2/3 全被吞，只有负值辨识能切；
+  2. `MotorCtlSmConfig` 帧每周期把上位机缓存的旧 mode(0) 回写覆盖 `motor_ctl_sm_config.mode`；
+  3. 上位机轮询把 opmode=0 发下来，覆盖刚切的运行模式。
+- **修法**：① 重复判据改为"与控制层实际 mode 比较"；② `MotorCtlSmConfig` 帧不再写 mode；
+  ③ `set_app_Modes_of_operation` 收到 IDLE(0) 且控制层非 IDLE 时视为回写噪声忽略。
+- **关键提醒**：`MOTOR_CTL_SM_MODE_SPEED = 2`（不是 1，1 是力矩模式）——之前"失控飞车"
+  很大程度是拿 opmode=1 当速度模式测、实际进了力矩模式透传残留电流所致。
+
+---
+
+### 补丁 16 · 电角度零点存 FlashDB
+
+- **开关**：`PORT_PATCH_ELEC_BIAS_STORE_FLASH`
+- **位置**：`bsp_api.c`（存/取）、`servo_bringup.c`（上电恢复）、`motor_ctl_sm.c`（辨识完成写影子）、
+  `app_store_param.*`（结构字段）
+- **背景**：原程序零点靠"每次上电跑电角度辨识"现场获取，辨识不可靠时零点会错；
+  本板此前只能把头文件 `PMSM_ELEC_ANGLE_BIAS_RAD` 写死，改一次就得重刷固件。
+- **修法**：`FLASH_PARAM_STRUCT` 增 `elec_angle_bias_magic/'ELB1'/rad/crc` 三字段；
+  - `servo_bringup.c`：上电优先从 Flash 恢复零点，无有效值才用头文件静态值兜底；
+  - `motor_ctl_sm.c`：辨识完成把测量值写入 Flash 影子（候选值），本次运行仍用当前有效零点
+    不立即覆盖（保留补丁 7 的"不自动应用"原则），SysCmd=2 存盘后下次上电生效；
+  - 校验：魔数 + CRC + 弧度范围 0~2π 合理性检查。
+- **效果**：标定一次→存盘→以后上电自动从 Flash 读，不再依赖重刷固件、也不用每次靠辨识取零点。
+- **状态**：已全量编译通过，**尚未烧录验证**（调试器未接）。
+
+---
+
 ## 三、应用层修改（只有一行）
 
 **原则**：`app/` 属于原工程，除必须外不动。前后评估过两轮，真正必要的只有**一行**：
