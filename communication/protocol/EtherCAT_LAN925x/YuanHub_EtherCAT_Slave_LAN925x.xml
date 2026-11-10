@@ -15,7 +15,7 @@
 		</Groups>
 		<Devices>
 			<Device Physics="YY">
-				<Type ProductCode="#x00009252" RevisionNo="#x1">ecat_app</Type>
+				<Type ProductCode="#x00009252" RevisionNo="#x3">ecat_app</Type>
 				<Name>ecat_app</Name>
 				<Info>
 					<StateMachine>

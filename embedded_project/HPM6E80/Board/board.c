@@ -351,12 +351,43 @@ static void board_control_tick(void)
     servo_console_isr_sample();
     board_check_over_current();
 
-    if (++pos_div >= CTRL_TICK_PER_POS_TICK)
+#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
     {
-        pos_div = 0U;
-        set_timer_record_start(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
-        PosSpeedLoopCtrl();
-        set_timer_record_stop(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+        extern bool ecat_dc_is_active(void);
+        extern bool ecat_dc_sync0_take(void);
+
+        static uint32_t dc_miss;
+
+        if (ecat_dc_is_active())
+        {
+            /* DC 模式：位置速度环与 SYNC0 同步 */
+            if (ecat_dc_sync0_take())
+            {
+                dc_miss = 0U;
+                set_timer_record_start(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+                PosSpeedLoopCtrl();
+                set_timer_record_stop(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+            }
+            else if (++dc_miss >= CTRL_TICK_PER_POS_TICK)
+            {
+                /* SYNC0 丢失（主站掉线/降级）：退回固定分频，控制环不能停 */
+                dc_miss = 0U;
+                set_timer_record_start(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+                PosSpeedLoopCtrl();
+                set_timer_record_stop(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+            }
+
+            pos_div = 0U;
+        }
+        else
+#endif
+        if (++pos_div >= CTRL_TICK_PER_POS_TICK)
+        {
+            pos_div = 0U;
+            set_timer_record_start(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+            PosSpeedLoopCtrl();
+            set_timer_record_stop(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+        }
     }
 }
 

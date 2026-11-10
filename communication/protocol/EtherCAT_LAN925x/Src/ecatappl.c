@@ -580,7 +580,12 @@ void PDI_Isr(void)
 
 void Sync0_Isr(void)
 {
+     extern void ecat_dc_sync0_hook(void);
+
      Sync0WdCounter = 0;
+
+     /* [ECAT 适配] SYNC0 节拍：统计 DC 周期并交给 1kHz 位置速度环 */
+     ecat_dc_sync0_hook();
 
     if(bDcSyncActive)
     {

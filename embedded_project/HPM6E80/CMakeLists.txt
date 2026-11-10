@@ -119,7 +119,23 @@ sdk_src("${ECAT_SRC}/eoeappl.c")
 sdk_src("${ECAT_SRC}/ecatfoe.c")
 sdk_src("${ECAT_SRC}/foeappl.c")
 sdk_src("${ECAT_SRC}/bootmode.c")
-sdk_src("${ECAT_SRC}/ecat_app.c")
+# 注意：不要编 ${ECAT_SRC}/ecat_app.c —— 那是 SSC Tool 生成的空模板
+# （APPL_InputMapping/APPL_OutputMapping 只有 #warning，PDO 数据根本不搬运）。
+# 真正和本工程 CiA402/kAxis 对接的是 EtherCAT_LAN925x/ecat_app.c（同版本 SSC，
+# 按 sTxPDOassign/sRxPDOassign 逐项回调 OD 的 Read/Write）。
+sdk_src("${SERVO_ROOT}/communication/protocol/EtherCAT_LAN925x/ecat_app.c")
+
+# CiA402 对象字典 <-> 驱动应用层的回调桥接（0x6040/0x6041/0x6060/0x6064 ...）
+sdk_inc("${SERVO_ROOT}/communication/callback/ethercat")
+sdk_inc("${SERVO_ROOT}/communication/callback/cia402_od")
+sdk_src("${SERVO_ROOT}/communication/callback/ethercat/ecat_callback.c")
+sdk_src("${SERVO_ROOT}/communication/callback/cia402_od/Cia402_ObjectDictionary_Callback.c")
+sdk_src("${SERVO_ROOT}/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.c")
+
+# CiA402 PDS 状态机（1kHz 控制环里 PDS_FSA_Run，产生 Statusword 与使能动作）
+sdk_src("${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA/cia402_fsm.c")
+sdk_src("${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA/cia402_statusword.c")
+sdk_src("${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA/cia402_error_code.c")
 
 # HPM 内置 ESC 硬件适配层
 sdk_src("${HPM_ECAT_PORT}/hpm_ecat_hw.c")
@@ -127,11 +143,16 @@ sdk_src("${HPM_ECAT_PORT}/hpm_ecat_phy.c")
 sdk_src("${HPM_ECAT_PORT}/hpm_ecat_e2p_emulation.c")
 # 旧版 SSC 与 SDK port 的兼容补齐（EepromReadSize 等）
 sdk_src(Board/ecat_port_compat.c)
+# ESC 模拟 EEPROM 的 SII 内容（强符号覆盖 SDK 的 weak aEepromData）
+sdk_src(Board/ecat_eeprom.c)
 
 # 使用 Flash 模拟 EEPROM；ESC 走内置 ESC
 sdk_compile_definitions(-DESC_EEPROM_EMULATION=1)
 sdk_compile_definitions(-DECAT_EEPROM_EMULATION=1)
 sdk_compile_definitions(-DCONFIG_HPM_ESC=1)
+# CiA402：让 motor_ctl_loop.c 的 1kHz 环里跑 PDS_FSA_Run()，
+# 并让 OD 的 set_Controlword 触发状态机（与 Y01 的 V_ECAT_CIA402 版本一致）
+sdk_compile_definitions(-DUSE_CIA402=1)
 # 不用 ecat_app.c 自带的 main（那是 Y01 独立入口），入口用本项目 Board/main.c
 sdk_compile_definitions(-DUSE_DEFAULT_MAIN=0)
 

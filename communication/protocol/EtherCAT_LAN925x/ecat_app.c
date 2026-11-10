@@ -22,6 +22,7 @@
 ------
 -----------------------------------------------------------------------------------------*/
 #include "ecat_def.h"
+#include "data_param.h"     /* [ECAT 适配] 控制权 / 目标更新握手 */
 
 #include "applInterface.h"
 
@@ -169,6 +170,11 @@ UINT16 APPL_StopInputHandler(void)
 
 UINT16 APPL_StartOutputHandler(void)
 {
+    /* [ECAT 适配] 进入 OP：控制权交给总线。
+     * 应用层是二选一权限模型（COMM_CONTROL_HOST / COMM_CONTROL_BUS），
+     * ecat_callback.c 的每个 Write 回调在上位机掌权时会直接丢弃总线数据，
+     * 所以必须在真正交换过程数据之前切过来。 */
+    (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_BUS);
     return ALSTATUSCODE_NOERROR;
 }
 
@@ -185,6 +191,10 @@ UINT16 APPL_StartOutputHandler(void)
 
 UINT16 APPL_StopOutputHandler(void)
 {
+    /* [ECAT 适配] 离开 OP（主站降级/断开）：先失能，再把控制权还给上位机。
+     * 等价 CiA402 的 command watchdog：总线没了不能继续跑。 */
+    (void)set_app_Controlword((uint16_t)APP_CTRL_DISABLE);
+    (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_HOST);
     return ALSTATUSCODE_NOERROR;
 }
 
@@ -446,6 +456,10 @@ void APPL_OutputMapping(UINT16* pData)
             }
         }
     }
+
+    /* [ECAT 适配] 每收到一帧新的 RxPDO = 一次"新的目标值"，等价 CANopen 的 SYNC：
+     * 置目标更新标志，应用层（CSV/CSP/CST）才会把 0x60FF/0x607A/0x6071 换算进轨迹。 */
+    set_app_Target_update_state(true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
