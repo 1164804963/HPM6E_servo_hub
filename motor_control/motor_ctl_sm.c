@@ -68,7 +68,7 @@ void MotorCtlSmInit(Axis *const axis, AxisDw *const axis_dw)
    axis->current_ctl_config.phase_dir = 1;
 
    float wn = 1.0f / (2.12f * axis->pmsm_config.tc_s) * axis->current_ctl_config.bandwidth_percentage * 0.01f; // 电流环闭环带宽
-   float delta = 8.0f;                                                                                         // 速度环阻尼因子
+   float delta = 8.0f;  // 速度环阻尼因子
 
    axis->pos_speed_ctl_config.aff = 0.0F;
    axis->pos_speed_ctl_config.vff = 1.0F;
