@@ -77,6 +77,11 @@ V5.10.1 : Start file change log
 \brief    The response shall be send via "EOE_SendFrameRequest()"
 \brief	  The function pointer is reset in MainInit() so it shall be set afterwards
 *////////////////////////////////////////////////////////////////////////////////////////
+PROTO UINT16 (*pAPPL_EEPROM_Read)(UINT32 wordaddr);
+PROTO UINT16 (*pAPPL_EEPROM_Write)(UINT32 wordaddr);
+PROTO UINT16 (*pAPPL_EEPROM_Reload)(void);
+PROTO void (*pAPPL_EEPROM_Store)(void);
+
 PROTO void(*pAPPL_EoeReceive)(UINT16 *pData, UINT16 length);
 
 /////////////////////////////////////////////////////////////////////////////////////////

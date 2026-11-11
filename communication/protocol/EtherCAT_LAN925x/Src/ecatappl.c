@@ -189,6 +189,10 @@ BOOL bMinCycleTimeMeasurementStarted; /** <\brief Indicates if the min cycle mea
 
 UINT32 u32MinCycleTimeValue; /** <\brief tmp value of the min cycle time during measurement*/
 
+UINT16 u16EepromStoreTimeoutCounter; /** <\brief contains the current timer value to store the EEPROM data*/
+
+UINT16 u16EepromStoreTimeoutValue; /** <\brief timeout in ms to store the EEPROM data*/
+
 
 
 
@@ -351,6 +355,22 @@ void ECAT_CheckTimer(void)
     ECAT_SetLedIndication();
 
     DC_CheckWatchdog();
+
+    if (u16EepromStoreTimeoutValue > 0)
+    {
+        u16EepromStoreTimeoutCounter++;
+
+        if (u16EepromStoreTimeoutValue <= u16EepromStoreTimeoutCounter)
+        {
+            u16EepromStoreTimeoutValue = 0;
+            u16EepromStoreTimeoutCounter = 0;
+
+            if (pAPPL_EEPROM_Store != NULL)
+            {
+                pAPPL_EEPROM_Store();
+            }
+        }
+    }
 
 
 
@@ -569,23 +589,204 @@ void PDI_Isr(void)
 
     COE_UpdateSyncErrorStatus();
 
-    /* [ECAT 适配] 响应 ESC 的 EEPROM 模拟访问命令（read/write/reload）。
-     * 旧版 SSC 没有这段，HPM 内置 ESC 的 EEPROM 模拟需要它才能被主站读取。 */
-    {
-        extern void ecat_eeprom_cmd_poll(void);
-        ecat_eeprom_cmd_poll();
-    }
 
+}
+
+void EEPROM_CommandHandler(void)
+{
+   UINT16 Result = 0;
+    UINT32 EEPROMReg = 0; //Regvalue 0x500 - 0x5003
+
+    HW_EscReadDWord(EEPROMReg,ESC_EEPROM_CONFIG_OFFSET);
+    EEPROMReg = SWAPDWORD(EEPROMReg);
+
+    if (EEPROMReg & ESC_EEPROM_BUSY_MASK)
+    {
+        UINT32 cmd = EEPROMReg  & ESC_EEPROM_CMD_MASK;
+        UINT32 addr;
+
+
+        HW_EscReadDWord(addr,ESC_EEPROM_ADDRESS_OFFSET);
+        addr = SWAPDWORD(addr);
+
+        //Clear error bits (except the eeprom crc error)
+        EEPROMReg &= ~(ESC_EEPROM_ERROR_MASK & ~ESC_EEPROM_ERROR_CRC);
+        switch (cmd) {
+        case 0x00: //IDLE
+            break;
+        case ESC_EEPROM_CMD_READ_MASK:
+        {
+           if (pAPPL_EEPROM_Read != NULL)
+           {
+              Result = pAPPL_EEPROM_Read(addr);
+              if (Result > 0)
+              {
+                 //Set Error
+                 EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+              }
+           }
+           else
+           {
+
+              if (addr <= ESC_EEPROM_SIZE && (pEEPROM != NULL))
+              {
+                 UINT16 *pData = (UINT16 *)pEEPROM;
+                 HW_EscWrite((MEM_ADDR *)&pData[(addr)], ESC_EEPROM_DATA_OFFSET, EepromReadSize);
+              }
+              else
+              {
+                 //Set Error
+                 EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+              }
+           }
+        }
+        break;
+        case ESC_EEPROM_CMD_WRITE_MASK:
+            {
+                 if (pAPPL_EEPROM_Write != NULL)
+                 {
+                    Result = pAPPL_EEPROM_Write(addr);
+                    if (Result > 0)
+                    {
+                       //Set Error
+                       EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                    }
+                 }
+                 else
+                 {
+
+                    if (addr <= ESC_EEPROM_SIZE && (pEEPROM != NULL))
+                    {
+                       UINT16 *pData = (UINT16 *)pEEPROM;
+                       HW_EscRead((MEM_ADDR *)&pData[(addr)], ESC_EEPROM_DATA_OFFSET, EEPROM_WRITE_SIZE);
+                    }
+                    else
+                    {
+                       //Set Error
+                       EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                    }
+                 }
+
+                 /* init the Store EEPROM timeout value (will be reset after the timer has expired)*/
+                 u16EepromStoreTimeoutValue = 1000;
+
+            }
+            break;
+        case ESC_EEPROM_CMD_RELOAD_MASK:
+            if (EepromReadSize == 8)
+            {
+                /* "full" EEPROM emulation ( 8Bytes EEPROM data) */
+                do
+                {
+                    if (addr > ESC_EEPROM_SIZE)
+                    {
+                        //Set Error
+                        EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                        break;
+                    }
+                    else
+                    {
+                        if (pAPPL_EEPROM_Read != NULL)
+                        {
+                            Result = pAPPL_EEPROM_Read(addr);
+                            if (Result > 0)
+                            {
+                                //Set Error
+                                EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (addr <= ESC_EEPROM_SIZE && (pEEPROM != NULL))
+                            {
+                                UINT16 *pData = (UINT16 *)pEEPROM;
+                                HW_EscWrite((MEM_ADDR *)&pData[(addr)], ESC_EEPROM_DATA_OFFSET, EepromReadSize);
+                            }
+                            else
+                            {
+                                //Set Error
+                                EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                                break;
+                            }
+                        }
+
+                        //Clear error bits
+                        EEPROMReg &= ~(ESC_EEPROM_ERROR_MASK);
+
+                        //ack current reload segment
+                        {
+                            UINT32 TmpData = SWAPDWORD(EEPROMReg);
+                            HW_EscWriteDWord(TmpData, ESC_EEPROM_CONFIG_OFFSET);
+                        }
+
+                        // read EEPROM control (to check if the reload is still pending)
+                        HW_EscReadDWord(EEPROMReg, ESC_EEPROM_CONFIG_OFFSET);
+                        EEPROMReg = SWAPDWORD(EEPROMReg);
+                        cmd = EEPROMReg  & ESC_EEPROM_CMD_MASK;
+
+                        HW_EscReadDWord(addr, ESC_EEPROM_ADDRESS_OFFSET);
+                        addr = SWAPDWORD(addr);
+                    }
+
+
+                } while (cmd == ESC_EEPROM_CMD_RELOAD_MASK);
+            }
+            else
+            {
+                /* The case is only called if the "small" EEPROM emulation (4 read bytes) is configured*/
+
+                if (pAPPL_EEPROM_Reload != NULL)
+                {
+                    Result = pAPPL_EEPROM_Reload();
+                    if (Result > 0)
+                    {
+                        //Set Error
+                        EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+                    }
+                    else
+                    {
+                        EEPROMReg &= ~ESC_EEPROM_ERROR_CRC;
+                    }
+                }
+                else
+                {
+
+                    Result = HW_EepromReload();
+                    if (Result != 0 || (pEEPROM == NULL))
+                    {
+                        EEPROMReg |= ESC_EEPROM_ERROR_CRC;
+                    }
+                    else
+                    {
+                        //copy the configured station alias
+/* ECATCHANGE_START(V5.13) EEPROM1*/
+                        HW_EscWriteDWord(((UINT32 *)pEEPROM)[0x2], ESC_EEPROM_DATA_OFFSET);
+/* ECATCHANGE_END(V5.13) EEPROM1*/
+
+                        EEPROMReg &= ~ESC_EEPROM_ERROR_CRC;
+                    }
+                }
+            }
+         break;
+        default:
+            EEPROMReg |= ESC_EEPROM_ERROR_CMD_ACK;
+            break;
+        }
+
+        /* reset the store eeprom timeout counter*/
+        u16EepromStoreTimeoutCounter = 0;
+
+        {
+        UINT32 TmpData = SWAPDWORD(EEPROMReg);
+        HW_EscWriteDWord(TmpData,ESC_EEPROM_CONFIG_OFFSET);
+        }
+    }
 }
 
 void Sync0_Isr(void)
 {
-     extern void ecat_dc_sync0_hook(void);
-
      Sync0WdCounter = 0;
-
-     /* [ECAT 适配] SYNC0 节拍：统计 DC 周期并交给 1kHz 位置速度环 */
-     ecat_dc_sync0_hook();
 
     if(bDcSyncActive)
     {
@@ -900,6 +1101,11 @@ UINT16 MainInit(void)
     SET_EEPROM_PTR
 #endif
 
+    pAPPL_EEPROM_Read = NULL;
+    pAPPL_EEPROM_Write = NULL;
+    pAPPL_EEPROM_Reload = NULL;
+    pAPPL_EEPROM_Store = NULL;
+
 
 /* Reset application function pointer*/
 
@@ -974,6 +1180,20 @@ UINT16 MainInit(void)
 
 
 
+
+    {
+        UINT32 TmpData = 0;
+        HW_EscReadDWord(TmpData, ESC_EEPROM_CONFIG_OFFSET);
+        TmpData = SWAPDWORD(TmpData);
+        if ((TmpData & ESC_EEPROM_SUPPORTED_READBYTES_MASK) > 0)
+        {
+            EepromReadSize = 8;
+        }
+        else
+        {
+            EepromReadSize = 4;
+        }
+    }
 
 /*Application Init need to be called from the application layer*/
      return Error;

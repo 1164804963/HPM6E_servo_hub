@@ -14,6 +14,10 @@
 #include "servo_board.h"
 #include "system_timer.h"
 
+#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+#include "ecatslv.h"
+#endif
+
 /* 一行最多 79 字符 + 结束符；超长时整行丢弃，避免半条命令被执行。 */
 #define CONSOLE_LINE_MAX        (80U)
 #define CONSOLE_ARG_MAX         (5U)
@@ -121,14 +125,8 @@ static void print_status(void)
            kAxis.pos_speed_ctl_input.speed_tar_p_s / ENC_CNT_PER_REV * 60.0f,
            (long)kAxis.pos_speed_ctl_input.pos_tar_p);
 #if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
-    /* EtherCAT 从站状态（精简版）：AL 状态/错误码、过程数据长度、链路状态、DC 节拍 */
+    /* EtherCAT 从站状态（精简版）：AL 状态/错误码、过程数据长度、链路状态、DC 状态 */
     {
-        extern unsigned char nAlStatus;
-        extern bool ecat_dc_is_active(void);
-        extern volatile uint32_t ecat_dc_cycle_cnt;
-        extern volatile uint32_t ecat_dc_period_us;
-        extern volatile uint32_t ecat_dc_period_min_us;
-        extern volatile uint32_t ecat_dc_period_max_us;
 
         printf("ecat  : nAl=0x%02X code=0x%04X PDO=%u/%u DL=0x%04X WDG=0x%04X\r\n",
                (unsigned)nAlStatus,
@@ -138,12 +136,8 @@ static void print_status(void)
                (unsigned)(HPM_ESC->ESC_DL_STAT),
                (unsigned)(HPM_ESC->WDG_STAT_PDAT));
 
-        printf("ecat  : DC=%u cyc=%lu period=%lu/%lu/%lu us (now/min/max)\r\n",
-               (unsigned)(ecat_dc_is_active() ? 1U : 0U),
-               (unsigned long)ecat_dc_cycle_cnt,
-               (unsigned long)ecat_dc_period_us,
-               (unsigned long)ecat_dc_period_min_us,
-               (unsigned long)ecat_dc_period_max_us);
+        printf("ecat  : DC=%u\r\n",
+               (unsigned)(bDcSyncActive ? 1U : 0U));
     }
 #endif
 }

@@ -15,6 +15,21 @@ endif()
 if(NOT EXISTS "$ENV{GNURISCV_TOOLCHAIN_PATH}/bin/riscv32-unknown-elf-gcc.exe")
     message(FATAL_ERROR "Windows RISC-V GCC not found. Check hpm.toolchainName in ${HPM_SETTINGS_FILE}")
 endif()
+# SDK 的 cmake/python.cmake 用 python_exec 这个缓存名；必须在 find_package 前覆盖默认 Python。
+set(HPM_PYTHON_EXECUTABLE "${HPM_SDK_ENV_PATH}/tools/python3/python.exe")
+if(NOT EXISTS "${HPM_PYTHON_EXECUTABLE}")
+    message(FATAL_ERROR "SDK Python not found: ${HPM_PYTHON_EXECUTABLE}. Check hpm.sdkEnvPath in ${HPM_SETTINGS_FILE}")
+endif()
+execute_process(
+    COMMAND "${HPM_PYTHON_EXECUTABLE}" -c "import yaml"
+    RESULT_VARIABLE HPM_PYTHON_YAML_RESULT
+    OUTPUT_QUIET
+    ERROR_VARIABLE HPM_PYTHON_YAML_ERROR
+)
+if(NOT HPM_PYTHON_YAML_RESULT EQUAL 0)
+    message(FATAL_ERROR "SDK Python cannot import yaml: ${HPM_PYTHON_EXECUTABLE}\n${HPM_PYTHON_YAML_ERROR}")
+endif()
+set(python_exec "${HPM_PYTHON_EXECUTABLE}" CACHE FILEPATH "Python interpreter used by HPM SDK" FORCE)
 # Force the SDK package path so a previous private-SDK cache is never selected.
 set(hpm-sdk_DIR "$ENV{HPM_SDK_BASE}/cmake" CACHE PATH "Shared HPM SDK" FORCE)
 set(BOARD_SEARCH_PATH "${HPM_PROJECT_ROOT}/boards" CACHE PATH "Project boards" FORCE)

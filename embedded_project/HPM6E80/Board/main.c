@@ -21,15 +21,6 @@
 #include "applInterface.h"    /* PROTO MainInit / MainLoop / APPL_GenerateMapping */
 #include "ecatslv.h"          /* nPdInputSize / nPdOutputSize */
 
-/* [ECAT 适配] 旧版 SSC 缺的 EEPROM 模拟命令轮询（见 Board/ecat_port_compat.c） */
-extern void ecat_eeprom_cmd_poll(void);
-extern bool ecat_eeprom_cmd_pending(void);
-extern void ecat_esc_start_al_events(void);
-extern void ecat_control_authority_tick(void);
-extern void ecat_irq_follow_ssc_mode(void);
-extern void ecat_dc_irq_force_enable(void);
-#include "ecat_def.h"
-
 /*
  * 初始化顺序（与 Y01 板的 HalInit() 一致，这里显式写开）：
  * 参数库 -> 控制层 -> 应用层 -> 波形/存储/抱闸。
@@ -104,13 +95,13 @@ int main(void)
         }
         else
         {
-            /* Flash 模拟 EEPROM 的读写回调（新版 SSC 的 pAPPL_EEPROM_* 机制）。
-             * 旧版 SSC 无此机制，靠 PDI 中断里 ecat_eeprom_cmd_poll 主动轮询响应，
-             * 见 Board/ecat_port_compat.c，所以这里不需要挂 pAPPL_EEPROM_*。 */
+            /* Flash 模拟 EEPROM 的 SSC 回调；命令由 SSC 的 EEPROM_CommandHandler 处理。 */
             MainInit();                     /* SSC 协议栈初始化 */
+            pAPPL_EEPROM_Read = ecat_eeprom_emulation_read;
+            pAPPL_EEPROM_Write = ecat_eeprom_emulation_write;
+            pAPPL_EEPROM_Reload = ecat_eeprom_emulation_reload;
+            pAPPL_EEPROM_Store = ecat_eeprom_emulation_store;
             APPL_GenerateMapping(&nPdInputSize, &nPdOutputSize);
-            ecat_esc_start_al_events();     /* 打开 AL 事件中断（ESC 0x204 掩码） */
-            ecat_dc_irq_force_enable();     /* SYNC0 独立中断使能（DC 模式用） */
             printf("main: ethercat slave init done, ESC link ready\r\n");
         }
     }
@@ -126,48 +117,7 @@ int main(void)
     while (1)
     {
 #if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
-        /* [ECAT 适配] ESC 的 EEPROM 模拟命令（主站读 SII/ESI）有很紧的响应窗口，
-         * 超时后 ESC 就返回 0 —— 主站会看到 Man/ID 全 00000000，接着 PDO 映射
-         * 算错、SAFEOP 被拒（StatusCode 1e）。所以放在 MainLoop() 之前，并且一次
-         * 把队列抽干（BUSY 期间连续响应），别让一次长耗时把窗口拖过去。 */
-        {
-            /* DC 模式下不能在主循环里写 Flash：会长时间关中断，SYNC0 被拖过看门狗。
-             * 此时只处理读命令（SII 读），写命令留到非 DC 再处理。 */
-            extern bool ecat_dc_is_active(void);
-            extern void ecat_eeprom_cmd_poll_readonly(void);
-
-            if (ecat_dc_is_active())
-            {
-                uint32_t ecat_drain;
-
-                for (ecat_drain = 0U; ecat_drain < 32U; ecat_drain++)
-                {
-                    if (!ecat_eeprom_cmd_pending())
-                    {
-                        break;
-                    }
-                    ecat_eeprom_cmd_poll_readonly();
-                }
-            }
-            else
-            {
-                uint32_t ecat_drain;
-
-                for (ecat_drain = 0U; ecat_drain < 32U; ecat_drain++)
-                {
-                    if (!ecat_eeprom_cmd_pending())
-                    {
-                        break;
-                    }
-                    ecat_eeprom_cmd_poll();
-                }
-            }
-        }
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */
-        /* PDI 中断不可靠时用它把 SSC 切到轮询做 PDO；实测和 3-buffer SM 组合
-         * 会让从站卡在 PREOP，先关掉，见 doc 里"待办"。 */
-        ecat_irq_follow_ssc_mode();     /* [ECAT 适配] ESC 中断使能跟随 SSC 模式 */
-        ecat_control_authority_tick();  /* [ECAT 适配] 进 OP 把控制权交给总线 */
 #endif
         servo_console_poll();
     }

@@ -141,8 +141,6 @@ sdk_src("${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA/cia402_error_code.c
 sdk_src("${HPM_ECAT_PORT}/hpm_ecat_hw.c")
 sdk_src("${HPM_ECAT_PORT}/hpm_ecat_phy.c")
 sdk_src("${HPM_ECAT_PORT}/hpm_ecat_e2p_emulation.c")
-# 旧版 SSC 与 SDK port 的兼容补齐（EepromReadSize 等）
-sdk_src(Board/ecat_port_compat.c)
 # ESC 模拟 EEPROM 的 SII 内容（强符号覆盖 SDK 的 weak aEepromData）
 sdk_src(Board/ecat_eeprom.c)
 

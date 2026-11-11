@@ -1,3 +1,6 @@
+> EtherCAT status (2026-11-11): EtherCAT sections below are historical bring-up notes, not current port instructions.
+> See [current EtherCAT port](ETHERCAT_PORT.md). The old compat layer, extra polling, INIT reset, IRQ overrides and motor-loop SYNC0 trigger have been removed.
+
 # HPM6E80 移植补丁与适配配置说明
 
 本工程在 `servo_hub-master`（上游通用工程）基础上做了 **MCU 更换 + 电机/驱动板重新适配**。

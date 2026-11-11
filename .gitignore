@@ -67,3 +67,6 @@ __pycache__/
 .env
 .env.*
 
+
+# HPM verification build outputs
+/build-hpm6e80-*/

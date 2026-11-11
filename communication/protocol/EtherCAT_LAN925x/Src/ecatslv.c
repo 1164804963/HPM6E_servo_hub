@@ -2813,6 +2813,10 @@ void ECAT_Main(void)
     ALEventReg = HW_GetALEventRegister();
     ALEventReg = SWAPWORD(ALEventReg);
 
+    if (ALEventReg & EEPROM_CMD_PENDING)
+    {
+        EEPROM_CommandHandler();
+    }
 
     if ((ALEventReg & AL_CONTROL_EVENT) && !bEcatWaitForAlControlRes)
     {

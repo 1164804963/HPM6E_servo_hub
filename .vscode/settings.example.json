@@ -1,0 +1,4 @@
+{
+    "hpm.sdkEnvPath": "D:/Document/YeeZi_HPM6E/sdk_env_v1.13.0",
+    "hpm.toolchainName": "rv32imac_zicsr_zifencei_multilib_b_ext-win"
+}

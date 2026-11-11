@@ -23,6 +23,7 @@
 -----------------------------------------------------------------------------------------*/
 #include "ecat_def.h"
 #include "data_param.h"     /* [ECAT 适配] 控制权 / 目标更新握手 */
+#include "Cia402_ObjectDictionary_Variable.h"
 
 #include "applInterface.h"
 
@@ -191,8 +192,9 @@ UINT16 APPL_StartOutputHandler(void)
 
 UINT16 APPL_StopOutputHandler(void)
 {
-    /* [ECAT 适配] 离开 OP（主站降级/断开）：先失能，再把控制权还给上位机。
-     * 等价 CiA402 的 command watchdog：总线没了不能继续跑。 */
+    /* [ECAT 适配] 离开 OP（主站降级/断开）：先走 CiA402 正常 Disable Voltage，
+     * 再显式失能并把控制权还给上位机。Fault 状态不会被这里清除。 */
+    (void)set_Controlword(0U);
     (void)set_app_Controlword((uint16_t)APP_CTRL_DISABLE);
     (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_HOST);
     return ALSTATUSCODE_NOERROR;

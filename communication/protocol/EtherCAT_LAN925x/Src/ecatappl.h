@@ -104,7 +104,8 @@ PROTO BOOL bEtherCATRunLed; /**< \brief Current run LED value*/
 PROTO BOOL bEtherCATErrorLed; /**< \brief Current error LED value*/
 PROTO BOOL bRunApplication; /**< \brief Indicates if the stack shall be running (if false the Hardware will be released)*/
 
-
+PROTO UINT8 *pEEPROM; /**< \brief Pointer to EEPROM buffer*/
+PROTO UINT16 EepromReadSize; /**< \brief either 4 or 8 depending on register 0x502.6 (0 = 4Byte; 1 = 8Byte)*/
 
 /*-----------------------------------------------------------------------------------------
 ------
@@ -126,6 +127,7 @@ PROTO    void       PDO_InputMapping(void);
 
 PROTO    void       ECAT_SetLedIndication(void);
 PROTO    void       CalcSMCycleTime(void);
+PROTO    void       EEPROM_CommandHandler(void);
 
 
 

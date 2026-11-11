@@ -39,7 +39,4 @@
 #define ECAT_RESET_ESC_WITH_MCU    1    /* ESC reset request will reset ethercat slave controller and mcu */
 
 
-/* [ECAT 适配] 旧版 SSC 缺 EepromReadSize，由 ecat_port_compat.c 定义 */
-extern unsigned short EepromReadSize;
-
 #endif /* ECAT_CONFIG_H */
