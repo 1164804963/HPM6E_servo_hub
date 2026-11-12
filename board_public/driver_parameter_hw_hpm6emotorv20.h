@@ -151,9 +151,7 @@ extern "C"
 #define PORT_PATCH_OPMODE_DIRECT_APPLY     (1)  // 1=修掉恒真重复检查
 #endif
 /* [EtherCAT] 启用 EtherCAT 从站（HPM6E80 内置 ESC）。0=关（退回纯 UART/MAVLink）。 */
-#ifndef PORT_PATCH_ENABLE_ECAT
-#define PORT_PATCH_ENABLE_ECAT             (1)  // 1=启用 EtherCAT 从站
-#endif
+
 #define TQ_FC_ID_ABORT_ERR_P               (32768)   // 位置跟随误差超过 2 圈即判定跑飞/跟不上
 #define TQ_FC_ID_GRACE_MS                  (1000U)    // 使能后 1s 内不判定
 #define TQ_FC_ID_TIMEOUT_MS                (60000U)   // 辨识总时长上限（正常约 11s）

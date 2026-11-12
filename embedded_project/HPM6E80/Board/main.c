@@ -15,11 +15,17 @@
 #include "servo_console.h"
 #include "servo_host.h"
 
+#if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
 /* [ECAT] EtherCAT 从站（HPM6E80 内置 ESC） */
 #include "hpm_ecat_hw.h"      /* ecat_hardware_init / ecat_eeprom_emulation_* */
 #include "ecatappl.h"         /* MainInit / MainLoop 的框架 */
 #include "applInterface.h"    /* PROTO MainInit / MainLoop / APPL_GenerateMapping */
 #include "ecatslv.h"          /* nPdInputSize / nPdOutputSize */
+#endif
+
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+#include "servo_can.h"
+#endif
 
 /*
  * 初始化顺序（与 Y01 板的 HalInit() 一致，这里显式写开）：
@@ -79,10 +85,31 @@ int main(void)
     }
     servo_bringup_print_l0();
 
-#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
-    /* 5.1 EtherCAT 从站初始化（HPM6E80 内置 ESC + Flash 模拟 EEPROM）。
-     *     顺序对齐 SDK ecat_cia402 例程：board_init_ethercat 已在 board_init_servo
-     *     里做过 ESC 时钟/PHY 复位；这里做 ESC 外设+PHY+EEPROM 初始化、
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+    /* 5.1 CAN CiA402：应用参数初始化后启动 MCAN7；失败明确报错并保持失能。 */
+    {
+        hpm_stat_t can_stat = servo_can_init(kAppBaseConfig.Can_id, kAppBaseConfig.Can_baudrate);
+
+        if (can_stat != status_success)
+        {
+            sys_set_bsp_error_state(ERROR_COMMS_INIT, ERROR_SET);
+            (void)set_app_Controlword((uint16_t)APP_CTRL_DISABLE);
+            board_set_pwm_enable(false);
+            printf("main: CAN init FAILED (%d), motor stays disabled\r\n", (int)can_stat);
+        }
+        else
+        {
+            (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_BUS);
+            (void)set_app_Internal_control_authority((uint8_t)INTERNAL_CONTROL_APP);
+            printf("main: CAN CiA402 slave init done\r\n");
+        }
+    }
+#endif
+
+#if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
+    /* 5.2 EtherCAT 从站初始化（HPM6E80 内置 ESC + Flash 模拟 EEPROM）。
+     *     顺序对齐 SDK ecat_cia402 例程：这里完成 ESC 引脚、时钟和 PHY 复位，
+     *     再做 ESC 外设、PHY 与 EEPROM 初始化、
      *     SSC 协议栈初始化、EEPROM 模拟回调挂接、生成 PDO 映射。 */
     {
         hpm_stat_t ecat_stat;
@@ -116,7 +143,10 @@ int main(void)
     servo_host_init();
     while (1)
     {
-#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+        servo_can_poll();
+#endif
+#if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */
 #endif
         servo_console_poll();

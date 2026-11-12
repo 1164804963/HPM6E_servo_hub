@@ -7,7 +7,7 @@ extern "C"
 #endif
 
 // 次版本号同时决定编译进哪些总线协议（与 Y01 板保持同一套约定）。
-// 首版 HPM6EMotorV20 没有接 CAN/EtherCAT，只走串口调试，因此默认 V_CONSOLE。
+// 协议由 CMake SERVO_BUS 选择（ETHERCAT=3 / CAN_CIA402=0）；V_CONSOLE 仅用于独立测试或无总线 console fallback。
 #define V_CAN_CIA402            (0x00)  // CAN CiA402 协议版本
 #define V_CAN_ENCOS             (0x01)  // CAN ENCOS 协议版本
 #define V_CANOPEN_CIA402        (0x02)  // CANopen CiA402 协议版本

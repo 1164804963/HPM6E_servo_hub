@@ -14,8 +14,11 @@
 #include "servo_board.h"
 #include "system_timer.h"
 
-#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+#if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
 #include "ecatslv.h"
+#endif
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+#include "servo_can.h"
 #endif
 
 /* 一行最多 79 字符 + 结束符；超长时整行丢弃，避免半条命令被执行。 */
@@ -58,6 +61,24 @@ static bool get_float_arg(char *argv[], int argc, int index, float *value)
     *value = strtof(argv[index], NULL);
     return true;
 }
+
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+static void print_can_status(void)
+{
+    servo_can_status_t s;
+
+    servo_can_get_status(&s);
+    printf("can  : ready=%u id=0x%03X baud=%lu req=0x%03X/%lu err=%d\r\n",
+           (unsigned)s.ready, (unsigned)s.node_id, (unsigned long)s.bitrate_hz,
+           (unsigned)s.requested_node_id, (unsigned long)s.requested_bitrate_hz,
+           (int)s.last_error);
+    printf("can  : rx=%lu tx=%lu invalid=%lu abort=%lu txerr=%lu lastabort=0x%08lX ovf=%lu boff=%lu\r\n",
+           (unsigned long)s.rx_count, (unsigned long)s.tx_count,
+           (unsigned long)s.invalid_count, (unsigned long)s.abort_count,
+           (unsigned long)s.tx_error_count, (unsigned long)s.last_abort,
+           (unsigned long)s.overflow_count, (unsigned long)s.busoff_count);
+}
+#endif
 
 /* ---------------------------------------------------------------------------
  * 状态打印
@@ -124,7 +145,10 @@ static void print_status(void)
            kAxis.pos_speed_ctl_input.iq_max_A,
            kAxis.pos_speed_ctl_input.speed_tar_p_s / ENC_CNT_PER_REV * 60.0f,
            (long)kAxis.pos_speed_ctl_input.pos_tar_p);
-#if defined(PORT_PATCH_ENABLE_ECAT) && (PORT_PATCH_ENABLE_ECAT)
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+    print_can_status();
+#endif
+#if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
     /* EtherCAT 从站状态（精简版）：AL 状态/错误码、过程数据长度、链路状态、DC 状态 */
     {
 
@@ -146,6 +170,19 @@ static void print_status(void)
  * 命令
  * ------------------------------------------------------------------------- */
 static void cmd_help(int argc, char *argv[]);
+
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+static void cmd_can(int argc, char *argv[])
+{
+    if ((argc > 1) && (strcmp(argv[1], "reset") == 0))
+    {
+        hpm_stat_t status = servo_can_reset();
+        printf("can reset: %d\r\n", (int)status);
+        return;
+    }
+    print_can_status();
+}
+#endif
 
 static void cmd_status(int argc, char *argv[])
 {
@@ -785,6 +822,9 @@ static const ConsoleCommand s_commands[] = {
     {"scope", cmd_scope,    "抓一段 20kHz 电流环 idq 波形（点数默认 128，最多 256）"},
     {"escope", cmd_escope,  "抓 1kHz 编码器计数序列，看角度有没有跳变"},
     {"echo",  cmd_echo,     "切换命令回显"},
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+    {"can",   cmd_can,      "CAN 状态；can reset 显式重初始化"},
+#endif
 };
 
 static void cmd_help(int argc, char *argv[])

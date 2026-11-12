@@ -1,5 +1,7 @@
 #include "motor_ctl_loop.h"
 
+#include "version.h"
+
 // 关联底层接口
 #include "bsp_api.h"
 

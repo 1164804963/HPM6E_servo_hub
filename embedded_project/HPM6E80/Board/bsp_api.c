@@ -7,6 +7,10 @@
 #include "system_timer.h"
 #include "drv_encoder.h"
 
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+#include "servo_can.h"
+#endif
+
 #include "hpm_soc.h"
 #include "hpm_gpio_drv.h"
 #include "hpm_pwmv2_drv.h"
@@ -579,14 +583,38 @@ bool bsp_get_encoder_zero_crossing_state(ENCODER_ID const enc_id)
 }
 
 /* ---------------------------------------------------------------------------
- * 通信：首版只保留接口，CAN 收发在 EtherCAT/CAN 阶段接入
+ * 通信：CAN 构建连接真实配置与计数；其他构建保留参数缓存
  * ------------------------------------------------------------------------- */
 
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+void bsp_set_can_id(uint32_t can_id)
+{
+    (void)servo_can_request_node_id(can_id);
+}
+
+uint32_t bsp_get_can_id(void)
+{
+    return servo_can_applied_node_id();
+}
+
+void bsp_set_can_baudrate(uint32_t baudrate)
+{
+    (void)servo_can_request_bitrate(baudrate);
+}
+
+uint32_t bsp_get_can_baudrate(void)
+{
+    return servo_can_applied_bitrate();
+}
+
+uint32_t bsp_get_can_mg_counts(void)
+{
+    return servo_can_rx_count();
+}
+#else
 static uint32_t s_can_id;
 static uint32_t s_can_baudrate;
 static uint32_t s_can_mg_counts;
-static uint8_t s_can_mav_sys_id;
-static uint8_t s_can_mav_comp_id;
 
 void bsp_set_can_id(uint32_t can_id)
 {
@@ -612,6 +640,10 @@ uint32_t bsp_get_can_mg_counts(void)
 {
     return s_can_mg_counts;
 }
+#endif
+
+static uint8_t s_can_mav_sys_id;
+static uint8_t s_can_mav_comp_id;
 
 void bsp_set_can_mav_id(uint8_t sys_id, uint8_t comp_id)
 {
