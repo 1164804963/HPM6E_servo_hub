@@ -268,8 +268,7 @@ void ResetALEventMask(UINT16 intMask)
     UINT32 u32Mask = 0;
     HW_EscReadDWord(u32Mask, ESC_AL_EVENTMASK_OFFSET);
     u32Mask &= (UINT32)intMask;
-
-
+    u32Mask &= ~(SYNC0_EVENT | SYNC1_EVENT); /* mask Sync0\Sync1 for PDI IRQ, because there are independent Sync0\Sync1 IRQ */
 
     DISABLE_ESC_INT();
 
@@ -288,7 +287,7 @@ void SetALEventMask(UINT16 intMask)
     UINT32 u32Mask = 0;
     HW_EscReadDWord(u32Mask, ESC_AL_EVENTMASK_OFFSET);
     u32Mask |= (UINT32)intMask;
-
+    u32Mask &= ~(SYNC0_EVENT | SYNC1_EVENT); /* mask Sync0\Sync1 for PDI IRQ, because there are independent Sync0\Sync1 IRQ */
 
     DISABLE_ESC_INT();
 
