@@ -1014,8 +1014,12 @@ uint32_t set_app_Modes_of_operation(int8_t val)
      * （辨识模式是负值，被 val>=0 条件排除，所以只有辨识能切——这正是
      *  之前只有辨识能用、运行模式全废的原因。）
      *
-     * 修法：把"重复"的判据改成控制层当前实际模式，而不是回读自身。
-     * 只有"请求的模式 == 控制层当前模式"才跳过；其余一律真正下发。 */
+     * 修法：逻辑模式（0x6060 的 CSP/CSV/CST/HOMING）与底层控制模式
+     * （POSITION/SPEED/TORQUE/IDLE）不是同一套枚举，重复判据必须同时看两者：
+     * 请求值未变，且该请求对应的底层模式已经生效，才算同一模式的重复下发。
+     * 不能只比较 val 与底层 mode：CSP(8) 会被误判成模式变化而每周期重新 Init；
+     * 也不能只比较 val 与缓存：初始化时缓存已是请求值但底层仍是 IDLE 时，
+     * 首次设置会被吞掉。 */
     {
         extern Axis kAxis;
 
@@ -1030,9 +1034,44 @@ uint32_t set_app_Modes_of_operation(int8_t val)
         {
             return APP_PARAM_SUCCESS;
         }
-        if (val == (int8_t)kAxis.motor_ctl_sm_config.mode)
+        if (val < 0)
         {
-            return APP_PARAM_SUCCESS;
+            /* 负值辨识模式保持原有规则：只看底层模式是否已经切入。 */
+            if (val == (int8_t)kAxis.motor_ctl_sm_config.mode)
+            {
+                return APP_PARAM_SUCCESS;
+            }
+        }
+        else
+        {
+            /* 请求的逻辑模式对应的底层控制模式。PV/PP/PT 在本工程中直接
+             * 使用底层 SPEED/POSITION/TORQUE 的编码值，其余运行模式需要映射。 */
+            int8_t expected_low_mode = val;
+
+            switch (val)
+            {
+            case MOTOR_CTL_SM_MODE_CSP:
+                expected_low_mode = MOTOR_CTL_SM_MODE_POSITION;
+                break;
+            case MOTOR_CTL_SM_MODE_CSV:
+            case MOTOR_CTL_SM_MODE_HOMING:
+                expected_low_mode = MOTOR_CTL_SM_MODE_SPEED;
+                break;
+            case MOTOR_CTL_SM_MODE_CST:
+                expected_low_mode = MOTOR_CTL_SM_MODE_TORQUE;
+                break;
+            default:
+                break;
+            }
+
+            /* 只有“请求值未变 + 对应底层模式已生效”才是同一模式的重复下发。
+             * 这样同一 CSV/CSP/CST 周期 PDO 不会重复 Init；而 PV↔CSV、
+             * PP↔CSP、PT↔CST 虽然底层模式相同，逻辑请求值变化仍会真正切换。 */
+            if ((val == kAppOpMode.Modes_of_operation) &&
+                (expected_low_mode == (int8_t)kAxis.motor_ctl_sm_config.mode))
+            {
+                return APP_PARAM_SUCCESS;
+            }
         }
     }
 #else

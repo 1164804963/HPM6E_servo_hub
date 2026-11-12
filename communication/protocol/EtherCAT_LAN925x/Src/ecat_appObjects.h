@@ -124,7 +124,7 @@ TOBJ1601;
 */
 PROTO TOBJ1601 Obj0x1601
 #if defined(_ECAT_APP_) && (_ECAT_APP_ == 1)
-={2,0x607A0020,0x605A0020}
+={2,0x607A0020,0x00000020}
 #endif
 ;
 /** @}*/
@@ -177,7 +177,7 @@ TOBJ1602;
 */
 PROTO TOBJ1602 Obj0x1602
 #if defined(_ECAT_APP_) && (_ECAT_APP_ == 1)
-={2,0x60FF0020,0x605A0020}
+={2,0x60FF0020,0x00000020}
 #endif
 ;
 /** @}*/
@@ -230,7 +230,7 @@ TOBJ1603;
 */
 PROTO TOBJ1603 Obj0x1603
 #if defined(_ECAT_APP_) && (_ECAT_APP_ == 1)
-={2,0x60710010,0x605A0020}
+={2,0x60710010,0x00000020}
 #endif
 ;
 /** @}*/

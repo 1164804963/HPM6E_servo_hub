@@ -22,7 +22,7 @@ import sys
 # 与本工程 ESI 保持一致（communication/protocol/EtherCAT_LAN925x/*.xml）
 VENDOR = 0x00000000
 PRODUCT = 0x00009252
-REVISION = 0x00000003
+REVISION = 0x00000004
 SERIAL = 0x00000000
 
 # PDO 映射算出来的过程数据长度（字节）：

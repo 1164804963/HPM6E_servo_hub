@@ -903,7 +903,7 @@ PRODUCT_CODE: Object 0x1018 SI2 (EtherCAT product code) */
 /** 
 REVISION_NUMBER: Object 0x1018 SI3 (EtherCAT product revision number) */
 #ifndef REVISION_NUMBER
-#define REVISION_NUMBER                           0x1
+#define REVISION_NUMBER                           0x4
 #endif
 
 /** 

@@ -573,8 +573,10 @@ void PDI_Isr(void)
       /*ECATCHANGE_START(V5.13) ECAT1*/
     if (ALEvent & SYNC0_EVENT)
     {
-        Sync0_Isr();
-
+        /* IRQn_ESC_SYNC0 already calls Sync0_Isr() for this pulse. This ESC
+           also maps Sync0 into the AL event (0x0150 bit 11), so a second
+           call here steps the SM/Sync0 sequence twice and raises 0x001A.
+           Acknowledge the AL event once; do not consume the pulse again. */
         SyncAcknowledgePending = TRUE;
     }
 

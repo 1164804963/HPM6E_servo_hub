@@ -15,7 +15,7 @@
 		</Groups>
 		<Devices>
 			<Device Physics="YY">
-				<Type ProductCode="#x00009252" RevisionNo="#x3">ecat_app</Type>
+				<Type ProductCode="#x00009252" RevisionNo="#x4">ecat_app</Type>
 				<Name>ecat_app</Name>
 				<Info>
 					<StateMachine>
@@ -1373,7 +1373,7 @@
 									<SubItem>
 										<Name>SubIndex 002</Name>
 										<Info>
-											<DefaultData>20005A60</DefaultData>
+											<DefaultData>20000000</DefaultData>
 										</Info>
 									</SubItem>
 								</Info>
@@ -1399,7 +1399,7 @@
 									<SubItem>
 										<Name>SubIndex 002</Name>
 										<Info>
-											<DefaultData>20005A60</DefaultData>
+											<DefaultData>20000000</DefaultData>
 										</Info>
 									</SubItem>
 								</Info>
@@ -1425,7 +1425,7 @@
 									<SubItem>
 										<Name>SubIndex 002</Name>
 										<Info>
-											<DefaultData>20005A60</DefaultData>
+											<DefaultData>20000000</DefaultData>
 										</Info>
 									</SubItem>
 								</Info>
@@ -2405,11 +2405,9 @@
 						<DataType>DINT</DataType>
 					</Entry>
 					<Entry>
-						<Index>#x605A</Index>
+						<Index>#x0</Index>
 						<SubIndex>0</SubIndex>
 						<BitLen>32</BitLen>
-						<Name>Quick_stop_option_code</Name>
-						<DataType>INT</DataType>
 					</Entry>
 				</RxPdo>
 				<RxPdo Fixed="false" Mandatory="true" Sm="2">
@@ -2423,11 +2421,9 @@
 						<DataType>DINT</DataType>
 					</Entry>
 					<Entry>
-						<Index>#x605A</Index>
+						<Index>#x0</Index>
 						<SubIndex>0</SubIndex>
 						<BitLen>32</BitLen>
-						<Name>Quick_stop_option_code</Name>
-						<DataType>INT</DataType>
 					</Entry>
 				</RxPdo>
 				<RxPdo Fixed="false" Mandatory="true" Sm="2">
@@ -2441,11 +2437,9 @@
 						<DataType>INT</DataType>
 					</Entry>
 					<Entry>
-						<Index>#x605A</Index>
+						<Index>#x0</Index>
 						<SubIndex>0</SubIndex>
 						<BitLen>32</BitLen>
-						<Name>Quick_stop_option_code</Name>
-						<DataType>INT</DataType>
 					</Entry>
 				</RxPdo>
 				<TxPdo Fixed="false" Mandatory="true" Sm="3">
