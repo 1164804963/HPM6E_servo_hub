@@ -935,8 +935,9 @@ void board_can_transceiver_phy_set(MCAN_Type *ptr, bool enable)
 {
     init_can_transceiver_phy_pin(ptr);
     if (ptr == HPM_MCAN4) {
-        gpio_set_pin_output_with_initial(BOARD_CAN_STB_GPIO_CTRL, BOARD_CAN_STB_GPIO_INDEX, BOARD_CAN_STB_GPIO_PIN, 0);
-        gpio_write_pin(BOARD_CAN_STB_GPIO_CTRL, BOARD_CAN_STB_GPIO_INDEX, BOARD_CAN_STB_GPIO_PIN, enable ? 0 : 1);
+        /* J8/CAN4 TJA1042T/3: PC18 STBY, high=standby, low=normal. */
+        HPM_IOC->PAD[IOC_PAD_PC18].FUNC_CTL = IOC_PC18_FUNC_CTL_GPIO_C_18;
+        gpio_set_pin_output_with_initial(BOARD_CAN_STB_GPIO_CTRL, BOARD_CAN_STB_GPIO_INDEX, BOARD_CAN_STB_GPIO_PIN, enable ? 0U : 1U);
     } else if (ptr == HPM_MCAN7) {
         /* J9/TJA1042T/3: PC29 STBY, high=standby, low=normal (enable is active-low). */
         HPM_IOC->PAD[IOC_PAD_PC29].FUNC_CTL = IOC_PC29_FUNC_CTL_GPIO_C_29;

@@ -3,6 +3,7 @@
 #include "can_cia402.h"
 #include "data_param.h"
 #include "servo_can.h"
+#include "servo_debug_can_policy.h"
 #include "test_stubs.h"
 
 #include <stdio.h>
@@ -248,9 +249,33 @@ static void test_adapter(void)
     CHECK(stub_last_app_controlword == APP_CTRL_DISABLE, "reset sends APP_CTRL_DISABLE");
 }
 
+static void test_debug_can_policy(void)
+{
+    uint8_t req[8] = {0U};
+
+    req[1] = 0x41U;
+    req[2] = 0x60U;
+    req[3] = 0U;
+
+    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 5U, req), "J8 5-byte read accepted");
+    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 6U, req), "J8 6-byte read accepted");
+    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 8U, req), "J8 8-byte read accepted");
+
+    req[0] = 1U;
+    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 5U, req), "J8 write rejected");
+    req[0] = 0U;
+
+    CHECK(!servo_debug_can_is_read_only_request(true, 0x015U, 5U, req), "J8 extended rejected");
+    CHECK(!servo_debug_can_is_read_only_request(false, 0x016U, 5U, req), "J8 wrong ID rejected");
+    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 4U, req), "J8 DLC 4 rejected");
+    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 7U, req), "J8 DLC 7 rejected");
+    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 5U, NULL), "J8 null data rejected");
+}
+
 int can_software_run(void)
 {
     s_fail = 0;
+    test_debug_can_policy();
     test_codec();
     test_adapter();
     if (s_fail == 0)

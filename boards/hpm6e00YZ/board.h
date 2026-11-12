@@ -329,9 +329,10 @@
 #define BOARD_APP_CAN_BASE HPM_MCAN7
 #define BOARD_APP_CAN_IRQn IRQn_MCAN7
 
+/* J8/CAN4 STBY: PC18, high=standby, low=normal (TJA1042T/3). */
 #define BOARD_CAN_STB_GPIO_CTRL HPM_GPIO0
-#define BOARD_CAN_STB_GPIO_INDEX GPIO_DI_GPIOZ
-#define BOARD_CAN_STB_GPIO_PIN   2
+#define BOARD_CAN_STB_GPIO_INDEX GPIO_DI_GPIOC
+#define BOARD_CAN_STB_GPIO_PIN   18
 
 /*
  * timer for board delay

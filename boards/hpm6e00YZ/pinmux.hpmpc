@@ -893,15 +893,15 @@
         },
         "init_mcan4_pins": {
           "selectPins": {
-            "PZ00": {
+            "PC16": {
               "signal": "MCAN4.I.TXD",
               "padCtls": {}
             },
-            "PZ01": {
+            "PC17": {
               "signal": "MCAN4.I.RXD",
               "padCtls": {}
             },
-            "PZ02": {
+            "PC18": {
               "signal": "MCAN4.I.STBY",
               "padCtls": {}
             }
@@ -909,8 +909,8 @@
         },
         "init_mcan4_transceiver_phy_pin": {
           "selectPins": {
-            "PZ02": {
-              "signal": "GPIO.A.Z[02]",
+            "PC18": {
+              "signal": "GPIO.A.C[18]",
               "padCtls": {}
             }
           }

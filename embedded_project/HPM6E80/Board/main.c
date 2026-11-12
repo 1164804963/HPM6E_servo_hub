@@ -25,6 +25,7 @@
 
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
 #include "servo_can.h"
+#include "servo_debug_can.h"
 #endif
 
 /*
@@ -101,7 +102,21 @@ int main(void)
         {
             (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_BUS);
             (void)set_app_Internal_control_authority((uint8_t)INTERNAL_CONTROL_APP);
-            printf("main: CAN CiA402 slave init done\r\n");
+            printf("main: J9 CAN7 CiA402 motion ready\r\n");
+        }
+    }
+
+    /* J8/CAN4 independent read-only debug port. Failure here must not touch J9. */
+    {
+        hpm_stat_t dbg_stat = servo_debug_can_init();
+
+        if (dbg_stat != status_success)
+        {
+            printf("main: J8 debug CAN init FAILED (%d), J9 unchanged\r\n", (int)dbg_stat);
+        }
+        else
+        {
+            printf("main: J8 debug CAN ready (CAN4 1Mbps id=0x015 read-only)\r\n");
         }
     }
 #endif
@@ -145,6 +160,7 @@ int main(void)
     {
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
         servo_can_poll();
+        servo_debug_can_poll();
 #endif
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */

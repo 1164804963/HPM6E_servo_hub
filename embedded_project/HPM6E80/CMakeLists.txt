@@ -136,6 +136,7 @@ else()
     sdk_src("${SERVO_ROOT}/communication/callback/cia402_od/master_cia402_callback.c")
     sdk_src(Board/bsp_can.c)
     sdk_src(Board/servo_can.c)
+    sdk_src(Board/servo_debug_can.c)
 endif()
 
 generate_ide_projects()

@@ -16,7 +16,7 @@ try {
     Write-Host "== configure ($Bus) ==" -ForegroundColor Cyan
     & cmake -S embedded_project/HPM6E80 -B $buildDir -G Ninja `
         -DBOARD=hpm6e00YZ `
-        -DSERVO_BUS=$Bus `
+        "-DSERVO_BUS=$Bus" `
         -DHPM_BUILD_TYPE=flash_xip `
         -DCMAKE_BUILD_TYPE=debug `
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
