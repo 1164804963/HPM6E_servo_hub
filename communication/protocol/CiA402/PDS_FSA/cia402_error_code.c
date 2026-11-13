@@ -100,10 +100,6 @@ void Cia402ErrorCodeScan(void)
             set_Error_code(Can_bus_disconnection_error);
             return;
         }
-        if (check_error_val.bits.comms_init_error) {
-            set_Error_code(Communication_error);
-            return;
-        }
         if (check_error_val.bits.external_inhibit_input_detected) {
             set_Error_code(External_inhibit_input_detected_error);
             return;

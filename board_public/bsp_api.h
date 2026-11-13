@@ -24,7 +24,7 @@ void bsp_system_global_irq_enable(void);
 void bsp_system_global_irq_disable(void);
 /* 保存并关闭全局中断；用于极短临界区 */
 uint32_t bsp_irq_save(void);
-/* Port readiness for the HPM dual-CAN application adapter. */
+/* J8/MCAN4 readiness. debug_port is unused; J9 is not initialized. */
 bool bsp_can_port_is_ready(bool debug_port);
 /* 按 bsp_irq_save() 的返回值恢复全局中断 */
 void bsp_irq_restore(uint32_t state);

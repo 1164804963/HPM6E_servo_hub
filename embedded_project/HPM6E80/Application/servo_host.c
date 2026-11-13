@@ -8,6 +8,10 @@
 #include "hpm_interrupt.h"
 
 #include "mavlink_callback.h"   // RegisterSendCallback / MavlinkRecvCallback
+#include "version.h"
+#if defined(USE_CAN_MAVLINK_HOST)
+#include "servo_can.h"
+#endif
 #include "motor_ctl_loop.h"     // kAxis / kAxisDw
 #include "servo_board.h"        // board_get_ctrl_tick()
 #include "servo_console.h"
@@ -231,7 +235,11 @@ void servo_host_init(void)
 {
     UART_Type *ptr = BOARD_CONSOLE_UART_BASE;
 
+#if defined(USE_CAN_MAVLINK_HOST)
+    RegisterSendCallback(servo_can_mavlink_send);
+#else
     RegisterSendCallback(servo_host_send);
+#endif
 
     s_rx_head = s_rx_tail = 0U;
     s_tx_head = s_tx_tail = 0U;

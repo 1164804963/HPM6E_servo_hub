@@ -12,7 +12,7 @@ HPM6EMotorV20 当前实板 ROM 探测为 4MiB NOR、4KiB 扇区、256B 页。SDK
 
 FlashDB/FAL 复用 board_public/flash_db；硬件端口在 Board/bsp_store.c、fal_cfg.h。ROM 擦写调用及配置入口在 ILM，数据源复制到对齐 RAM；操作期间保存/关闭/恢复中断，完成后失效目标数据缓存。不要改成从 XIP 执行裸擦写，也不要把分区移到末尾猜空闲区。
 
-HPM 的 AppStoreUpdata1ms 从控制中断移到主循环，按周期计数约每 1ms 调用。整个存储服务期间禁止中断，只有 PWM 关闭且应用控制字及控制层使能请求都为零时才能执行，防止检查与擦写之间插入使能。拒绝时 Storage_status=-2；操作不是实时任务，运行中不能保存。其他板保留原调度方式。
+HPM6E80 上 `main` 的 `while(1)` 调用 `Application/servo_storage.c` 里的 `servo_storage_poll`，不放进 1 ms 定时器中断。到服务时间后，桥臂已打开、控制字不是失能、或电机使能请求还在时，这次命令被丢掉并写 `FLASH_STORE_STATUS_WARNING`；否则调用 `AppStoreUpdata1ms`。间隔按 CPU 周期计数，主循环被堵住时不会按严格 1 ms 触发。擦写期间 `bsp_flashdb_write` 仍关闭中断；桥臂已打开时驱动直接返回失败。电机已使能时，`set_app_Sys_cmd` 也会拒绝保存并写 `FLASH_STORE_STATUS_WARNING`。Y01 仍在 `UnrealTimeBase1ms` 里调用。
 
 三个正式键仍为 AllParam、ErrorRecord、TqFcTable。每个 blob 增加 SPV1 魔数、schema=1、精确长度，FlashDB 提供 CRC 与写入提交/恢复状态。读取先检查 CRC、已提交状态和布局，再复制到注册缓冲区；不把截断或部分数据应用到运行参数。最大单键有效载荷 3072B，超过则注册失败。更改持久结构时必须升级 schema 并决定迁移方案，不能只因为长度相同就认定兼容。
 
@@ -22,7 +22,7 @@ HPM 的 AppStoreUpdata1ms 从控制中断移到主循环，按周期计数约每
 
 ## J8 保存
 
-继续使用标准 ID 0x015、1Mbps、原有应用 CAN 帧格式。新增 0x1010:01，32 位写入 ASCII `save`，即值 0x65766173。仅 J8/HOST 可发起；不增加 J9 存储协议。写入回包表示请求已接受，必须再读取 0x2000:00 的 Storage_status，2 才表示本次完成成功；0=待执行，1=忙，-1=失败，-2=当前不允许，-3=频率保护。重复未完成请求被拒绝，坏签名/子索引被拒绝，原先的拒绝计数语义不变。0x1010:00 和 :01 读回 1，表示一个保存子项与命令保存能力。
+继续使用标准 ID 0x015、1Mbps、原有应用 CAN 帧格式，走 J8 这一路总线。新增 0x1010:01，32 位写入 ASCII `save`，即值 0x65766173。通信权限为 BUS 时可以写；权限为 HOST 时与其它对象一样拒绝。写入回包表示请求已接受，必须再读取 0x2000:00 的 Storage_status，2 才表示本次完成成功；0=待执行，1=忙，-1=失败，-2=当前不允许，-3=频率保护。重复未完成请求被拒绝，坏签名/子索引被拒绝。0x1010:00 和 :01 读回 1，表示一个保存子项与命令保存能力。
 
 SLCAN 示例（每行末尾 CR）：
 ```
@@ -33,7 +33,7 @@ t01550000200000
 
 ## 职责与验收
 
-Board/ 放芯片/外设驱动和通用 BSP 实现；Application/ 放 servo_can/debug_can/host/console/bringup 应用适配及 BSP 的 CAN 兼容桥。main.c 为组合根。边界脚本只允许适配目录跨两侧，硬件目录继续检查直接依赖；没有通过间接头隐藏 app_store_param 或 data_param。
+Board/ 放芯片/外设驱动和通用 BSP 实现；Application/ 放 servo_can/host/console/bringup/storage 应用适配及 BSP 的 CAN 兼容桥。main.c 为组合根。边界脚本只允许适配目录跨两侧，硬件目录继续检查直接依赖；没有通过间接头隐藏 app_store_param 或 data_param。
 
 历史验收使用无电机初始化的专用存储固件和同一真实 NOR/FlashDB，测试键在结束时删除。该一次性测试固件及生产源码中的故障注入入口已按用户要求从工程清理，源文件和证据归档于工程外。覆盖真实软件复位恢复、PWM 活动拒绝、非法索引、写调用边界失败注入、重开恢复、超过分区容量的更新/GC、长度不兼容、CRC 损坏拒绝、删除后重写。失败注入模拟中断写入，不等同于物理断电试验。
 

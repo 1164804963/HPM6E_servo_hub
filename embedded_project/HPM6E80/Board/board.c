@@ -18,6 +18,10 @@
 #include "servo_host.h"
 #include "drv_encoder.h"
 #include "system_timer.h"
+#include "version.h"
+#if defined(USE_CANOPEN)
+#include "servo_can.h"
+#endif
 
 /* 20kHz 控制节拍与上层位置速度环的比例：1kHz / 20kHz = 20 个电流环周期执行一次位置环。
  * 与 SIL_project/main.c 的 position_frq_div 保持一致，方便实板与离线对比。 */
@@ -235,6 +239,9 @@ void isr_gptmr(void)
         gptmr_clear_status(BOARD_BLDC_TMR_1MS, GPTMR_CH_CMP_IRQ_MASK(BOARD_BLDC_TMR_CH, BOARD_BLDC_TMR_CMP));
         UnrealTimeBase1ms();
     }
+#if defined(USE_CANOPEN)
+    servo_canopen_timer_isr();
+#endif
 }
 
 /*

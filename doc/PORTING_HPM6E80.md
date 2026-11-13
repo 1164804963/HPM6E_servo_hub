@@ -41,12 +41,11 @@ embedded_project/HPM6E80/
     bsp_api.c                            硬件接口与零漂验证/安装
     bsp_store.c / fal_cfg.h               真实 NOR、FlashDB/FAL 和分区
   Application/                           本板与便携应用的组合适配
-    servo_can.c / servo_debug_can.c       J9 / J8 应用协议
-    servo_can_bsp.c                       CAN 的 BSP 兼容桥
+    servo_can.c                          J8/MCAN4 CiA402，并实现 bsp_api 的 CAN 入口；J9 未启用
     servo_host.c                         UART0 MAVLink 上位机
     servo_console.c                      完整串口调试台（用户要求保留）
     servo_bringup.c                       正常启动所需的板级应用初始化
-tests/can_software/                       不参与正式固件的主机回归源码
+    servo_storage.c                      前台存储轮询，失能且桥臂关闭才擦写
 tools/                                   构建、烧录、分层检查、SII生成、串口命令及DMI恢复
 boards/hpm6e00YZ/                         本工程板级包
 cmake/hpm-project.cmake                   SDK 环境入口
@@ -183,8 +182,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/check_layer_boundary.p
 
 | 项 | 现状 | 后续 |
 |---|---|---|
-| FlashDB 参数存储 | 真实 FlashDB/FAL，XPI ROM 擦写位于 ILM；参数区 0x240000+256KiB | 主循环失能存储；分区、失败策略和验证见 `PARAM_STORAGE.md` |
-| CAN 收发 | J8/MCAN4 为 HOST 读写调试，J9/MCAN7 保留 BUS 路径 | 见 `CAN_PORT.md`；J9 功能/参数设计后续进行 |
+| FlashDB 参数存储 | 真实 FlashDB/FAL，XPI ROM 擦写位于 ILM；参数区 0x240000+256KiB | `servo_storage_poll` 在主循环调用，失能且桥臂关闭才擦写。见 `PARAM_STORAGE.md` |
+| CAN 收发 | J8/MCAN4 为唯一 CAN，对标 Y01 `bsp_fdcan`；J9/MCAN7 未初始化 | 见 `CAN_PORT.md` |
 | 固件升级 / 文件传输 | 空实现 | 依赖 FlashDB 与 Bootloader 分区 |
 | 抱闸 PWM | 空实现 | 原理图 BRAKE→Q12 连接未确证，需实板确认后再实现 |
 | MOS/MCU 温度 | 返回 0℃ | 本板只有 NTC1，若确需可复用同一节点 |

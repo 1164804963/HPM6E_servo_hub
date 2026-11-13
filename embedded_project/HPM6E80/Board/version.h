@@ -24,8 +24,16 @@ extern "C"
 #define BUILD_VERSION           (0x00)              // 构建号
 #define VERSION_ENCODE (((MAJOR_VERSION) << 24) | ((MINOR_VERSION) << 16) | ((REVISION_VERSION) << 8) | (BUILD_VERSION))
 
-// 基于 CAN 透传开启 MAVLink 上位机调试
+/* 与 Y01 相同：默认关闭。CMake -DSERVO_CAN_PASSTHROUGH=ON 时打开。 */
+#ifndef IS_USE_CAN_PASSTHROUGH
 #define IS_USE_CAN_PASSTHROUGH  (0)
+#endif
+#if IS_USE_CAN_PASSTHROUGH
+#ifndef USE_CAN
+#define USE_CAN
+#endif
+#define USE_CAN_MAVLINK_HOST
+#endif
 
 #if MINOR_VERSION == V_CAN_CIA402
 #define USE_CAN

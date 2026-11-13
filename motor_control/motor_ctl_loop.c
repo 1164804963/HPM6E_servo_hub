@@ -162,7 +162,7 @@ void UnrealTimeBase1ms(void)
     // 8. 更新LED状态
     AppLedStateUpdata1ms();
 
-    // 9. flash参数存储
+    // 9. flash参数存储。HPM6E80 程序在 XPI NOR 上执行，擦写放在 main 的 while(1)。
 #if !defined(BOARD_SERVO_HPM6E80)
     AppStoreUpdata1ms();
 #endif

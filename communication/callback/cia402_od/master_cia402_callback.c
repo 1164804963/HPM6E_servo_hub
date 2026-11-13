@@ -1,15 +1,13 @@
 #include <stdint.h>
 #include "data_param.h"
 #include "Cia402_ObjectDictionary_Callback.h"
-#include "Cia402_ObjectDictionary_Policy.h"
 
-UNS32 master_cia402_write_callback_for(bool host_entry, uint16_t index, uint8_t subindex, void *data){
-    if(!Cia402AccessAllowsWrite(host_entry, get_app_Comm_control_authority() == COMM_CONTROL_HOST)){
+UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data){
+    if (get_app_Comm_control_authority() == COMM_CONTROL_HOST) {
         return ABORT_CODE_DRIVE_STATE_DENIED;
     }
     switch(index){
         case 0x1010:
-            if (!host_entry) return ABORT_CODE_DRIVE_STATE_DENIED;
             if (subindex != 1U) return ABORT_CODE_SUB_INDEX_NOT_EXIST;
             if (*(uint32_t *)data != 0x65766173U) return ABORT_CODE_VALUE_OUT_OF_RANGE;
             if (get_app_Storage_cmd() != FLASH_STORE_CMD_NULL || get_app_Controlword() != APP_CTRL_DISABLE)
@@ -59,10 +57,6 @@ UNS32 master_cia402_write_callback_for(bool host_entry, uint16_t index, uint8_t 
         case 0x60FE: return OD_0x60FE_Digital_outputs_Write_Callback(subindex, data); break;
         default: return ABORT_CODE_CANNOT_WRITE_RO_OBJECT; break;
     }
-}
-
-UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data){
-    return master_cia402_write_callback_for(false, index, subindex, data);
 }
 
 UNS32 master_cia402_read_callback(uint16_t index, uint8_t subindex, void *data){

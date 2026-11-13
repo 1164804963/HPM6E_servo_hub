@@ -6,24 +6,6 @@
 #include "data_param.h"
 
 #include "motor_ctl_loop.h"
-#include "Cia402_ObjectDictionary_Policy.h"
-
-static UNS32 cia402_abort_from_app_status(uint32_t status)
-{
-    switch (status)
-    {
-    case APP_PARAM_SUCCESS:
-        return ABORT_CODE_SUCCESSFUL;
-    case APP_PARAM_READ_ONLY:
-        return ABORT_CODE_CANNOT_WRITE_RO_OBJECT;
-    case APP_PARAM_WRITE_STATE_ERROR:
-        return ABORT_CODE_DRIVE_STATE_DENIED;
-    case APP_PARAM_OUT_OF_RANGE:
-        return ABORT_CODE_VALUE_OUT_OF_RANGE;
-    default:
-        return ABORT_CODE_UNSUPPORTED_ACCESS;
-    }
-}
 
 //64位转32位，符号位处理
 INTEGER32 limit_64_to_32(int64_t val_64)
@@ -118,57 +100,38 @@ INTEGER16 get_Quick_stop_option_code(void){
 
 UNS32 set_Modes_of_operation(INTEGER8 val){
     /* USER CODE BEGIN set_Modes_of_operation 0 */
-    /* [手工修复] 0x6060 先验证并应用，成功后才更新 OD 生效值。
-     * 再生成影响：本段位于 USER CODE 区块，重新生成时应保留。 */
-    UNS32 app_status = APP_PARAM_SUCCESS;
-
-    if (!Cia402ModeIsSupported(val))
-    {
-        return ABORT_CODE_VALUE_OUT_OF_RANGE;
-    }
-
-    //目前支持的cia402模式:PP,PV,PT,HM,CSP,CSV,CST,MIT
-    switch (val)
-    {
-    case kOd6060_NO_MODE:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_IDLE);
-        break;
-    case kOd6060_PPM:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_POSITION);
-        break;
-    case kOd6060_PVM:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_SPEED);
-        break;
-    case kOd6060_TPM:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_TORQUE);
-        break;
-    case kOd6060_HM:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_HOMING);
-        break;
-    case kOd6060_CSP:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSP);
-        break;
-    case kOd6060_CSV:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSV);
-        break;
-    case kOd6060_CST:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CST);
-        break;
-    case kOd6060_MIT:
-        app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_MIT);
-        break;
-    default:
-        return ABORT_CODE_VALUE_OUT_OF_RANGE;
-    }
-
-    if (app_status != APP_PARAM_SUCCESS)
-    {
-        return cia402_abort_from_app_status(app_status);
-    }
-
-    kPDS_FSA.Modes_of_operation = val;
     /* USER CODE END set_Modes_of_operation 0 */
+    kPDS_FSA.Modes_of_operation = val;
     /* USER CODE BEGIN set_Modes_of_operation 1 */
+    //目前支持的cia402模式:PP,PV,PT,HM,CSP,CSV,CST,MIT
+    switch(kPDS_FSA.Modes_of_operation){
+        case kOd6060_PPM:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_POSITION);
+            break;
+        case kOd6060_PVM:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_SPEED);
+            break;
+        case kOd6060_TPM:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_TORQUE);
+            break;
+        case kOd6060_HM:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_HOMING);
+            break;
+        case kOd6060_CSP:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSP);
+            break;
+        case kOd6060_CSV:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSV);
+            break;
+        case kOd6060_CST:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CST);
+            break;
+        case kOd6060_MIT:
+            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_MIT);
+            break;
+        default:
+            break;
+    }
     /* USER CODE END set_Modes_of_operation 1 */
     return ABORT_CODE_SUCCESSFUL;
 }

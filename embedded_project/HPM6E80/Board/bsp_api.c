@@ -511,6 +511,7 @@ uint32_t bsp_get_can_mg_counts(void)
 }
 #endif
 
+#if !defined(CONFIG_SERVO_CAN) || !(CONFIG_SERVO_CAN) || !IS_USE_CAN_PASSTHROUGH
 static uint8_t s_can_mav_sys_id;
 static uint8_t s_can_mav_comp_id;
 
@@ -525,6 +526,7 @@ void bsp_get_can_mav_id(uint8_t *sys_id, uint8_t *comp_id)
     *sys_id = s_can_mav_sys_id;
     *comp_id = s_can_mav_comp_id;
 }
+#endif
 
 /* ---------------------------------------------------------------------------
  * 其它

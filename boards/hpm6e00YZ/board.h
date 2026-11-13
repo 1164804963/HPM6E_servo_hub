@@ -325,9 +325,9 @@
 #define BOARD_APP_ADC16_HW_TRGM_OUT_PMT      TRGM_TRGOCFG_ADCX_PTRGI0A
 #define BOARD_APP_ADC16_PMT_TRIG_CH          ADC16_CONFIG_TRG0A
 
-/* CAN section */
-#define BOARD_APP_CAN_BASE HPM_MCAN7
-#define BOARD_APP_CAN_IRQn IRQn_MCAN7
+/* CAN section. J8/MCAN4 is the single application CAN (Y01 bsp_fdcan). J9/MCAN7 is unused. */
+#define BOARD_APP_CAN_BASE HPM_MCAN4
+#define BOARD_APP_CAN_IRQn IRQn_MCAN4
 
 /* J8/CAN4 STBY: PC18, high=standby, low=normal (TJA1042T/3). */
 #define BOARD_CAN_STB_GPIO_CTRL HPM_GPIO0

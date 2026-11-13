@@ -5,7 +5,6 @@
 #define SLAVEOD_H
 
 #include "data.h"
-#include "drv_can_app.h"
 
 /* Prototypes of function provided by object dictionnary */
 UNS32 SlaveOD_valueRangeTest (UNS8 typeValue, void * value);

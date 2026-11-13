@@ -39,9 +39,8 @@ typedef union
         uint32_t over_temperature_mcu : 1;        // MCU过温
         uint32_t under_temperature_mcu : 1;       // MCU欠温
         uint32_t external_inhibit_input_detected : 1; // 外部抑制输入检测错误
-        uint32_t comms_init_error : 1;            // 通讯初始化错误（持续条件）
 
-        uint32_t reserved : 10;
+        uint32_t reserved : 11;
     } bits; // 位字段
 } CheckErrorCode_t;
 
@@ -116,10 +115,8 @@ typedef struct {
 // 任务循环调用接口
 void AppStatusCheck(void);           // 通用状态轮询检查函数  位置环调用
 void AppStatusScanInit(void);        // 应用状态扫描初始化函数
-void AppStatusScanFast(void);
-void AppCommSourceRefresh(void);        // 错误轮询检查函数  位置环调用
+void AppStatusScanFast(void);        // 错误轮询检查函数  位置环调用
 void AppStatusScanSlow(void);        // 错误轮询检查函数  1ms任务调用
-void AppCommSourceRefresh(void);     // 按当前 HOST/BUS 活动源刷新 comms init 故障
 void AppLedStateUpdata1ms(void);     // LED状态更新函数   1ms任务调用
 
 

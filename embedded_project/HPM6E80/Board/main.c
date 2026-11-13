@@ -14,7 +14,7 @@
 #include "servo_bringup.h"
 #include "servo_console.h"
 #include "servo_host.h"
-#include "system_timer.h"
+#include "servo_storage.h"
 
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
 /* [ECAT] EtherCAT 从站（HPM6E80 内置 ESC） */
@@ -26,7 +26,6 @@
 
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
 #include "servo_can.h"
-#include "servo_debug_can.h"
 #endif
 
 /*
@@ -70,14 +69,13 @@ int main(void)
     /* 4. 参数/控制/应用初始化。 */
     servo_app_init();
 
-    /* 4.1 控制权交给上位机（与 Y01 一致）：Comm=HOST、Internal=APP。
-     *     上位机不会主动来"要权限"，它默认设备就归它控制，所以这里必须给对，
-     *     否则点使能没反应（日志里能看到 APPCONTROLWORD 发下去了，但 motor_enable
-     *     一直是 0，因为 set_app_Controlword 在 CTRL 权限下只读）。
-     *     代价：串口调试台的 en/dis/mode 会被应用层每 1ms 覆盖掉，
-     *     接上位机时用它上面的按钮，串口只做观察。 */
-    set_app_Comm_control_authority(COMM_CONTROL_HOST);
+    /* 4.1 内部控制权交给应用。
+     *     CAN 固件这一路就是总线，通信权限保持参数初始化后的 BUS，与 Y01 bsp_fdcan 一致。
+     *     EtherCAT 固件先交给串口上位机；进入 OP 时再切到总线。 */
     set_app_Internal_control_authority(INTERNAL_CONTROL_APP);
+#if !defined(CONFIG_SERVO_CAN) || !(CONFIG_SERVO_CAN)
+    set_app_Comm_control_authority(COMM_CONTROL_HOST);
+#endif
 
     /* 5. 上电自检：编码器就绪 -> 初始化控制层位置状态 -> 三相电流零漂校准。
      *    这一步必须在放行控制节拍之前做完，否则速度环会从 0 位置起跳。 */
@@ -88,34 +86,22 @@ int main(void)
     servo_bringup_print_l0();
 
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
-    /* 5.1 CAN CiA402：应用参数初始化后启动 MCAN7；失败明确报错并保持失能。 */
+    /* 5.1 CAN CiA402：J8/MCAN4，对标 Y01 的 bsp_fdcan。J9/MCAN7 先不初始化。 */
     {
         hpm_stat_t can_stat = servo_can_init(kAppBaseConfig.Can_id, kAppBaseConfig.Can_baudrate);
 
         if (can_stat != status_success)
         {
-            printf("main: J9 CAN7 init FAILED (%d); J8/HOST remains primary\r\n", (int)can_stat);
+            sys_set_bsp_error_state(ERROR_COMMS_INIT, ERROR_SET);
+            printf("main: J8 CAN4 init FAILED (%d)\r\n", (int)can_stat);
         }
         else
         {
-            printf("main: J9 CAN7 ready for BUS authority; current authority HOST\r\n");
+            printf("main: J8 CAN4 ready id=0x%03X baud=%lu\r\n",
+                   (unsigned)kAppBaseConfig.Can_id,
+                   (unsigned long)kAppBaseConfig.Can_baudrate);
         }
     }
-
-    /* J8/CAN4 is the default HOST read/write port. J9 failure must not block it. */
-    {
-        hpm_stat_t dbg_stat = servo_debug_can_init();
-
-        if (dbg_stat != status_success)
-        {
-            printf("main: J8 debug CAN init FAILED (%d)\r\n", (int)dbg_stat);
-        }
-        else
-        {
-            printf("main: J8 debug CAN ready (CAN4 1Mbps id=0x015 HOST read/write)\r\n");
-        }
-    }
-    AppCommSourceRefresh();
 #endif
 
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
@@ -149,38 +135,16 @@ int main(void)
     /* 6. 应用初始化完成后才放行 20kHz 控制节拍。 */
     board_start_ctrl_tick();
 
-    /* 7. 主循环：控制全在 20kHz/1kHz 中断里；EtherCAT 协议栈在主循环轮询
-     *    MainLoop() 驱动（与 Y01/EtherCAT 例程一致）。MAVLink 收发在 UART0 中断。 */
+    /* 7. 主循环：控制在 20kHz/1kHz 中断里。参数擦写由 servo_storage_poll() 在前台处理。
+     *    EtherCAT 的 MainLoop() 也在这里。MAVLink 收发在 UART0 中断。 */
     servo_console_init();
     servo_host_init();
     while (1)
     {
-#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
-        servo_can_poll();
-        servo_debug_can_poll();
-#endif
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */
 #endif
         servo_console_poll();
-        /* NOR operations block interrupts: only service storage in foreground,
-         * with both the physical bridge and all enable requests inactive. */
-        static uint32_t store_last_cycle;
-        uint32_t now = read_csr(CSR_MCYCLE);
-        if ((uint32_t)(now - store_last_cycle) >= sys_timer.sys_freq_Mhz * 1000U)
-        {
-            store_last_cycle = now;
-            uint32_t irq = bsp_irq_save();
-            if (get_app_Storage_cmd() != FLASH_STORE_CMD_NULL &&
-                (bsp_get_pwm_state() || get_app_Controlword() != APP_CTRL_DISABLE ||
-                 kAxis.motor_ctl_sm_input.motor_enable != 0))
-            {
-                set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-                set_app_Storage_cmd(FLASH_STORE_CMD_NULL);
-            }
-            else
-                AppStoreUpdata1ms();
-            bsp_irq_restore(irq);
-        }
+        servo_storage_poll();
     }
 }
