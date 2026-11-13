@@ -212,6 +212,9 @@ void flash_param_update(void);
 void flash_param_init(void);
 
 /* USER CODE BEGIN AREA 1 */
+void AppStoreRestoreCurrentCalibration(void);
+void AppStoreElecBias(float bias_rad);
+bool AppStoreRestoreElecBias(float *out_bias_rad);
 void AppStoreInit(void);
 void AppStoreUpdata1ms(void);
 

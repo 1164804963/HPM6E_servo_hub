@@ -278,6 +278,7 @@ typedef enum {
     FLASHDB_KV_NAME_EXIST,
     FLASHDB_SAVED_FULL,
     FLASHDB_INIT_FAILED,
+    FLASHDB_KEY_NOT_FOUND, /* No saved value: retain initialized RAM defaults. */
 } FLASHDB_STATUS;
 typedef enum {
     FLASH_STORE_CMD_NULL = 0,       // 无操作/空闲

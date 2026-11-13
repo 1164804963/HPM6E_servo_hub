@@ -14,6 +14,7 @@
 #include "servo_bringup.h"
 #include "servo_console.h"
 #include "servo_host.h"
+#include "system_timer.h"
 
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
 /* [ECAT] EtherCAT 从站（HPM6E80 内置 ESC） */
@@ -44,7 +45,7 @@ static void servo_app_init(void)
 #if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
     /* [移植补丁 14] FlashDB 参数已读完，接着从 Flash 恢复电流零漂标定结果，
      * 这样上电第一次使能就能直接跑，不需要先"使能一次做标定再使能一次"。 */
-    bsp_current_calibration_restore_from_flash();
+    AppStoreRestoreCurrentCalibration();
 #endif
     ScopeInit();
     AppBrakeControlInit();
@@ -93,32 +94,28 @@ int main(void)
 
         if (can_stat != status_success)
         {
-            sys_set_bsp_error_state(ERROR_COMMS_INIT, ERROR_SET);
-            (void)set_app_Controlword((uint16_t)APP_CTRL_DISABLE);
-            board_set_pwm_enable(false);
-            printf("main: CAN init FAILED (%d), motor stays disabled\r\n", (int)can_stat);
+            printf("main: J9 CAN7 init FAILED (%d); J8/HOST remains primary\r\n", (int)can_stat);
         }
         else
         {
-            (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_BUS);
-            (void)set_app_Internal_control_authority((uint8_t)INTERNAL_CONTROL_APP);
-            printf("main: J9 CAN7 CiA402 motion ready\r\n");
+            printf("main: J9 CAN7 ready for BUS authority; current authority HOST\r\n");
         }
     }
 
-    /* J8/CAN4 independent read-only debug port. Failure here must not touch J9. */
+    /* J8/CAN4 is the default HOST read/write port. J9 failure must not block it. */
     {
         hpm_stat_t dbg_stat = servo_debug_can_init();
 
         if (dbg_stat != status_success)
         {
-            printf("main: J8 debug CAN init FAILED (%d), J9 unchanged\r\n", (int)dbg_stat);
+            printf("main: J8 debug CAN init FAILED (%d)\r\n", (int)dbg_stat);
         }
         else
         {
-            printf("main: J8 debug CAN ready (CAN4 1Mbps id=0x015 read-only)\r\n");
+            printf("main: J8 debug CAN ready (CAN4 1Mbps id=0x015 HOST read/write)\r\n");
         }
     }
+    AppCommSourceRefresh();
 #endif
 
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
@@ -166,5 +163,24 @@ int main(void)
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */
 #endif
         servo_console_poll();
+        /* NOR operations block interrupts: only service storage in foreground,
+         * with both the physical bridge and all enable requests inactive. */
+        static uint32_t store_last_cycle;
+        uint32_t now = read_csr(CSR_MCYCLE);
+        if ((uint32_t)(now - store_last_cycle) >= sys_timer.sys_freq_Mhz * 1000U)
+        {
+            store_last_cycle = now;
+            uint32_t irq = bsp_irq_save();
+            if (get_app_Storage_cmd() != FLASH_STORE_CMD_NULL &&
+                (bsp_get_pwm_state() || get_app_Controlword() != APP_CTRL_DISABLE ||
+                 kAxis.motor_ctl_sm_input.motor_enable != 0))
+            {
+                set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
+                set_app_Storage_cmd(FLASH_STORE_CMD_NULL);
+            }
+            else
+                AppStoreUpdata1ms();
+            bsp_irq_restore(irq);
+        }
     }
 }

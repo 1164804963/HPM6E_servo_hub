@@ -11,7 +11,8 @@ add_executable(test_can_software
     stubs/bsp_can_stub.c
     stubs/servo_stubs.c
     "${SERVO_ROOT}/communication/protocol/can_cia402/can_cia402.c"
-    "${SERVO_ROOT}/embedded_project/HPM6E80/Board/servo_can.c"
+    "${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA/cia402_fsm.c"
+    "${SERVO_ROOT}/embedded_project/HPM6E80/Application/servo_can.c"
 )
 
 target_include_directories(test_can_software PRIVATE
@@ -19,8 +20,11 @@ target_include_directories(test_can_software PRIVATE
     "${CAN_TEST_ROOT}/stubs"
     "${CAN_TEST_ROOT}"
     "${SERVO_ROOT}/embedded_project/HPM6E80/Board"
+    "${SERVO_ROOT}/embedded_project/HPM6E80/Application"
     "${SERVO_ROOT}/communication/protocol/can_cia402"
     "${SERVO_ROOT}/communication/callback/cia402_od"
+    "${SERVO_ROOT}/communication/protocol/CiA402/PDS_FSA"
+    "${SERVO_ROOT}/app"
 )
 
 enable_testing()

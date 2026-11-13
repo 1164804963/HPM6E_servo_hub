@@ -14,6 +14,7 @@ typedef uint32_t UNS32;
 #define ABORT_CODE_CANNOT_READ_WO_OBJECT    (0x06010001) //Attempt to read a write only object
 #define ABORT_CODE_CANNOT_WRITE_RO_OBJECT   (0x06010002) //Attempt to write a read only object
 #define ABORT_CODE_SUB_INDEX_NOT_EXIST      (0x06090011) //Sub-index does not exist
+#define ABORT_CODE_VALUE_OUT_OF_RANGE       (0x06090030) //Value range exceeded
 #define ABORT_CODE_VALUE_TOO_HIGH           (0x06090031) //Value of parameter written too high
 #define ABORT_CODE_VALUE_TOO_LOW            (0x06090032) //Value of parameter written too low
 #define ABORT_CODE_DRIVE_STATE_DENIED       (0x08000022) //Data cannot be transferred or stored to the application because of the present device state

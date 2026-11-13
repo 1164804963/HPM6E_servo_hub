@@ -22,6 +22,12 @@ void bsp_system_reset(void);
 void bsp_system_global_irq_enable(void);
 /* 全局中断禁用 */
 void bsp_system_global_irq_disable(void);
+/* 保存并关闭全局中断；用于极短临界区 */
+uint32_t bsp_irq_save(void);
+/* Port readiness for the HPM dual-CAN application adapter. */
+bool bsp_can_port_is_ready(bool debug_port);
+/* 按 bsp_irq_save() 的返回值恢复全局中断 */
+void bsp_irq_restore(uint32_t state);
 #pragma endregion
 
 #pragma region 硬件状态相关
@@ -39,11 +45,8 @@ void sys_current_calibration_step(void);
 CURRENT_CALIBRATION_STATUS sys_get_current_calibration_status(void);
 /* 获取UVW三相电流校准值 */
 void sys_get_current_calibration_drift(uint16_t *drift);
-/* [移植补丁 14] 上电从 Flash 恢复电流零漂标定结果（在 FlashDB 读完参数后调用） */
-void bsp_current_calibration_restore_from_flash(void);
-/* [移植补丁 16] 电角度零点的 Flash 持久化：标定后存影子 / 上电恢复 */
-void bsp_elec_bias_store_to_shadow(float bias_rad);
-bool bsp_elec_bias_restore_from_flash(float *out_bias_rad);
+/* Validate and install previously calibrated ADC drift; never reads application storage. */
+bool sys_restore_current_calibration_drift(const uint16_t drift[3]);
 /* 设置PWM输出状态 */
 void bsp_set_pwm_state(bool state);
 /* 更新PWM输出准备状态 */

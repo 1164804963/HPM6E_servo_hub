@@ -1,8 +1,0 @@
-{
-  "bytes": 4194304,
-  "original_sha256": "822609d23aedc11f1dc4c692306a86773b2b493c4f9f0dcb35da32333cea9d08",
-  "restored_sha256": "822609d23aedc11f1dc4c692306a86773b2b493c4f9f0dcb35da32333cea9d08",
-  "byte_for_byte_match": true,
-  "probe_size": "0x00400000",
-  "rollback_program_verified": true
-}

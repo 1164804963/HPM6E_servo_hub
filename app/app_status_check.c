@@ -1,5 +1,7 @@
 #include "app_status_check.h"
+#include "app_status_check_utils.h"
 #include "motor_ctl_loop.h"
+
 
 static Axis *const axis = &kAxis; // 引用电机对象实例化
 AppCheckVal kAppCheck =
@@ -62,6 +64,7 @@ static inline bool AppTooLowTemperatureMotorErrorCheck(void);
 static inline bool AppExcessTemperatureMcuErrorCheck(void);
 static inline bool AppTooLowTemperatureMcuErrorCheck(void);
 static inline bool AppExternalInhibitInputDetectedErrorCheck(void);
+static inline bool AppCommsInitErrorCheck(void);
 
 // 错误检测函数数组注册
 static const CheckFunctionList CheckTable[] =
@@ -90,6 +93,7 @@ static const CheckFunctionList CheckTable[] =
     {AppExcessTemperatureMcuErrorCheck, false},
     {AppTooLowTemperatureMcuErrorCheck, false},
     {AppExternalInhibitInputDetectedErrorCheck, true},
+    {AppCommsInitErrorCheck, true}, // bit22: must stay last to keep indices stable
 };
 
 #pragma region 错误检测函数定义
@@ -130,6 +134,11 @@ static inline bool AppBusVoltageErrorCheck(void)
 static inline bool AppExternalInhibitInputDetectedErrorCheck(void)
 {
     return kAppCheck.p_bsp_error->bit_band.error_limit_switch;
+}
+
+static inline bool AppCommsInitErrorCheck(void)
+{
+    return kAppCheck.p_bsp_error->bit_band.error_comms_init;
 }
 
 /**
@@ -413,30 +422,20 @@ static inline bool AppDriverOverCurrentErrorCheck(void)
  */
 static inline bool AppCanBusDisconnectionErrorCheck(void)
 {
-    static float time_count = 0;
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+    static AppCanMonitorState monitor;
 
     kAppCheck.can_mg_counts_now = bsp_get_can_mg_counts();
+    bool active = (get_app_Comm_control_authority() == COMM_CONTROL_BUS) &&
+                  bsp_can_port_is_ready(false);
+    bool timeout = app_can_monitor_step(&monitor, active, kAppCheck.can_mg_counts_now,
+                                        kAppCheck.dt_1ms, get_app_Can_timeout());
 
-    if (0 == kAppCheck.can_mg_counts_now && 0 == kAppCheck.can_mg_counts_last) // 未接受到CAN消息
-    {
-        kAppCheck.can_mg_counts_last = kAppCheck.can_mg_counts_now;
-        return false;
-    }
-    if (kAppCheck.can_mg_counts_last == kAppCheck.can_mg_counts_now) // 没有接收到 新的CAN消息 累计记录时间
-    {
-        time_count += kAppCheck.dt_1ms;
-        if (time_count >= get_app_Can_timeout()) // 超时报错
-        {
-            time_count = get_app_Can_timeout();
-            return true;
-        }
-    }
-    else
-    {
-        time_count = 0.0f;
-    }
-    kAppCheck.can_mg_counts_last = kAppCheck.can_mg_counts_now;
+    kAppCheck.can_mg_counts_last = monitor.last_count;
+    return timeout;
+#else
     return false;
+#endif
 }
 
 /**
@@ -768,6 +767,18 @@ bool AppEncoderZeroCrossingStateCheck(void)
 #pragma endregion
 
 #pragma region 外部接口函数定义
+void AppCommSourceRefresh(void)
+{
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+    bool host_authority = (get_app_Comm_control_authority() != COMM_CONTROL_BUS);
+    bool ready = app_comm_source_ready(host_authority,
+                                       bsp_can_port_is_ready(true),
+                                       bsp_can_port_is_ready(false));
+
+    sys_set_bsp_error_state(ERROR_COMMS_INIT, ready ? ERROR_CLEAR : ERROR_SET);
+#endif
+}
+
 uint32_t app_get_check_error_val(void)
 {
     return kAppCheck.error.all;
@@ -821,13 +832,15 @@ void AppStatusScanInit(void)
  */
 void AppStatusScanFast(void)
 {
+    AppCommSourceRefresh();
     kAppCheck.now_ctrl_word = get_app_Controlword();
     // 控制字发送0->3，清错
     if (kAppCheck.pre_ctrl_word == APP_CTRL_DISABLE &&
         (kAppCheck.now_ctrl_word == APP_CTRL_CLEAR_ERROR))
     {
-        if (kAppCheck.p_bsp_error->bit_band.error_bus_voltage || \
-            kAppCheck.p_bsp_error->bit_band.error_nfault) // 此2错误无法被清除  只能复位
+        if (!app_error_clear_allowed(kAppCheck.p_bsp_error->bit_band.error_bus_voltage,
+                                     kAppCheck.p_bsp_error->bit_band.error_nfault,
+                                     kAppCheck.p_bsp_error->bit_band.error_comms_init))
         {
             ;;;
         }

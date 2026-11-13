@@ -1,4 +1,4 @@
-﻿# 架构边界检查：确认 HPM 板级细节没有渗进便携层。
+# 架构边界检查：确认 HPM 板级细节没有渗进便携层。
 #
 # 用法：pwsh -File tools/check_layer_boundary.ps1
 # 返回码 0 = 通过，1 = 越界。建议在提交前跑一次。
@@ -21,7 +21,7 @@ $portableDirs = @(
     "board_public"
 ) | ForEach-Object { Join-Path $Root $_ }
 
-$boardDir = Join-Path $Root "embedded_project\HPM6E80"
+$boardDir = Join-Path $Root "embedded_project\HPM6E80\Board"
 $silDir = Join-Path $Root "SIL_project"
 
 function Report([string]$message) {
@@ -46,6 +46,7 @@ Get-ChildItem -Path $portableDirs -Recurse -File -Include *.c,*.h | ForEach-Obje
 }
 
 # 规则 2：板级硬件文件不得直接包含便携层内部头文件。
+# Application/ contains explicit board/application adapters and is not a hardware driver directory.
 # main.c 是组合根（写死初始化顺序），允许同时看到两侧。
 Get-ChildItem -Path $boardDir -Recurse -File -Include *.c,*.h | ForEach-Object {
     $file = $_

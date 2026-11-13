@@ -1009,7 +1009,8 @@ static fdb_err_t move_kv(fdb_kvdb_t db, fdb_kv_t kv)
 
     /* prepare to delete the current KV */
     if (kv->status == FDB_KV_WRITE) {
-        del_kv(db, NULL, kv, false);
+        result = del_kv(db, NULL, kv, false);
+        if (result != FDB_NO_ERR) return result;
     }
 
     if ((kv_addr = alloc_kv(db, &sector, kv->len)) != FAILED_ADDR) {
@@ -1033,9 +1034,11 @@ static fdb_err_t move_kv(fdb_kvdb_t db, fdb_kv_t kv)
         size_t len, size, kv_len = kv->len;
 
         /* update the new KV sector status first */
-        update_sec_status(db, &sector, kv->len, NULL);
+        result = update_sec_status(db, &sector, kv->len, NULL);
+        if (result != FDB_NO_ERR) return result;
 
-        _fdb_write_status((fdb_db_t)db, kv_addr, status_table, FDB_KV_STATUS_NUM, FDB_KV_PRE_WRITE, false);
+        result = _fdb_write_status((fdb_db_t)db, kv_addr, status_table, FDB_KV_STATUS_NUM, FDB_KV_PRE_WRITE, false);
+        if (result != FDB_NO_ERR) return result;
         kv_len -= KV_MAGIC_OFFSET;
         for (len = 0, size = 0; len < kv_len; len += size) {
             if (len + sizeof(buf) < kv_len) {
@@ -1043,10 +1046,13 @@ static fdb_err_t move_kv(fdb_kvdb_t db, fdb_kv_t kv)
             } else {
                 size = kv_len - len;
             }
-            _fdb_flash_read((fdb_db_t)db, kv->addr.start + KV_MAGIC_OFFSET + len, (uint32_t *) buf, FDB_WG_ALIGN(size));
+            result = _fdb_flash_read((fdb_db_t)db, kv->addr.start + KV_MAGIC_OFFSET + len, (uint32_t *) buf, FDB_WG_ALIGN(size));
+            if (result != FDB_NO_ERR) return result;
             result = _fdb_flash_write((fdb_db_t)db, kv_addr + KV_MAGIC_OFFSET + len, (uint32_t *) buf, size, true);
+            if (result != FDB_NO_ERR) return result;
         }
-        _fdb_write_status((fdb_db_t)db, kv_addr, status_table, FDB_KV_STATUS_NUM, FDB_KV_WRITE, true);
+        result = _fdb_write_status((fdb_db_t)db, kv_addr, status_table, FDB_KV_STATUS_NUM, FDB_KV_WRITE, true);
+        if (result != FDB_NO_ERR) return result;
 
 #ifdef FDB_KV_USING_CACHE
         update_sector_empty_addr_cache(db, FDB_ALIGN_DOWN(kv_addr, db_sec_size(db)),
@@ -1058,7 +1064,8 @@ static fdb_err_t move_kv(fdb_kvdb_t db, fdb_kv_t kv)
     FDB_DEBUG("Moved the KV (%.*s) from 0x%08" PRIX32 " to 0x%08" PRIX32 ".\n", kv->name_len, kv->name, kv->addr.start, kv_addr);
 
 __exit:
-    del_kv(db, NULL, kv, true);
+    /* Keep the source until the complete destination has been committed. */
+    result = del_kv(db, NULL, kv, true);
 
     return result;
 }
@@ -1116,7 +1123,9 @@ static bool do_gc(kv_sec_info_t sector, void *arg1, void *arg2)
     if (sector->check_ok && (sector->status.dirty == FDB_SECTOR_DIRTY_TRUE || sector->status.dirty == FDB_SECTOR_DIRTY_GC)) {
         uint8_t status_table[FDB_DIRTY_STATUS_TABLE_SIZE];
         /* change the sector status to GC */
-        _fdb_write_status((fdb_db_t)db, sector->addr + SECTOR_DIRTY_OFFSET, status_table, FDB_SECTOR_DIRTY_STATUS_NUM, FDB_SECTOR_DIRTY_GC, true);
+        if (_fdb_write_status((fdb_db_t)db, sector->addr + SECTOR_DIRTY_OFFSET, status_table,
+                              FDB_SECTOR_DIRTY_STATUS_NUM, FDB_SECTOR_DIRTY_GC, true) != FDB_NO_ERR)
+            return true;
         /* search all KV */
         kv.addr.start = sector->addr + SECTOR_HDR_DATA_SIZE;
         do {
@@ -1125,12 +1134,15 @@ static bool do_gc(kv_sec_info_t sector, void *arg1, void *arg2)
                 /* move the KV to new space */
                 if (move_kv(db, &kv) != FDB_NO_ERR) {
                     FDB_INFO("Error: Moved the KV (%.*s) for GC failed.\n", kv.name_len, kv.name);
+                    /* A failed move must never erase the last committed copy.
+                     * Retain GC state for recovery on the next database open. */
+                    return true;
                 }
             } else {
                 FDB_DEBUG("KV (%.*s) is garbage NOT need move, collect it.\n", kv.name_len, kv.name);
             }
         } while ((kv.addr.start = get_next_kv_addr(db, sector, &kv)) != FAILED_ADDR);
-        format_sector(db, sector->addr, SECTOR_NOT_COMBINED);
+        if (format_sector(db, sector->addr, SECTOR_NOT_COMBINED) != FDB_NO_ERR) return true;
         last_gc_sec_addr = gc->last_gc_sec_addr;
         gc->last_gc_sec_addr = sector->addr;
         /* update oldest_addr for next GC sector format */

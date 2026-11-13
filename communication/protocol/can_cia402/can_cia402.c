@@ -4,10 +4,11 @@
 
 #define CAN_CIA402_ABORT_OK (0U)
 
-can_cia402_result_t can_cia402_handle_request(const uint8_t *request,
-                                              uint8_t request_len,
-                                              uint8_t reply[CAN_CIA402_REPLY_SIZE],
-                                              uint32_t *abort_code)
+can_cia402_result_t can_cia402_handle_request_for(can_cia402_access_t access,
+                                                  const uint8_t *request,
+                                                  uint8_t request_len,
+                                                  uint8_t reply[CAN_CIA402_REPLY_SIZE],
+                                                  uint32_t *abort_code)
 {
     uint8_t op;
     uint16_t index;
@@ -57,7 +58,8 @@ can_cia402_result_t can_cia402_handle_request(const uint8_t *request,
 
     if (op == 1U)
     {
-        abort = master_cia402_write_callback(index, subindex, &value);
+        abort = master_cia402_write_callback_for(access == CAN_CIA402_ACCESS_DEBUG_HOST,
+                                                 index, subindex, &value);
     }
     else
     {
@@ -84,4 +86,13 @@ can_cia402_result_t can_cia402_handle_request(const uint8_t *request,
     reply[7] = (uint8_t)((value >> 24U) & 0xFFU);
 
     return CAN_CIA402_OK;
+}
+
+can_cia402_result_t can_cia402_handle_request(const uint8_t *request,
+                                              uint8_t request_len,
+                                              uint8_t reply[CAN_CIA402_REPLY_SIZE],
+                                              uint32_t *abort_code)
+{
+    return can_cia402_handle_request_for(CAN_CIA402_ACCESS_MASTER, request,
+                                         request_len, reply, abort_code);
 }

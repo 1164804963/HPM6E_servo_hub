@@ -1,10 +1,12 @@
+> 2026-11-13 清理：完整串口调试台、MAVLink、J8和实际存储保留；一次性测试固件、故障注入、过期探测脚本及历史原始测试产物已移出工程。当前入口见 [HANDOFF.md](HANDOFF.md)。下文历史验证中的旧探针命令不再作为当前操作步骤。
+
 # servo_hub -> HPM6EMotorV20 移植说明
 
 本文只记录**移植的边界、映射和验收方法**。架构设计理由见上一轮讨论，不在这里重复。
 
 - 母体：`servo_hub`（MIT，YuanHub），分层为 便携层 / `bsp_api.h` / 板级。
 - 目标板：`HPM6EMotorV20`（HPM6E8YIGN1 + STDRIVE101 + 6×BSC040N10NS5，12V 母线，MT6816 14bit SPI 编码器）。
-- 原则：**只新增 `embedded_project/HPM6E80/` 一个目录 + `board_public/` 两份参数头；其余目录一行不改。**
+- 初始移植曾限制只增加板级目录；2026-11-13 的审查修复已按用户授权修改必要便携层，当前存储及职责划分见 [PARAM_STORAGE.md](PARAM_STORAGE.md)。
 
 ---
 
@@ -30,24 +32,24 @@
 
 ## 1. 目录与边界
 
-```
-board_public/
-  driver_parameter_hw_hpm6emotorv20.h     新增：本板硬件常数
-  motor_parameter_hpm6emotorv20_bldc12v.h 新增：本电机 + 编码器 + 环路初值
-  bsp_api.h                               冻结，不改
+```text
+board_public/                            跨平台 BSP 契约、参数及 FlashDB
 embedded_project/HPM6E80/
-  CMakeLists.txt                          HPM SDK 构建入口
-  Board/
-    main.c                                组合根：初始化顺序写死在这里
-    servo_board.h                         本板硬件映射 + BspData
-    servo_system_cfg.h                    选参数头（换板/换电机只改这里）
-    board.c                               PWM / ADC / 20kHz 与 1ms 节拍 / 中断入口
-    bsp_api.c                             bsp_api.h 的全部实现（含 sys_* 与电流零漂校准）
-    system_timer.c/.h                     rdcycle 计时与阻塞延时
-    drv_encoder.c/.h                      MT6816 适配到 bsp 编码器接口
-    encoder_mt6816.c/.h                   从现有已验证工程原样拷贝
-boards/hpm6e00YZ/                         SDK 板级包（时钟/引脚/BOARD_* 宏），原样拷贝
-cmake/hpm-project.cmake                   原样拷贝，SDK 路径来自 .vscode/settings.json
+  CMakeLists.txt                         正常 CAN/EtherCAT 固件入口
+  Board/                                 芯片驱动、BSP、编码器、NOR 存储、时钟/中断
+    main.c                               组合根：初始化及前台服务
+    bsp_api.c                            硬件接口与零漂验证/安装
+    bsp_store.c / fal_cfg.h               真实 NOR、FlashDB/FAL 和分区
+  Application/                           本板与便携应用的组合适配
+    servo_can.c / servo_debug_can.c       J9 / J8 应用协议
+    servo_can_bsp.c                       CAN 的 BSP 兼容桥
+    servo_host.c                         UART0 MAVLink 上位机
+    servo_console.c                      完整串口调试台（用户要求保留）
+    servo_bringup.c                       正常启动所需的板级应用初始化
+tests/can_software/                       不参与正式固件的主机回归源码
+tools/                                   构建、烧录、分层检查、SII生成、串口命令及DMI恢复
+boards/hpm6e00YZ/                         本工程板级包
+cmake/hpm-project.cmake                   SDK 环境入口
 ```
 
 边界检查：
@@ -56,7 +58,7 @@ cmake/hpm-project.cmake                   原样拷贝，SDK 路径来自 .vscod
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/check_layer_boundary.ps1
 ```
 
-检查三条：便携层不出现 `hpm_*`；板级硬件文件不引用 `app_*`；SIL 工程文件仍在。
+检查三条：便携层不出现 `hpm_*`；Board/ 硬件文件不引用应用内部头；SIL 工程文件仍在。Application/ 是显式组合适配目录，允许同时依赖两侧。
 
 ### 既存例外（移植时照抄，不放大）
 
@@ -181,8 +183,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/check_layer_boundary.p
 
 | 项 | 现状 | 后续 |
 |---|---|---|
-| FlashDB 参数存储 | `bsp_flashdb_*` 全部返回错误 | 需要 fal_flash 端口（HPM ROM API + XPI NOR 分区），第 5 周后 |
-| CAN 收发 | 只保留 get/set 变量 | 需要 HPM MCAN 驱动 + mavlink 传输 |
+| FlashDB 参数存储 | 真实 FlashDB/FAL，XPI ROM 擦写位于 ILM；参数区 0x240000+256KiB | 主循环失能存储；分区、失败策略和验证见 `PARAM_STORAGE.md` |
+| CAN 收发 | J8/MCAN4 为 HOST 读写调试，J9/MCAN7 保留 BUS 路径 | 见 `CAN_PORT.md`；J9 功能/参数设计后续进行 |
 | 固件升级 / 文件传输 | 空实现 | 依赖 FlashDB 与 Bootloader 分区 |
 | 抱闸 PWM | 空实现 | 原理图 BRAKE→Q12 连接未确证，需实板确认后再实现 |
 | MOS/MCU 温度 | 返回 0℃ | 本板只有 NTC1，若确需可复用同一节点 |

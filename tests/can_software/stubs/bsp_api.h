@@ -2,6 +2,8 @@
 #define BSP_API_H
 
 #include <stdint.h>
+uint32_t bsp_irq_save(void);
+void bsp_irq_restore(uint32_t state);
 
 typedef enum
 {

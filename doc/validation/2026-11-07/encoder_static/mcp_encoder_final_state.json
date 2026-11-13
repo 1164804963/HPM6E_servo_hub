@@ -1,1 +1,0 @@
-{"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "{\"ok\": true, \"stdout\": \"FINAL {'enabled': False, 'mode': 2, 'error': False, 'heartbeat': True, 'parse_errors': 0, 'scope_stopped': True, 'scope_config_matches_original': True}\\nENCODER_TEST_ATTRIBUTES_REMOVED\\n\", \"result\": null}"}], "isError": false}}

@@ -31,6 +31,10 @@ void bsp_system_global_irq_disable(void)
     return;
 }
 
+/* SIL runs the controller synchronously; there are no hardware IRQs. */
+uint32_t bsp_irq_save(void) { return 0U; }
+void bsp_irq_restore(uint32_t state) { (void)state; }
+
 #pragma endregion
 
 #pragma region 硬件状态相关
@@ -603,3 +607,10 @@ void bsp_run_fw_upgrade(void)
     return;
 }
 #pragma endregion
+
+/* This port performs its own calibration; HPM persisted ADC drift is not portable. */
+bool sys_restore_current_calibration_drift(const uint16_t drift[3])
+{
+    (void)drift;
+    return false;
+}

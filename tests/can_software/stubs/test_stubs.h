@@ -29,12 +29,16 @@ extern int stub_od_read_calls;
 extern int stub_od_write_calls;
 extern uint32_t stub_od_last_index;
 extern uint8_t stub_od_last_subindex;
+extern bool stub_od_last_host_entry;
 
 extern int stub_error_set_calls;
 extern int stub_error_clear_calls;
 extern int stub_app_controlword_calls;
 extern uint16_t stub_last_app_controlword;
 extern int stub_set_controlword_calls;
+extern bool stub_emergency_brake_requested;
+extern uint16_t stub_error_code;
+extern bool stub_physical_fault;
 
 
 void stub_reset(void);

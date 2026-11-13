@@ -1,8 +1,6 @@
 #include "motor_ctl_sm.h"
 #include "yuanhub_math.h"
-#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
-#include "bsp_api.h"   /* [移植补丁 16] bsp_elec_bias_store_to_shadow / restore */
-#endif
+#include "app_store_param.h"
 /* [移植适配] 本文件用到 board_public 的 PORT_PATCH_* 开关（驱动参数头经由
  * data_type_define.h → servo_system_cfg.h 引入），否则 #if 判不到、会静默走 #else 上游分支。 */
 #include "data_type_define.h"
@@ -973,8 +971,8 @@ static void ElecAngleIdStep(Axis *const axis, AxisDw *const axis_dw)
                 float effective_bias = PMSM_ELEC_ANGLE_BIAS_RAD;
                 float flash_bias = 0.0f;
 
-                bsp_elec_bias_store_to_shadow(axis->elec_angle_id_output.elec_bias_rad);
-                if (bsp_elec_bias_restore_from_flash(&flash_bias))
+                AppStoreElecBias(axis->elec_angle_id_output.elec_bias_rad);
+                if (AppStoreRestoreElecBias(&flash_bias))
                 {
                     effective_bias = flash_bias;
                 }

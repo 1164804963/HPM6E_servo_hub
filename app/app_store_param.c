@@ -1,10 +1,96 @@
 #include "app_store_param.h"
 #include "motor_ctl_loop.h"
 /* USER CODE BEGIN AREA 0 */
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && PORT_PATCH_CAL_DRIFT_STORE_FLASH
+#define CURRENT_CAL_DRIFT_MAGIC   (0x43414C31UL)   /* 'CAL1' */
+
+static uint16_t cal_drift_crc16(const uint16_t *d)
+{
+    /* 简单校验：三个漂移值的字节异或 + 固定种子 */
+    uint16_t crc = 0x5A5AU;
+
+    for (uint32_t i = 0; i < 3U; i++)
+    {
+        crc = (uint16_t)(crc ^ d[i]);
+        crc = (uint16_t)((crc << 3) | (crc >> 13));
+    }
+    return crc;
+}
+
+/* 保存到 RAM 里的 kFlashStorage（真正的落盘由 SysCmd=2 触发 flash_param_update） */
+static void cal_drift_store_to_shadow(void)
+{
+    uint16_t s_cal_drift[3];
+    if (sys_get_current_calibration_status() != CURRENT_CALIBRATION_STATUS_OK) return;
+    sys_get_current_calibration_drift(s_cal_drift);
+    kFlashStorage.current_cal_drift_magic = CURRENT_CAL_DRIFT_MAGIC;
+    kFlashStorage.current_cal_drift[0] = s_cal_drift[0];
+    kFlashStorage.current_cal_drift[1] = s_cal_drift[1];
+    kFlashStorage.current_cal_drift[2] = s_cal_drift[2];
+    kFlashStorage.current_cal_drift_crc = cal_drift_crc16(s_cal_drift);
+}
+
+
+void AppStoreRestoreCurrentCalibration(void)
+{
+    if (kFlashStorage.current_cal_drift_magic == CURRENT_CAL_DRIFT_MAGIC &&
+        kFlashStorage.current_cal_drift_crc == cal_drift_crc16(kFlashStorage.current_cal_drift))
+        (void)sys_restore_current_calibration_drift(kFlashStorage.current_cal_drift);
+}
+#endif
+#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && PORT_PATCH_ELEC_BIAS_STORE_FLASH
+#define CURRENT_ELEC_BIAS_MAGIC   (0x454C4231UL)   /* 'ELB1' */
+
+static uint16_t elec_bias_crc16(float bias)
+{
+    union { float f; uint32_t u; } v;
+    uint16_t crc = 0x3C3CU;
+
+    v.f = bias;
+    crc = (uint16_t)(crc ^ (uint16_t)(v.u & 0xFFFFU));
+    crc = (uint16_t)((crc << 7) | (crc >> 9));
+    crc = (uint16_t)(crc ^ (uint16_t)((v.u >> 16) & 0xFFFFU));
+    crc = (uint16_t)((crc << 7) | (crc >> 9));
+    return crc;
+}
+
+/* 保存电角度零点到 RAM 影子（落盘由 SysCmd=2 触发 flash_param_update） */
+void AppStoreElecBias(float bias_rad)
+{
+    kFlashStorage.elec_angle_bias_magic = CURRENT_ELEC_BIAS_MAGIC;
+    kFlashStorage.elec_angle_bias_rad = bias_rad;
+    kFlashStorage.elec_angle_bias_crc = elec_bias_crc16(bias_rad);
+}
+
+/* 从 Flash 尝试恢复电角度零点。成功返回 true 并写入 out_bias_rad。 */
+bool AppStoreRestoreElecBias(float *out_bias_rad)
+{
+    float bias = kFlashStorage.elec_angle_bias_rad;
+
+    if (kFlashStorage.elec_angle_bias_magic != CURRENT_ELEC_BIAS_MAGIC)
+    {
+        return false;
+    }
+    if (kFlashStorage.elec_angle_bias_crc != elec_bias_crc16(bias))
+    {
+        return false;
+    }
+    /* 合理性检查：弧度必须落在 0~2π 且非 NaN（NaN 与自身比较恒不等） */
+    if (!((bias >= 0.0f) && (bias < 6.2832f)))
+    {
+        return false;
+    }
+    *out_bias_rad = bias;
+    return true;
+}
+
+#endif
 
 /* USER CODE END AREA 0 */
 
 FLASH_PARAM_STRUCT kFlashStorage;
+
+
 
 void flash_param_update(void)
 {
@@ -200,23 +286,8 @@ void flash_param_update(void)
     kFlashStorage.app_motion_param_Homing_speed_search_for_switch = kAppMotionParam.Homing_speed_search_for_switch;
     kFlashStorage.app_motion_param_Homing_speed_search_for_zero = kAppMotionParam.Homing_speed_search_for_zero;
     kFlashStorage.app_motion_param_Homing_acceleration = kAppMotionParam.Homing_acceleration;
-#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && (PORT_PATCH_CAL_DRIFT_STORE_FLASH)
-    /* [移植补丁 14] 电流零漂标定是 RAM 里的运行时状态，不是可写参数。
-     * 首次建库（KV 还不存在）时不能让这三个字段落成默认值/垃圾，
-     * 否则上电会误判"已有有效漂移"。这里强制置成无效，等真正标定成功后
-     * 再由 bsp_api.c 的 cal_drift_store_to_shadow() 写入。 */
-    kFlashStorage.current_cal_drift_magic = 0U;
-    kFlashStorage.current_cal_drift[0] = 0U;
-    kFlashStorage.current_cal_drift[1] = 0U;
-    kFlashStorage.current_cal_drift[2] = 0U;
-    kFlashStorage.current_cal_drift_crc = 0U;
-#endif
-#if defined(PORT_PATCH_ELEC_BIAS_STORE_FLASH) && (PORT_PATCH_ELEC_BIAS_STORE_FLASH)
-    /* [移植补丁 16] 首次建库时把电角度零点置无效，等有效标定值写入后再生效。 */
-    kFlashStorage.elec_angle_bias_magic = 0U;
-    kFlashStorage.elec_angle_bias_rad = 0.0f;
-    kFlashStorage.elec_angle_bias_crc = 0U;
-#endif
+    /* Calibration metadata is initialized by BSS and updated only on a valid
+     * calibration. A parameter snapshot must preserve it across every save. */
 }
 
 void flash_param_init(void)
@@ -416,6 +487,14 @@ void flash_param_init(void)
 }
 /* USER CODE BEGIN AREA 1 */
 static HistoricalInfo kFlashHistoricalInfo;
+static void FlashParamSnapshot(void)
+{
+    flash_param_update();
+#if defined(PORT_PATCH_CAL_DRIFT_STORE_FLASH) && PORT_PATCH_CAL_DRIFT_STORE_FLASH
+    cal_drift_store_to_shadow();
+#endif
+}
+
 static bool IsFlashWriteOrErase(FLASH_STORE_CMD store_cmd);
 static bool IsFlashWriteGuard(FLASH_STORE_CMD store_cmd);
 
@@ -451,7 +530,7 @@ static void FlashdbDatabaseInit(void)
 
 void AppStoreInit(void)
 {
-    flash_param_update(); // 在初次存储KV还未被创建时，将参数默认值更新到kFlashStorage后写入flash
+    FlashParamSnapshot(); // 在初次存储KV还未被创建时，将参数默认值更新到kFlashStorage后写入flash
     FlashdbDatabaseInit();
 
     set_app_Storage_status(FLASH_STORE_STATUS_IDLE);
@@ -503,7 +582,7 @@ void AppStoreUpdata1ms(void)
                 }
                 break;
             case FLASH_STORE_CMD_WRITE_PARAM:
-                flash_param_update();
+                FlashParamSnapshot();
 
                 flashdb_status = bsp_flashdb_write(FLASHDB_KEY_INDEX_ALL_PARAM);
                 break;
@@ -512,10 +591,11 @@ void AppStoreUpdata1ms(void)
                 bsp_system_global_irq_disable(); // 禁用全局中断，防止参数初始化过程中运行任务异常
                 AppParamInit();     //应用层数据库初始化
                 MotorCtrlInit();    //控制层数据库初始化
-                flash_param_update();
+                FlashParamSnapshot();
 
-                bsp_flashdb_key_delete(FLASHDB_KEY_INDEX_TQ_FC_TABLE);
-                flashdb_status = bsp_flashdb_write(FLASHDB_KEY_INDEX_ALL_PARAM);
+                flashdb_status = bsp_flashdb_key_delete(FLASHDB_KEY_INDEX_TQ_FC_TABLE);
+                if (flashdb_status == FLASHDB_NO_ERR)
+                    flashdb_status = bsp_flashdb_write(FLASHDB_KEY_INDEX_ALL_PARAM);
 
                 if (flashdb_status == FLASHDB_NO_ERR)
                 {
@@ -567,7 +647,7 @@ void AppStoreUpdata1ms(void)
                 break;
         }
 
-        if (flashdb_status != FLASHDB_NO_ERR)
+        if (flashdb_status != FLASHDB_NO_ERR && flashdb_status != FLASHDB_KEY_NOT_FOUND)
         {
             set_app_Storage_status(FLASH_STORE_STATUS_ERROR);
             sys_set_bsp_error_state(ERROR_FLASH_STORE, ERROR_SET);

@@ -16,18 +16,18 @@
 - 默认节点 ID `0x15`（11 位范围 0..0x7FF），默认 1 Mbps；可选 500 kbps。
 - 内部回环工程不初始化 J9 引脚/收发器；正常主固件才初始化。
 
-### J8 调试口（只读）
+### J8 调试口（默认 HOST 读写）
 
 - **J8 = CAN4**：PC16 TXD、PC17 RXD、PC18 STBY；U12 TJA1042T/3，STBY 高待机、低正常。
 - 端子为 2Pin：pin2=CANH，pin1=CANL；无 GND 脚，需另接公共地。
 - 板载固定分裂端接 R144/R146 各 60.4Ω、C129 10nF，无跳线；J9 同样有 R141/R142。
 - 两端各 120Ω 时并联约 60Ω 属正常，不要只保留一端。
 - 固定经典 CAN 标准帧、1 Mbps、ID `0x015`，与 J9 独立总线；参数不与 J9 运行期配置耦合。
-- 仅接受 `DLC 5/6/8` 且 `op=0` 的请求；`op!=0` 在进入 codec/OD 前拒绝，不回复、不调用写回调、不改变 `COMM_CONTROL` 权限。
-- 复用 `can_cia402` 读格式：读 0x6041 发 `00 41 60 00 00`，回复固定 8 字节 `00 41 60 00 + value_le32`。
+- 接受 `DLC 5/6/8`，`op=0` 读、`op=1` 写；其余操作码拒绝。读不要求控制权，J8 写要求 HOST 权限，J9 写要求 BUS 权限。
+- 复用 `can_cia402` 读写格式：读 0x6041 发 `00 41 60 00 00`，回复固定 8 字节 `00 41 60 00 + value_le32`。
 - cangaroo：1 Mbps、标准帧；发送上述 5 字节，接收同 ID 8 字节。
 - 控制台 `dcan` 只读显示 J8 状态（ready/实例/ID/位率/rx/tx/invalid/wrej/abort/txerr/ovf/boff）；`can` 仍只显示 J9。
-- 当前 J8 只用于收发与读取状态，不用于改参数、使能或运动控制。
+- 当前以 J8 为主；J9 保留原有代码，后续再设计其功能和参数。写成功回显原请求和值；拒绝无成功回包，记录 abort/wrej。
 
 ## 协议（主机侧）
 
@@ -57,11 +57,11 @@ op=0 读，op=1 写
 
 ## 权限、参数与故障
 
-- CAN 初始化成功后 `COMM_CONTROL_BUS`；失败置 `ERROR_COMMS_INIT` 并保持电机失能，不伪报成功。
+- CAN 主固件启动默认 `COMM_CONTROL_HOST`，J9 初始化成功不抢控制权。当前活动源（HOST=J8、BUS=J9）初始化失败进入应用通信故障链；硬件恢复不代替正常 Fault Reset。非活动 J9 不触发 HOST 掉线失能。
 - 节点 ID/波特率 setter 先校验（0..0x7FF、500k/1M），非法返回 `APP_PARAM_OUT_OF_RANGE`，不写数据库、不调用 BSP。
 - `get_app_Can_*`/`bsp_get_can_*` 反映当前已生效值；requested 值由 CAN 状态诊断显示。启动时 main 读取 AppStoreInit 完成后的应用配置字段，再交给 CAN 初始化，避免 applied getter 覆盖恢复后的值；运行期间的变更使用 requested。
 - 串口 ISR 只改 requested；实际 reinit 在前台 poll。普通重配需等待上一回复已排入 TX 且硬件 TX0 完成；`can reset` 是显式维护入口，可丢弃旧待发并重初始化。
-- 重 init 前走 CiA402 Disable Voltage + APP 失能，Fault 不被清除；不强制改 `CurrentState`/不整栈复位。
+- 重 init 请求安全停机并立即 APP 失能；Fault 不被清除。所有 PDS 转移统一在 1kHz 上下文，通信只入队。四槽环形队列可容纳三个请求，满时拒绝且不更改生效控制字。成功入队不等于已完成状态转换，应读状态字确认。
 
 ## 帧预算与忙处理
 
@@ -89,37 +89,20 @@ cmake --build build-hpm6e80-can
 
 ## 四种产物
 
-1. 正常 CAN 主固件：`build-hpm6e80-can/output/demo.elf`，真实 J9 CAN7。
+1. 正常 CAN 主固件：`build-hpm6e80-can/output/demo.elf`，J8/CAN4 HOST 读写及保留的 J9/CAN7 路径。
 2. EtherCAT 主固件：`build-hpm6e80/output/demo.elf`，真实 ESC。
-3. 纯软件测试：`build-hpm6e80-can-software-test/output/demo.elf`，使用生产 codec/adapter + stubs，不访问真实 CAN；另有 `tests/can_software` host CTest，本机无 native 编译器，未运行。
-4. stage1 内部回环：`embedded_project/HPM6E80_CAN_LOOPBACK`，只验证 MCAN 内部环回，不等同外部收发。
+已验收的一次性板上软件测试与内部回环固件已于 2026-11-13 清理。主机回归源码仍保留在 `tests/can_software`，用于复查故障复位、队列和协议规则，不链接到正常固件。历史板上测试与日志保存在工程外的清理归档。
 
 ## 已知边界
 
-- FlashDB 当前为内存桩，参数掉电不持久化；不要依赖参数保存。
-- 尚未上板/联调；本机没有 gcc/clang/cl，host CTest 未运行，交叉测试固件未烧录。测试固件里的 `TEST PASS` 只是将来串口输出；当前仅确认编译通过，不能当作运行通过。
+- FlashDB 已接真实 NOR；保存协议、失能限制与恢复行为见 [PARAM_STORAGE.md](PARAM_STORAGE.md)。
+- 2026-11-13：本轮交叉软件测试固件已上板输出 `TEST PASS`（真实 FSM/codec/adapter + 硬件替身），随后恢复正常 CAN 固件。主机 CTest 因无原生编译器未运行。J8 实测读取/原值写回 0x605A、拒绝非法模式2及非零标量子索引，模式不变且 pwm=0；不等于 J9 外部运动/异常联调通过。
 - `flash_hpm6e80.ps1` 已支持 `-Elf`，CAN ELF 示例：
   `powershell -File tools/flash_hpm6e80.ps1 -Elf build-hpm6e80-can/output/demo.elf`
-  该命令仅文档示例，本轮未执行。
+  本轮已用该脚本下载软件测试及恢复正常 CAN 固件，均校验通过。
 - 后续实机清单：J9 终端电阻/收发器、1M/500k 波形、错帧/abort 不回复、busoff 恢复、AppCanBusDisconnection 超时、`can reset`。
 
-## 无 USB 转 CAN 时的测试顺序
-
-先构建纯软件测试，下载该测试 ELF 后通过板载调试串口观察 `TEST PASS/FAIL`：
-
-```powershell
-cmake -S embedded_project/HPM6E80_CAN_SOFTWARE_TEST -B build-hpm6e80-can-software-test -G Ninja -DBOARD=hpm6e00YZ -DHPM_BUILD_TYPE=flash_xip -DCMAKE_BUILD_TYPE=debug
-cmake --build build-hpm6e80-can-software-test
-```
-
-再构建独立 MCAN 内部回环，下载对应 ELF 后观察 `CAN_LOOPBACK PASS/FAIL`：
-
-```powershell
-cmake -S embedded_project/HPM6E80_CAN_LOOPBACK -B build-hpm6e80-can-loopback -G Ninja -DBOARD=hpm6e00YZ -DHPM_BUILD_TYPE=flash_xip -DCMAKE_BUILD_TYPE=debug
-cmake --build build-hpm6e80-can-loopback
-```
-
-两者都不要求 USB 转 CAN。前者使用依赖替身验证真实生产解析/调度代码；后者操作真实 MCAN 内部回环。当前两者都只做了编译，未在板上运行。
+## 主机回归测试
 
 有原生 C 编译器的电脑也可执行主机软件测试：
 
@@ -130,3 +113,7 @@ ctest --test-dir build-hpm6e80-can-software-host --output-on-failure
 ```
 
 最后使用正常 CAN 主固件，与另一 CAN 节点或 USB 转 CAN 进行外部通信测试。`can` 查看状态，`can reset` 显式重初始化并失能；重初始化成功不代表已清除 CiA402 Fault，后续仍需正常故障复位/使能流程。
+
+参数保存与异步完成状态见 [PARAM_STORAGE.md](PARAM_STORAGE.md)：J8/HOST 写 0x1010:01=`save`，再读 0x2000:00，状态 2 才表示保存完成。
+
+清理记录：2026-11-13 保留完整 COM4 串口调试台、MAVLink、J8/CAN4 与 J9/CAN7 适配；删除独立测试固件/构建目录和一次性探测脚本。归档位置见 `doc/HANDOFF.md`。

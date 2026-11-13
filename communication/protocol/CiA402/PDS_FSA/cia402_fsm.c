@@ -4,11 +4,122 @@
 #include "Cia402_ObjectDictionary_Variable.h"
 #include "app_profile_position_mode.h"
 #include "data_param.h"
+#include "bsp_api.h"
 
 static bool last_fault_reset_bit = false;
 static uint16_t last_controlword = 0;
 Cia402State CurrentState = kStart; // Initial state
 static bool quick_stop_start_flag = false;
+static void PDS_FSA_set_statusword(Cia402State CurrentState);
+
+/* 请求只保存控制字，状态转移统一在 1kHz 的 PDS_FSA_Run 中执行。 */
+#define CIA402_CONTROLWORD_QUEUE_DEPTH (4U)
+static uint16_t s_controlword_queue[CIA402_CONTROLWORD_QUEUE_DEPTH];
+static volatile uint8_t s_controlword_head;
+static volatile uint8_t s_controlword_tail;
+static volatile bool s_safe_stop_pending;
+static bool s_controlword_ready;
+extern PDS_FSA kPDS_FSA;
+
+static bool ControlwordRequestTake(uint16_t *controlword)
+{
+    bool available = false;
+    uint32_t irq_state = bsp_irq_save();
+
+    if (s_controlword_head != s_controlword_tail)
+    {
+        *controlword = s_controlword_queue[s_controlword_tail];
+        s_controlword_tail = (uint8_t)((s_controlword_tail + 1U) % CIA402_CONTROLWORD_QUEUE_DEPTH);
+        available = true;
+    }
+    bsp_irq_restore(irq_state);
+    return available;
+}
+
+static bool ControlwordSafeStopTake(void)
+{
+    bool pending;
+    uint32_t irq_state = bsp_irq_save();
+
+    pending = s_safe_stop_pending;
+    s_safe_stop_pending = false;
+    bsp_irq_restore(irq_state);
+    return pending;
+}
+
+static void ControlwordRequestsClear(void)
+{
+    uint32_t irq_state = bsp_irq_save();
+
+    s_controlword_head = 0U;
+    s_controlword_tail = 0U;
+    s_safe_stop_pending = false;
+    bsp_irq_restore(irq_state);
+}
+
+/* Discard stale motion requests, but preserve reset/release edges in order. */
+static void ControlwordRequestsDropMotion(void)
+{
+    uint32_t irq_state = bsp_irq_save();
+    uint8_t read = s_controlword_tail;
+    uint8_t write = read;
+    while (read != s_controlword_head) {
+        uint16_t word = s_controlword_queue[read];
+        read = (uint8_t)((read + 1U) % CIA402_CONTROLWORD_QUEUE_DEPTH);
+        if ((word & 0x000FU) == 0U) {
+            s_controlword_queue[write] = word;
+            write = (uint8_t)((write + 1U) % CIA402_CONTROLWORD_QUEUE_DEPTH);
+        }
+    }
+    s_controlword_head = write;
+    s_safe_stop_pending = false; /* Fault already applies the stronger stop. */
+    bsp_irq_restore(irq_state);
+}
+
+UNS32 Cia402FsmRequestControlword(uint16_t controlword)
+{
+    uint8_t next;
+    uint32_t irq_state = bsp_irq_save();
+
+    if (s_safe_stop_pending)
+    {
+        bsp_irq_restore(irq_state);
+        return ABORT_CODE_DRIVE_STATE_DENIED;
+    }
+
+    next = (uint8_t)((s_controlword_head + 1U) % CIA402_CONTROLWORD_QUEUE_DEPTH);
+    if (next == s_controlword_tail)
+    {
+        bsp_irq_restore(irq_state);
+        return ABORT_CODE_DRIVE_STATE_DENIED;
+    }
+
+    s_controlword_queue[s_controlword_head] = controlword;
+    s_controlword_head = next;
+    bsp_irq_restore(irq_state);
+    return ABORT_CODE_SUCCESSFUL;
+}
+
+void Cia402FsmRequestSafeStop(void)
+{
+    uint32_t irq_state = bsp_irq_save();
+
+    s_safe_stop_pending = true;
+    bsp_irq_restore(irq_state);
+}
+
+void Cia402FsmReset(void)
+{
+    ControlwordRequestsClear();
+    CurrentState = kStart;
+    last_fault_reset_bit = false;
+    last_controlword = 0U;
+    quick_stop_start_flag = false;
+    s_controlword_ready = false;
+    kPDS_FSA.Controlword = 0U;
+    PDS_FSA_set_statusword(CurrentState);
+}
+
 static void PDS_FSA_set_statusword(Cia402State CurrentState);
 static void ControlwordBit4UpedgeCheck(void);
 static bool QuickStopRun(void);
@@ -226,7 +337,7 @@ bool Transition_13_Event(void) {
 
 //The configured fault reaction function shall be executed
 void Transition_13_Action(void) {
-    ;
+    set_app_Controlword(APP_CTRL_DISABLE);
 }
 
 //The drive function shall be disabled; the highlevel power shall be switched off, if possible
@@ -236,9 +347,10 @@ void Transition_14_Action(void) {
 
 //Fault reset command from control device or local signal
 bool Transition_15_Event(void) {
-    if((CIA402_READ_BIT(get_Controlword(), kOd6040_FaultReset) != 0) && (last_fault_reset_bit == false)){
-        set_app_Controlword(APP_CTRL_CLEAR_ERROR);  //清除应用层错误
-        return true;
+    if((get_Error_code() == 0U) &&
+       (CIA402_READ_BIT(get_Controlword(), kOd6040_FaultReset) != 0) &&
+       (last_fault_reset_bit == false)){
+        return true; /* Application clear was requested before this cycle scan. */
     }
     else{
         return false;
@@ -325,19 +437,45 @@ void ControlwordChange_PDAS_FSA(void){
 }
 
 //轮询状态机(中断或者任务中轮询)
-void PDS_FSA_Run(void) {
-
-    //内部紧急停车（QuickStop）需求，运行一次状态机更新进入QuickStop状态
-    if (CurrentState == kOperationEnable && get_app_Emergency_brake_requested()) {
-        ControlwordChange_PDAS_FSA();
+/* Called in the same 1kHz context, before AppStatusScanFast/Cia402ErrorCodeScan.
+ * Fault reset must reach the application clear gate even while its old error
+ * is latched. State transitions remain after the scan, so live faults win. */
+void Cia402FsmBeginCycle(void)
+{
+    uint16_t controlword;
+    s_controlword_ready = false;
+    if (ControlwordSafeStopTake()) {
+        ControlwordRequestsClear();
+        kPDS_FSA.Controlword = 0U;
+        s_controlword_ready = true;
+    } else if (ControlwordRequestTake(&controlword)) {
+        kPDS_FSA.Controlword = controlword;
+        s_controlword_ready = true;
+        if ((CurrentState == kFault || CurrentState == kFaultReactionActive) &&
+            !last_fault_reset_bit &&
+            CIA402_READ_BIT(controlword, kOd6040_FaultReset) != 0U) {
+            (void)set_app_Controlword(APP_CTRL_CLEAR_ERROR);
+        }
     }
+}
 
-    //任何状态触发错误，直接跳转到故障状态
-    if(Transition_13_Event()) {
+void PDS_FSA_Run(void) {
+    if (Transition_13_Event()) {
+        ControlwordRequestsDropMotion();
         CurrentState = kFaultReactionActive;
         Transition_13_Action();
         PDS_FSA_set_statusword(CurrentState);
+        /* A rejected reset still consumes its edge; release then retry. */
+        if (s_controlword_ready) {
+            last_fault_reset_bit = CIA402_READ_BIT(get_Controlword(), kOd6040_FaultReset);
+            last_controlword = get_Controlword();
+        }
+    } else if (s_controlword_ready) {
+        ControlwordChange_PDAS_FSA();
+    } else if (CurrentState == kOperationEnable && get_app_Emergency_brake_requested()) {
+        ControlwordChange_PDAS_FSA();
     }
+    s_controlword_ready = false;
 
     //自动切换状态机(自动跳转标志为true)
     for (uint8_t i = 0; i < CIA402_ARRAY_SIZE(stateTable); i++) {

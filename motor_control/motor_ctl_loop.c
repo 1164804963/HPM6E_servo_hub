@@ -163,7 +163,9 @@ void UnrealTimeBase1ms(void)
     AppLedStateUpdata1ms();
 
     // 9. flash参数存储
+#if !defined(BOARD_SERVO_HPM6E80)
     AppStoreUpdata1ms();
+#endif
 
     // 10. 固件升级运行主函数
 #ifdef YH_RELEASE
@@ -203,6 +205,9 @@ void PosSpeedLoopCtrl(void)
 
     if (get_app_Internal_control_authority() == INTERNAL_CONTROL_APP)
     {
+#ifdef USE_CIA402
+        Cia402FsmBeginCycle();
+#endif
         AppStatusCheck();
         AppStatusScanFast();
         AppMotionPreConditionRun();

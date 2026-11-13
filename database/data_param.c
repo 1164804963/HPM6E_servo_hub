@@ -1002,6 +1002,12 @@ uint8_t get_app_Brake_state(void)
 uint32_t set_app_Modes_of_operation(int8_t val)
 {
     /* USER CODE BEGIN set_app_Modes_of_operation 0 */
+    /* [手工修复] 回调未注册时必须先拒绝，避免先写 kAppOpMode 再返回错误。
+     * 再生成影响：本段位于 USER CODE 区块，重新生成数据库代码时应保留。 */
+    if (callback_registry.set_app_callback == NULL)
+    {
+        return APP_PARAM_OUT_OF_RANGE;
+    }
 #if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
     /* [移植补丁 15] 修上游"重复模式检查"的恒真 bug。
      *
@@ -1094,10 +1100,6 @@ uint32_t set_app_Modes_of_operation(int8_t val)
     /* USER CODE END set_app_Modes_of_operation 0 */
     kAppOpMode.Modes_of_operation = val;
     /* USER CODE BEGIN set_app_Modes_of_operation 1 */
-    if (callback_registry.set_app_callback == NULL)
-    {
-        return APP_PARAM_OUT_OF_RANGE;
-    }
     switch (kAppOpMode.Modes_of_operation)
     {
     case MOTOR_CTL_SM_MODE_POSITION:
@@ -4016,6 +4018,7 @@ uint32_t set_app_Sys_cmd(uint8_t val)
             set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
             return APP_PARAM_WRITE_STATE_ERROR;
         }
+        set_app_Storage_status(FLASH_STORE_STATUS_IDLE);
         set_app_Storage_cmd(FLASH_STORE_CMD_WRITE_PARAM);
         break;
     case APP_SYSTEM_CMD_REBOOT:

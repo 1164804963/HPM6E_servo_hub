@@ -4,6 +4,11 @@
 #include "data_param.h"
 #include "servo_can.h"
 #include "servo_debug_can_policy.h"
+#include "Cia402_ObjectDictionary_Policy.h"
+#include "app_status_check_utils.h"
+#include "cia402_error_code.h"
+#include "cia402_fsm.h"
+#include "Cia402_ObjectDictionary_Variable.h"
 #include "test_stubs.h"
 
 #include <stdio.h>
@@ -28,6 +33,9 @@ static void reset_all(void)
     stub_last_app_controlword = 0xFFFFU;
     stub_set_controlword_calls = 0;
     stub_last_set_controlword = 0xFFFFU;
+    stub_od_last_host_entry = false;
+    stub_emergency_brake_requested = false;
+    stub_error_code = 0U;
 }
 
 static void test_codec(void)
@@ -52,6 +60,11 @@ static void test_codec(void)
     CHECK(result == CAN_CIA402_OK, "write 1-byte request");
     CHECK(stub_od_value == 0x0FU, "write 1-byte value");
     CHECK(stub_od_write_calls == 1, "write callback once for 1-byte");
+    CHECK(stub_od_last_host_entry == false, "J9 codec uses master/BUS entry");
+
+    result = can_cia402_handle_request_for(CAN_CIA402_ACCESS_DEBUG_HOST, req, 5U, reply, &abort);
+    CHECK(result == CAN_CIA402_OK, "J8 HOST write codec accepted");
+    CHECK(stub_od_last_host_entry == true, "J8 codec uses HOST entry");
 
     req[1] = 0x60U; req[2] = 0x60U; req[4] = 0x34U; req[5] = 0x12U;
     result = can_cia402_handle_request(req, 6U, reply, &abort);
@@ -236,17 +249,149 @@ static void test_adapter(void)
     servo_can_poll();
     servo_can_get_status(&st);
     CHECK(!st.ready && st.last_error == status_fail, "reinit failure reports not ready");
-    CHECK(stub_error_set_calls > 0 && stub_app_controlword_calls > 0, "failure sets error and disables");
+    CHECK(stub_app_controlword_calls > 0, "reinit failure still disables app");
     stub_init_status = status_success;
     CHECK(servo_can_reset() == status_success, "explicit reset recovers");
     servo_can_get_status(&st);
-    CHECK(st.ready && stub_error_clear_calls > 0, "reset clears init error");
+    CHECK(st.ready, "reset recovers readiness");
 
     stub_tx_pending_hw = true;
     CHECK(servo_can_reset() == status_success, "reset drops pending TX");
     CHECK(!stub_tx_pending_hw, "reset stops hardware pending");
-    CHECK(stub_last_set_controlword == 0U, "reset sends CiA402 Controlword 0");
+    CHECK(stub_set_controlword_calls == 0, "reset does not transition in foreground");
     CHECK(stub_last_app_controlword == APP_CTRL_DISABLE, "reset sends APP_CTRL_DISABLE");
+}
+
+static void test_repair_stage1_policy(void)
+{
+    CHECK(Cia402ModeIsSupported(kOd6060_NO_MODE), "mode 0 supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_PPM), "mode PP supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_PVM), "mode PV supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_TPM), "mode PT supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_HM), "mode HM supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_CSP), "mode CSP supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_CSV), "mode CSV supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_CST), "mode CST supported");
+    CHECK(Cia402ModeIsSupported(kOd6060_MIT), "mode MIT supported");
+    CHECK(!Cia402ModeIsSupported(kOd6060_VL), "mode 2 rejected");
+    CHECK(!Cia402ModeIsSupported(kOd6060_RESERVED), "mode 5 rejected");
+    CHECK(!Cia402ModeIsSupported(kOd6060_IPM), "mode 7 rejected");
+
+    CHECK(Cia402ScalarSubindexIsZero(0U), "scalar subindex 0 accepted");
+    CHECK(!Cia402ScalarSubindexIsZero(1U), "scalar subindex 1 rejected");
+    CHECK(Communication_error == 0x7500U, "comms error code");
+    CHECK(!app_error_clear_allowed(false, false, true), "comms init blocks Fault Reset clear");
+    CHECK(app_error_clear_allowed(false, false, false), "clear allowed after comms recovery");
+    CHECK(!app_error_clear_allowed(true, false, false), "bus voltage still blocks clear");
+}
+
+static void test_stage2_access_and_monitor(void)
+{
+    AppCanMonitorState m = {0};
+
+    CHECK(Cia402AccessAllowsWrite(true, true), "J8 HOST write allowed");
+    CHECK(!Cia402AccessAllowsWrite(true, false), "J8 BUS write rejected");
+    CHECK(Cia402AccessAllowsWrite(false, false), "J9 BUS write allowed");
+    CHECK(!Cia402AccessAllowsWrite(false, true), "J9 HOST write rejected");
+
+    CHECK(app_comm_source_ready(true, true, false), "HOST uses J8 readiness");
+    CHECK(!app_comm_source_ready(true, false, true), "HOST ignores J9 readiness");
+    CHECK(app_comm_source_ready(false, false, true), "BUS uses J9 readiness");
+    CHECK(!app_comm_source_ready(false, true, false), "BUS ignores J8 readiness");
+
+    CHECK(!app_can_monitor_step(&m, false, 0U, 0.1f, 0.5f), "HOST no timeout without frames");
+    CHECK(m.active == false, "HOST monitor inactive");
+    CHECK(!app_can_monitor_step(&m, true, 0U, 0.1f, 0.5f), "BUS waits for first frame");
+    CHECK(!app_can_monitor_step(&m, true, 0U, 0.5f, 0.5f), "no frame yet still no timeout");
+    CHECK(!app_can_monitor_step(&m, true, 1U, 0.1f, 0.5f), "first BUS frame resets baseline");
+    CHECK(!app_can_monitor_step(&m, true, 1U, 0.4f, 0.5f), "BUS timeout not reached");
+    CHECK(app_can_monitor_step(&m, true, 1U, 0.2f, 0.5f), "BUS real timeout");
+    CHECK(!app_can_monitor_step(&m, false, 1U, 0.1f, 0.5f), "HOST switch clears timeout");
+    CHECK(!app_can_monitor_step(&m, true, 1U, 0.1f, 0.5f), "re-enter BUS starts baseline");
+}
+
+static void test_pds_cycle(void)
+{
+    Cia402FsmBeginCycle();
+    PDS_FSA_Run();
+}
+
+static void run_pds(uint32_t cycles)
+{
+    for (uint32_t i = 0U; i < cycles; i++)
+    {
+        test_pds_cycle();
+    }
+}
+
+static void test_stage2_controlword_queue(void)
+{
+    uint32_t i;
+
+    Cia402FsmReset();
+    CHECK(get_Controlword() == 0U, "effective controlword starts 0");
+    run_pds(2U);
+    CHECK(get_CurrentState() == kSwitchOnDisable, "PDS reaches switch-on-disabled");
+
+    CHECK(Cia402FsmRequestControlword(0x0006U) == 0U, "shutdown request accepted");
+    CHECK(get_Controlword() == 0U, "request not effective before 1kHz");
+    test_pds_cycle();
+    CHECK(get_Controlword() == 0x0006U, "request effective in PDS cycle");
+    CHECK(get_CurrentState() == kReadyToSwitchOn, "shutdown transition");
+
+    CHECK(Cia402FsmRequestControlword(0x0007U) == 0U, "switch-on request accepted");
+    test_pds_cycle();
+    CHECK(get_CurrentState() == kSwitchOn, "switch-on transition");
+    CHECK(Cia402FsmRequestControlword(0x000FU) == 0U, "enable request accepted");
+    test_pds_cycle();
+    CHECK(get_CurrentState() == kOperationEnable, "enable transition");
+    CHECK(stub_last_app_controlword == APP_CTRL_ENABLE, "enable action applied");
+
+    Cia402FsmReset();
+    run_pds(2U);
+    for (i = 0U; i < 3U; i++)
+    {
+        CHECK(Cia402FsmRequestControlword((uint16_t)(0x0006U + i)) == 0U, "queue slot accepted");
+    }
+    CHECK(Cia402FsmRequestControlword(0x000FU) == ABORT_CODE_DRIVE_STATE_DENIED,
+          "full queue returns abort");
+    CHECK(get_Controlword() == 0U, "full queue does not change effective state");
+    test_pds_cycle();
+    CHECK(get_Controlword() == 0x0006U, "queue consumed one per cycle");
+
+    Cia402FsmReset();
+    run_pds(2U);
+    CHECK(Cia402FsmRequestControlword(0x000FU) == 0U, "old enable queued before fault");
+    stub_physical_fault = true;
+    stub_error_code = 0x1234U;
+    test_pds_cycle();
+    CHECK(get_CurrentState() == kFault, "fault wins over old request");
+    CHECK(stub_last_app_controlword == APP_CTRL_DISABLE, "fault disables app");
+
+    stub_app_controlword_calls = 0;
+    CHECK(Cia402FsmRequestControlword(0x0080U) == 0U, "fault reset queued");
+    test_pds_cycle();
+    CHECK(get_CurrentState() == kFault, "fault reset cannot clear while fault exists");
+    CHECK(stub_last_app_controlword != APP_CTRL_CLEAR_ERROR, "no clear action during fault");
+
+    stub_physical_fault = false;
+    CHECK(stub_error_code != 0U, "fault stays latched after physical recovery");
+    CHECK(Cia402FsmRequestControlword(0U) == 0U, "release reset edge");
+    CHECK(Cia402FsmRequestControlword(0x0080U) == 0U, "fault reset queued after recovery");
+    run_pds(2U); /* Fault must not discard this already accepted reset edge. */
+    CHECK(get_CurrentState() == kSwitchOnDisable, "fault reset leaves fault state");
+    CHECK(stub_last_app_controlword == APP_CTRL_CLEAR_ERROR, "fault reset clear action");
+
+    Cia402FsmReset();
+    run_pds(2U);
+    for (i = 0U; i < 3U; i++)
+    {
+        (void)Cia402FsmRequestControlword(0x000FU);
+    }
+    Cia402FsmRequestSafeStop();
+    test_pds_cycle();
+    CHECK(get_Controlword() == 0U, "internal safe stop wins and clears queue");
+    CHECK(Cia402FsmRequestControlword(0x0006U) == 0U, "queue usable after safe stop");
 }
 
 static void test_debug_can_policy(void)
@@ -257,24 +402,29 @@ static void test_debug_can_policy(void)
     req[2] = 0x60U;
     req[3] = 0U;
 
-    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 5U, req), "J8 5-byte read accepted");
-    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 6U, req), "J8 6-byte read accepted");
-    CHECK(servo_debug_can_is_read_only_request(false, 0x015U, 8U, req), "J8 8-byte read accepted");
+    CHECK(servo_debug_can_is_valid_request(false, 0x015U, 5U, req), "J8 5-byte read accepted");
+    CHECK(servo_debug_can_is_valid_request(false, 0x015U, 6U, req), "J8 6-byte read accepted");
+    CHECK(servo_debug_can_is_valid_request(false, 0x015U, 8U, req), "J8 8-byte read accepted");
 
     req[0] = 1U;
-    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 5U, req), "J8 write rejected");
+    CHECK(servo_debug_can_is_valid_request(false, 0x015U, 5U, req), "J8 write accepted");
+    req[0] = 2U;
+    CHECK(!servo_debug_can_is_valid_request(false, 0x015U, 5U, req), "J8 illegal opcode rejected");
     req[0] = 0U;
 
-    CHECK(!servo_debug_can_is_read_only_request(true, 0x015U, 5U, req), "J8 extended rejected");
-    CHECK(!servo_debug_can_is_read_only_request(false, 0x016U, 5U, req), "J8 wrong ID rejected");
-    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 4U, req), "J8 DLC 4 rejected");
-    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 7U, req), "J8 DLC 7 rejected");
-    CHECK(!servo_debug_can_is_read_only_request(false, 0x015U, 5U, NULL), "J8 null data rejected");
+    CHECK(!servo_debug_can_is_valid_request(true, 0x015U, 5U, req), "J8 extended rejected");
+    CHECK(!servo_debug_can_is_valid_request(false, 0x016U, 5U, req), "J8 wrong ID rejected");
+    CHECK(!servo_debug_can_is_valid_request(false, 0x015U, 4U, req), "J8 DLC 4 rejected");
+    CHECK(!servo_debug_can_is_valid_request(false, 0x015U, 7U, req), "J8 DLC 7 rejected");
+    CHECK(!servo_debug_can_is_valid_request(false, 0x015U, 5U, NULL), "J8 null data rejected");
 }
 
 int can_software_run(void)
 {
     s_fail = 0;
+    test_repair_stage1_policy();
+    test_stage2_access_and_monitor();
+    test_stage2_controlword_queue();
     test_debug_can_policy();
     test_codec();
     test_adapter();

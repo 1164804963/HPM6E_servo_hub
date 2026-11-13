@@ -1,10 +1,21 @@
 #include <stdint.h>
 #include "data_param.h"
 #include "Cia402_ObjectDictionary_Callback.h"
+#include "Cia402_ObjectDictionary_Policy.h"
 
-UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){return ABORT_CODE_DRIVE_STATE_DENIED;}
+UNS32 master_cia402_write_callback_for(bool host_entry, uint16_t index, uint8_t subindex, void *data){
+    if(!Cia402AccessAllowsWrite(host_entry, get_app_Comm_control_authority() == COMM_CONTROL_HOST)){
+        return ABORT_CODE_DRIVE_STATE_DENIED;
+    }
     switch(index){
+        case 0x1010:
+            if (!host_entry) return ABORT_CODE_DRIVE_STATE_DENIED;
+            if (subindex != 1U) return ABORT_CODE_SUB_INDEX_NOT_EXIST;
+            if (*(uint32_t *)data != 0x65766173U) return ABORT_CODE_VALUE_OUT_OF_RANGE;
+            if (get_app_Storage_cmd() != FLASH_STORE_CMD_NULL || get_app_Controlword() != APP_CTRL_DISABLE)
+                return ABORT_CODE_DRIVE_STATE_DENIED;
+            return set_app_Sys_cmd(APP_SYSTEM_CMD_SAVE_CONFIG) == APP_PARAM_SUCCESS ?
+                ABORT_CODE_SUCCESSFUL : ABORT_CODE_DRIVE_STATE_DENIED;
         case 0x6040: return OD_0x6040_Controlword_Write_Callback(subindex, data); break;
         case 0x605A: return OD_0x605A_Quick_stop_option_code_Write_Callback(subindex, data); break;
         case 0x6060: return OD_0x6060_Modes_of_operation_Write_Callback(subindex, data); break;
@@ -50,8 +61,20 @@ UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data)
     }
 }
 
+UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data){
+    return master_cia402_write_callback_for(false, index, subindex, data);
+}
+
 UNS32 master_cia402_read_callback(uint16_t index, uint8_t subindex, void *data){
     switch(index){
+        case 0x1010:
+            if (subindex > 1U) return ABORT_CODE_SUB_INDEX_NOT_EXIST;
+            *(uint32_t *)data = 1U;
+            return ABORT_CODE_SUCCESSFUL;
+        case 0x2000: /* Application storage completion status; read-only. */
+            if (subindex != 0U) return ABORT_CODE_SUB_INDEX_NOT_EXIST;
+            *(uint32_t *)data = get_app_Storage_status();
+            return ABORT_CODE_SUCCESSFUL;
         case 0x6040: return OD_0x6040_Controlword_Read_Callback(subindex, data); break;
         case 0x6041: return OD_0x6041_Statusword_Read_Callback(subindex, data); break;
         case 0x603F: return OD_0x603F_Error_code_Read_Callback(subindex, data); break;

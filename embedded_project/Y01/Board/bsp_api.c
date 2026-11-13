@@ -30,6 +30,18 @@ void bsp_system_global_irq_disable(void)
     __disable_irq();
 }
 
+uint32_t bsp_irq_save(void)
+{
+    uint32_t state = __get_PRIMASK();
+    __disable_irq();
+    return state;
+}
+
+void bsp_irq_restore(uint32_t state)
+{
+    __set_PRIMASK(state);
+}
+
 #pragma endregion
 
 #pragma region 硬件状态相关
@@ -862,3 +874,10 @@ void bsp_run_fw_upgrade(void)
     drv_upgrade_run();
 }
 #pragma endregion
+
+/* This port performs its own calibration; HPM persisted ADC drift is not portable. */
+bool sys_restore_current_calibration_drift(const uint16_t drift[3])
+{
+    (void)drift;
+    return false;
+}

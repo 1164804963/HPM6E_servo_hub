@@ -1,3 +1,5 @@
+> 2026-11-13ï¼šæœ¬æ–‡ä¿ç•™å†å²ç§»æ¤è¿‡ç¨‹ã€‚å®Œæ•´ä¸²å£è°ƒè¯•å°ä»åœ¨ï¼›ä¸€æ¬¡æ€§æµ‹è¯•/æ¢é’ˆåŠåŸå§‹éªŒè¯äº§ç‰©å·²å½’æ¡£åˆ°å·¥ç¨‹å¤–ï¼Œæ—§æ¢é’ˆè·¯å¾„ä¸å†ä½œä¸ºå½“å‰æ‰§è¡Œå…¥å£ã€‚æœ€æ–°ç”¨æ³•è§ HANDOFF.mdã€CAN_PORT.mdã€PARAM_STORAGE.mdã€‚
+
 > EtherCAT status (2026-11-11): EtherCAT sections below are historical bring-up notes, not current port instructions.
 > See [current EtherCAT port](ETHERCAT_PORT.md). The old compat layer, extra polling, INIT reset, IRQ overrides and motor-loop SYNC0 trigger have been removed.
 
@@ -1090,7 +1092,7 @@ ladder:   t=500ms  sw=0x1237 mode=9 pos=59 vel=20
 | ÎÄ¼ş | É¾µôµÄ¶«Î÷ |
 | --- | --- |
 | `Board/ecat_port_compat.c` | È«²¿ `ecat_dbg_*` ¼ÆÊı/¿ìÕÕ/¼ä¸ôÍ³¼Æ/Ô­Ê¼Êı¾İ²ÉÑù |
-| `Board/servo_console.c` | `st` Àï 10 ÓàĞĞ `ecat:` µ÷ÊÔÊä³ö |
+| `Application/servo_console.c` | `st` Àï 10 ÓàĞĞ `ecat:` µ÷ÊÔÊä³ö |
 | `Board/main.c` | `ecat_dbg_loop_mark/watch_op/sample_sm/gap_record` µ÷ÓÃÓë extern |
 | `Src/ecatappl.c` | PDI ÖĞ¶Ï¼ÆÊı£¨¸ÄÎªÖ»¹Ò DC ¹³×Ó£© |
 | `Src/ecatslv.c` | AL ¿ØÖÆ×ÖÀ´Ô´±ê¼Ç `ecat_dbg_alctl_src` Óë 6 ´¦¸³Öµ |

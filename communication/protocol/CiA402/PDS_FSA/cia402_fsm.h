@@ -67,8 +67,16 @@ typedef struct {
     ActionFunction action;
 }FSATransition;
 
+void Cia402FsmBeginCycle(void);
 void PDS_FSA_Run(void);
 void ControlwordChange_PDAS_FSA(void);
 Cia402State get_CurrentState(void);
+
+/* 通信侧只提交控制字请求；1kHz PDS_FSA_Run 统一生效。 */
+uint32_t Cia402FsmRequestControlword(uint16_t controlword);
+/* 内部失能/重初始化安全停机；不依赖普通请求队列空位。 */
+void Cia402FsmRequestSafeStop(void);
+/* 上电/测试复位内部状态与请求队列。 */
+void Cia402FsmReset(void);
 
 #endif // CIA402_FSM_H
