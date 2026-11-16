@@ -136,7 +136,8 @@ int main(void)
     board_start_ctrl_tick();
 
     /* 7. 主循环：控制在 20kHz/1kHz 中断里。参数擦写由 servo_storage_poll() 在前台处理。
-     *    EtherCAT 的 MainLoop() 也在这里。MAVLink 收发在 UART0 中断。 */
+     *    EtherCAT 的 MainLoop() 也在这里。UART DMA 持续接收字节，MAVLink/console
+     *    的解析在 servo_host_poll() 前台执行。 */
     servo_console_init();
     servo_host_init();
     while (1)
@@ -144,6 +145,7 @@ int main(void)
 #if defined(CONFIG_SERVO_ETHERCAT) && (CONFIG_SERVO_ETHERCAT)
         MainLoop();                      /* EtherCAT 从站协议栈主循环 */
 #endif
+        servo_host_poll();
         servo_console_poll();
         servo_storage_poll();
     }

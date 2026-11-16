@@ -10,11 +10,12 @@
 typedef struct
 {
     bool ready;
-    uint32_t node_id;
-    uint32_t bitrate_hz;
+    uint32_t node_id;            /* 已配置的节点号（请求 ID） */
+    uint32_t active_node_id;     /* 当前生效的节点号（请求/应答 ID） */
+    uint32_t bitrate_hz;         /* 已配置的波特率，重启后生效 */
     uint32_t active_bitrate_hz;
     hpm_stat_t last_error;
-    uint32_t rx_count;
+    uint32_t rx_count;           /* CAN_CIA402 寻址命中计数（长度/opcode 不参与） */
     uint32_t tx_count;
     uint32_t tx_error_count;
     uint32_t overflow_count;

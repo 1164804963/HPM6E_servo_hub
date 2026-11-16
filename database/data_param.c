@@ -43,6 +43,25 @@ void FwUpgradeOverMavlinkCallback(uint16_t const index, uint16_t const length, v
 
 static Axis *const axis = &kAxis;
 
+#if defined(BOARD_SERVO_HPM6E80) && (BOARD_SERVO_HPM6E80)
+/* The 64-bit app parameters are shared by CAN/MAVLink and the control loops.
+ * RV32 stores them as two 32-bit words, so short read-modify-write sections use
+ * the existing global-IRQ guard. Keep this around one field, not around a
+ * protocol handler or a Flash operation. */
+static inline uint32_t app_param_lock(void)
+{
+    return bsp_irq_save();
+}
+
+static inline void app_param_unlock(uint32_t state)
+{
+    bsp_irq_restore(state);
+}
+#else
+#define app_param_lock()        (0U)
+#define app_param_unlock(state) ((void)(state))
+#endif
+
 void AppParamInit(void)
 {
     // 初始化控制字
@@ -1002,12 +1021,6 @@ uint8_t get_app_Brake_state(void)
 uint32_t set_app_Modes_of_operation(int8_t val)
 {
     /* USER CODE BEGIN set_app_Modes_of_operation 0 */
-    /* [手工修复] 回调未注册时必须先拒绝，避免先写 kAppOpMode 再返回错误。
-     * 再生成影响：本段位于 USER CODE 区块，重新生成数据库代码时应保留。 */
-    if (callback_registry.set_app_callback == NULL)
-    {
-        return APP_PARAM_OUT_OF_RANGE;
-    }
 #if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
     /* [移植补丁 15] 修上游"重复模式检查"的恒真 bug。
      *
@@ -1100,6 +1113,10 @@ uint32_t set_app_Modes_of_operation(int8_t val)
     /* USER CODE END set_app_Modes_of_operation 0 */
     kAppOpMode.Modes_of_operation = val;
     /* USER CODE BEGIN set_app_Modes_of_operation 1 */
+    if (callback_registry.set_app_callback == NULL)
+    {
+        return APP_PARAM_OUT_OF_RANGE;
+    }
     switch (kAppOpMode.Modes_of_operation)
     {
     case MOTOR_CTL_SM_MODE_POSITION:
@@ -1566,9 +1583,11 @@ uint32_t set_app_Home_position_offset_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Home_position_offset_value 0 */
     // 只能内部写入，外部可以考虑
+    uint32_t irq_state = app_param_lock();
     kAppBaseConfig.Home_position_offset_value = val;
     /* USER CODE END set_app_Home_position_offset_value 0 */
     kAppBaseConfig.Home_position_offset_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
@@ -1576,7 +1595,10 @@ int64_t get_app_Home_position_offset_value(void)
 {
     /* USER CODE BEGIN get_app_Home_position_offset_value */
     /* USER CODE END get_app_Home_position_offset_value */
-    return kAppBaseConfig.Home_position_offset_value;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppBaseConfig.Home_position_offset_value;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Can_id(uint32_t val)
@@ -1915,15 +1937,18 @@ float get_app_Brake_release_delay_time(void)
 uint32_t set_app_Target_position(int64_t val)
 {
     /* USER CODE BEGIN set_app_Target_position 0 */
+    uint32_t irq_state = app_param_lock();
     if (val < kAppRestrictParam.Software_position_limit_Minimal_position_limit ||
         val > kAppRestrictParam.Software_position_limit_Maximal_position_limit)
     {
+        app_param_unlock(irq_state);
         return APP_PARAM_OUT_OF_RANGE;
     }
 
     /* USER CODE END set_app_Target_position 0 */
     kAppMotionParam.Target_position = val;
     /* USER CODE BEGIN set_app_Target_position 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Target_position 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -1931,7 +1956,10 @@ int64_t get_app_Target_position(void)
 {
     /* USER CODE BEGIN get_app_Target_position */
     /* USER CODE END get_app_Target_position */
-    return kAppMotionParam.Target_position;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppMotionParam.Target_position;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Profile_velocity(float val)
@@ -2047,8 +2075,10 @@ uint32_t set_app_Home_offset(int64_t val)
 {
     /* USER CODE BEGIN set_app_Home_offset 0 */
     /* USER CODE END set_app_Home_offset 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionParam.Home_offset = val;
     /* USER CODE BEGIN set_app_Home_offset 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Home_offset 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2056,7 +2086,10 @@ int64_t get_app_Home_offset(void)
 {
     /* USER CODE BEGIN get_app_Home_offset */
     /* USER CODE END get_app_Home_offset */
-    return kAppMotionParam.Home_offset;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppMotionParam.Home_offset;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Homing_method(int8_t val)
@@ -2187,8 +2220,10 @@ uint32_t set_app_MIT_target_position(int64_t val)
 {
     /* USER CODE BEGIN set_app_MIT_target_position 0 */
     /* USER CODE END set_app_MIT_target_position 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionParam.MIT_target_position = val;
     /* USER CODE BEGIN set_app_MIT_target_position 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_MIT_target_position 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2196,7 +2231,10 @@ int64_t get_app_MIT_target_position(void)
 {
     /* USER CODE BEGIN get_app_MIT_target_position */
     /* USER CODE END get_app_MIT_target_position */
-    return kAppMotionParam.MIT_target_position;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppMotionParam.MIT_target_position;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_MIT_max_current(float val)
@@ -2389,13 +2427,16 @@ float get_app_Homing_acceleration(void)
 uint32_t set_app_Position_range_limit_Minimal_position_limit(int64_t val)
 {
     /* USER CODE BEGIN set_app_Position_range_limit_Minimal_position_limit 0 */
+    uint32_t irq_state = app_param_lock();
     if (val > kAppRestrictParam.Position_range_limit_Maximal_position_limit)
     {
+        app_param_unlock(irq_state);
         return APP_PARAM_OUT_OF_RANGE;
     }
     /* USER CODE END set_app_Position_range_limit_Minimal_position_limit 0 */
     kAppRestrictParam.Position_range_limit_Minimal_position_limit = val;
     /* USER CODE BEGIN set_app_Position_range_limit_Minimal_position_limit 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Position_range_limit_Minimal_position_limit 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2403,19 +2444,25 @@ int64_t get_app_Position_range_limit_Minimal_position_limit(void)
 {
     /* USER CODE BEGIN get_app_Position_range_limit_Minimal_position_limit */
     /* USER CODE END get_app_Position_range_limit_Minimal_position_limit */
-    return kAppRestrictParam.Position_range_limit_Minimal_position_limit;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppRestrictParam.Position_range_limit_Minimal_position_limit;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Position_range_limit_Maximal_position_limit(int64_t val)
 {
     /* USER CODE BEGIN set_app_Position_range_limit_Maximal_position_limit 0 */
+    uint32_t irq_state = app_param_lock();
     if (val < kAppRestrictParam.Position_range_limit_Minimal_position_limit)
     {
+        app_param_unlock(irq_state);
         return APP_PARAM_OUT_OF_RANGE;
     }
     /* USER CODE END set_app_Position_range_limit_Maximal_position_limit 0 */
     kAppRestrictParam.Position_range_limit_Maximal_position_limit = val;
     /* USER CODE BEGIN set_app_Position_range_limit_Maximal_position_limit 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Position_range_limit_Maximal_position_limit 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2423,19 +2470,25 @@ int64_t get_app_Position_range_limit_Maximal_position_limit(void)
 {
     /* USER CODE BEGIN get_app_Position_range_limit_Maximal_position_limit */
     /* USER CODE END get_app_Position_range_limit_Maximal_position_limit */
-    return kAppRestrictParam.Position_range_limit_Maximal_position_limit;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppRestrictParam.Position_range_limit_Maximal_position_limit;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Software_position_limit_Minimal_position_limit(int64_t val)
 {
     /* USER CODE BEGIN set_app_Software_position_limit_Minimal_position_limit 0 */
+    uint32_t irq_state = app_param_lock();
     if (val > kAppRestrictParam.Software_position_limit_Maximal_position_limit)
     {
+        app_param_unlock(irq_state);
         return APP_PARAM_OUT_OF_RANGE;
     }
     /* USER CODE END set_app_Software_position_limit_Minimal_position_limit 0 */
     kAppRestrictParam.Software_position_limit_Minimal_position_limit = val;
     /* USER CODE BEGIN set_app_Software_position_limit_Minimal_position_limit 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Software_position_limit_Minimal_position_limit 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2443,19 +2496,25 @@ int64_t get_app_Software_position_limit_Minimal_position_limit(void)
 {
     /* USER CODE BEGIN get_app_Software_position_limit_Minimal_position_limit */
     /* USER CODE END get_app_Software_position_limit_Minimal_position_limit */
-    return kAppRestrictParam.Software_position_limit_Minimal_position_limit;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppRestrictParam.Software_position_limit_Minimal_position_limit;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Software_position_limit_Maximal_position_limit(int64_t val)
 {
     /* USER CODE BEGIN set_app_Software_position_limit_Maximal_position_limit 0 */
+    uint32_t irq_state = app_param_lock();
     if (val < kAppRestrictParam.Software_position_limit_Minimal_position_limit)
     {
+        app_param_unlock(irq_state);
         return APP_PARAM_OUT_OF_RANGE;
     }
     /* USER CODE END set_app_Software_position_limit_Maximal_position_limit 0 */
     kAppRestrictParam.Software_position_limit_Maximal_position_limit = val;
     /* USER CODE BEGIN set_app_Software_position_limit_Maximal_position_limit 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Software_position_limit_Maximal_position_limit 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -2463,7 +2522,10 @@ int64_t get_app_Software_position_limit_Maximal_position_limit(void)
 {
     /* USER CODE BEGIN get_app_Software_position_limit_Maximal_position_limit */
     /* USER CODE END get_app_Software_position_limit_Maximal_position_limit */
-    return kAppRestrictParam.Software_position_limit_Maximal_position_limit;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppRestrictParam.Software_position_limit_Maximal_position_limit;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Max_profile_velocity(float val)
@@ -2590,30 +2652,38 @@ uint32_t set_app_Position_demand_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Position_demand_value 0 */
     /* USER CODE END set_app_Position_demand_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Position_demand_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Position_demand_value(void)
 {
     /* USER CODE BEGIN get_app_Position_demand_value */
-    kAppMotionInfo.Position_demand_value = kAppMotionInfo.Position_actual_value + kAppMotionInfo.Following_error_actual_value;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppMotionInfo.Position_actual_value + kAppMotionInfo.Following_error_actual_value;
+    kAppMotionInfo.Position_demand_value = value;
+    app_param_unlock(irq_state);
 
     /* USER CODE END get_app_Position_demand_value */
-    return kAppMotionInfo.Position_demand_value;
+    return value;
 }
 
 uint32_t set_app_Position_actual_value_inc(int64_t val)
 {
     /* USER CODE BEGIN set_app_Position_actual_value_inc 0 */
     /* USER CODE END set_app_Position_actual_value_inc 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Position_actual_value_inc = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Position_actual_value_inc(void)
 {
     /* USER CODE BEGIN get_app_Position_actual_value_inc */
+    uint32_t irq_state = app_param_lock();
     if (bsp_get_encoder_type(ENCODER_ID_LOAD) == 0x00)  //负载端无编码器，内部位置反馈都以电机端编码器为参考
     {
         if (kAppMotorConfig.Reduction_ratio_num == 1) //减速比1:1  直接以电机端编码器位置为反馈
@@ -2629,41 +2699,53 @@ int64_t get_app_Position_actual_value_inc(void)
     {
         kAppMotionInfo.Position_actual_value_inc = axis->load_pos_sensor_output.enc_sum_p;
     }
+    int64_t value = kAppMotionInfo.Position_actual_value_inc;
+    app_param_unlock(irq_state);
 
     /* USER CODE END get_app_Position_actual_value_inc */
-    return kAppMotionInfo.Position_actual_value_inc;
+    return value;
 }
 
 uint32_t set_app_Position_actual_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Position_actual_value 0 */
     /* USER CODE END set_app_Position_actual_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Position_actual_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Position_actual_value(void)
 {
     /* USER CODE BEGIN get_app_Position_actual_value */
-    kAppMotionInfo.Position_actual_value = kAppMotionInfo.Position_actual_value_inc - kAppBaseConfig.Home_position_offset_value;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppMotionInfo.Position_actual_value_inc - kAppBaseConfig.Home_position_offset_value;
+    kAppMotionInfo.Position_actual_value = value;
+    app_param_unlock(irq_state);
     /* USER CODE END get_app_Position_actual_value */
-    return kAppMotionInfo.Position_actual_value;
+    return value;
 }
 
 uint32_t set_app_Following_error_actual_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Following_error_actual_value 0 */
     /* USER CODE END set_app_Following_error_actual_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Following_error_actual_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Following_error_actual_value(void)
 {
     /* USER CODE BEGIN get_app_Following_error_actual_value */
-    kAppMotionInfo.Following_error_actual_value = (float)(axis->pos_speed_ctl_output.pos_ctl_error_p) * kAppMotorConfig.Reduction_ratio_inv;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = (float)(axis->pos_speed_ctl_output.pos_ctl_error_p) * kAppMotorConfig.Reduction_ratio_inv;
+    kAppMotionInfo.Following_error_actual_value = value;
+    app_param_unlock(irq_state);
     /* USER CODE END get_app_Following_error_actual_value */
-    return kAppMotionInfo.Following_error_actual_value;
+    return value;
 }
 
 uint32_t set_app_Velocity_demand_value(float val)
@@ -2816,48 +2898,63 @@ uint32_t set_app_Motor_position_demand_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Motor_position_demand_value 0 */
     /* USER CODE END set_app_Motor_position_demand_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Motor_position_demand_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Motor_position_demand_value(void)
 {
     /* USER CODE BEGIN get_app_Motor_position_demand_value */
-    kAppMotionInfo.Motor_position_demand_value = axis->input_shaping_input.pos_cmd_p;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = axis->input_shaping_input.pos_cmd_p;
+    kAppMotionInfo.Motor_position_demand_value = value;
+    app_param_unlock(irq_state);
     /* USER CODE END get_app_Motor_position_demand_value */
-    return kAppMotionInfo.Motor_position_demand_value;
+    return value;
 }
 
 uint32_t set_app_Motor_position_actual_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Motor_position_actual_value 0 */
     /* USER CODE END set_app_Motor_position_actual_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Motor_position_actual_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Motor_position_actual_value(void)
 {
     /* USER CODE BEGIN get_app_Motor_position_actual_value */
-    kAppMotionInfo.Motor_position_actual_value = axis->motor_pos_sensor_output.enc_sum_p;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = axis->motor_pos_sensor_output.enc_sum_p;
+    kAppMotionInfo.Motor_position_actual_value = value;
+    app_param_unlock(irq_state);
     /* USER CODE END get_app_Motor_position_actual_value */
-    return kAppMotionInfo.Motor_position_actual_value;
+    return value;
 }
 
 uint32_t set_app_Motor_following_error_actual_value(int64_t val)
 {
     /* USER CODE BEGIN set_app_Motor_following_error_actual_value 0 */
     /* USER CODE END set_app_Motor_following_error_actual_value 0 */
+    uint32_t irq_state = app_param_lock();
     kAppMotionInfo.Motor_following_error_actual_value = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
 int64_t get_app_Motor_following_error_actual_value(void)
 {
     /* USER CODE BEGIN get_app_Motor_following_error_actual_value */
-    kAppMotionInfo.Motor_following_error_actual_value = axis->pos_speed_ctl_output.pos_ctl_error_p;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = axis->pos_speed_ctl_output.pos_ctl_error_p;
+    kAppMotionInfo.Motor_following_error_actual_value = value;
+    app_param_unlock(irq_state);
     /* USER CODE END get_app_Motor_following_error_actual_value */
-    return kAppMotionInfo.Motor_following_error_actual_value;
+    return value;
 }
 
 uint32_t set_app_Motor_velocity_demand_value(float val)
@@ -3115,8 +3212,10 @@ uint32_t set_app_Following_error_window(int64_t val)
         return APP_PARAM_OUT_OF_RANGE;
     /* USER CODE BEGIN set_app_Following_error_window 0 */
     /* USER CODE END set_app_Following_error_window 0 */
+    uint32_t irq_state = app_param_lock();
     kAppWindowParam.Following_error_window = val;
     /* USER CODE BEGIN set_app_Following_error_window 1 */
+    app_param_unlock(irq_state);
     /* USER CODE END set_app_Following_error_window 1 */
     return APP_PARAM_SUCCESS;
 }
@@ -3124,7 +3223,10 @@ int64_t get_app_Following_error_window(void)
 {
     /* USER CODE BEGIN get_app_Following_error_window */
     /* USER CODE END get_app_Following_error_window */
-    return kAppWindowParam.Following_error_window;
+    uint32_t irq_state = app_param_lock();
+    int64_t value = kAppWindowParam.Following_error_window;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Following_error_time_out(float val)
@@ -4000,7 +4102,11 @@ uint32_t set_app_Sys_cmd(uint8_t val)
         // 设置当前位置为系统零点
         // 负载端累计的绝对位置
         // 设置当前目标位置为0
-        kAppBaseConfig.Home_position_offset_value = kAppMotionInfo.Position_actual_value_inc;
+        {
+            uint32_t irq_state = app_param_lock();
+            kAppBaseConfig.Home_position_offset_value = kAppMotionInfo.Position_actual_value_inc;
+            app_param_unlock(irq_state);
+        }
         set_app_Target_position(0);
 
         break;
@@ -4010,7 +4116,10 @@ uint32_t set_app_Sys_cmd(uint8_t val)
             set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
             return APP_PARAM_WRITE_STATE_ERROR;
         }
+#if defined(BOARD_SERVO_HPM6E80)
+        /* HPM stores in the foreground; clear the previous completion first. */
         set_app_Storage_status(FLASH_STORE_STATUS_IDLE);
+#endif
         set_app_Storage_cmd(FLASH_STORE_CMD_WRITE_PARAM);
         break;
     case APP_SYSTEM_CMD_REBOOT:
@@ -4148,7 +4257,9 @@ uint32_t set_app_User_module_code(uint64_t val)
 {
     /* USER CODE BEGIN set_app_User_module_code 0 */
     /* USER CODE END set_app_User_module_code 0 */
+    uint32_t irq_state = app_param_lock();
     kCustomInfo.User_module_code = val;
+    app_param_unlock(irq_state);
 
     return APP_PARAM_SUCCESS;
 }
@@ -4156,7 +4267,10 @@ uint64_t get_app_User_module_code(void)
 {
     /* USER CODE BEGIN get_app_User_module_code */
     /* USER CODE END get_app_User_module_code */
-    return kCustomInfo.User_module_code;
+    uint32_t irq_state = app_param_lock();
+    uint64_t value = kCustomInfo.User_module_code;
+    app_param_unlock(irq_state);
+    return value;
 }
 
 uint32_t set_app_Sys_init_flag(uint8_t val)

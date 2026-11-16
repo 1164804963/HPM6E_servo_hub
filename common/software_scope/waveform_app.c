@@ -1,4 +1,7 @@
 #include "waveform_app.h"
+#if defined(BOARD_SERVO_HPM6E80) && (BOARD_SERVO_HPM6E80)
+#include "bsp_api.h"
+#endif
 
 
 uint32_t struct_index[WAVEFORM_CHANNEL_NUM];  //数据索引
@@ -85,6 +88,19 @@ void get_waveform_data(int64_t *waveform_data_array) {
                 waveform_data_array[i] =
                     *((uint32_t *)kParamDataBase[struct_index[i]].pdata + array_index_temp);
                 break;
+#if defined(BOARD_SERVO_HPM6E80) && (BOARD_SERVO_HPM6E80)
+            case kTypeFloat64:
+            case kTypeInt64:
+            case kTypeUint64:
+            {
+                /* A full-width scope sample also needs an indivisible RV32 read. */
+                uint32_t irq_state = bsp_irq_save();
+                uint64_t value = *((uint64_t *)kParamDataBase[struct_index[i]].pdata + array_index_temp);
+                bsp_irq_restore(irq_state);
+                waveform_data_array[i] = value;
+                break;
+            }
+#else
             case kTypeFloat64:
                 waveform_data_array[i] =
                     *((uint64_t *)kParamDataBase[struct_index[i]].pdata + array_index_temp);
@@ -97,6 +113,7 @@ void get_waveform_data(int64_t *waveform_data_array) {
                 waveform_data_array[i] =
                     *((uint64_t *)kParamDataBase[struct_index[i]].pdata + array_index_temp);
                 break;
+#endif
         }
     }
 }

@@ -205,9 +205,6 @@ void PosSpeedLoopCtrl(void)
 
     if (get_app_Internal_control_authority() == INTERNAL_CONTROL_APP)
     {
-#ifdef USE_CIA402
-        Cia402FsmBeginCycle();
-#endif
         AppStatusCheck();
         AppStatusScanFast();
         AppMotionPreConditionRun();

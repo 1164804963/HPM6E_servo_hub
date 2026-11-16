@@ -25,6 +25,7 @@
 
 static bool s_ready;
 static volatile uint32_t s_node_id = SERVO_CAN_DEFAULT_NODE_ID;
+static volatile uint32_t s_active_node_id = SERVO_CAN_DEFAULT_NODE_ID;
 static uint32_t s_bitrate_hz = SERVO_CAN_DEFAULT_BITRATE;
 static uint32_t s_active_bitrate_hz;
 static hpm_stat_t s_last_error = status_success;
@@ -43,7 +44,7 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     uint8_t data_length;
     uint8_t tx_data[8];
 
-    if (rx->extended || (rx->id != s_node_id))
+    if (rx->extended || (rx->id != s_active_node_id))
     {
         return;
     }
@@ -99,7 +100,7 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     tx_data[6] = (uint8_t)((obj_data >> 16) & 0xFFU);
     tx_data[7] = (uint8_t)((obj_data >> 24) & 0xFFU);
 
-    if (bsp_can_send(s_node_id, tx_data, 8U) == status_success)
+    if (bsp_can_send(s_active_node_id, tx_data, 8U) == status_success)
     {
         s_tx_count++;
     }
@@ -130,79 +131,188 @@ static void handle_canopen(const bsp_can_frame_t *rx)
     }
 }
 
-static uint32_t s_canopen_ticks_per_us;
-static TIMEVAL s_canopen_elapsed;
-static TIMEVAL s_canopen_last_us;
+/*
+ * CanFestival 定时器契约（protocol/CANopen/src/timer.c、inc/hw_cm7/timerscfg.h）：
+ *   TIMEVAL_MAX = 0xFFFF，单次等待最长 65.535 ms，因此不需要更宽的时间基准。
+ *   setTimer(v)       从“当前时刻”起 v µs 后唤醒；SetAlarm 中途重装也保留同一 epoch。
+ *   getElapsedTime()  返回“自上次 TimeDispatch 以来”的累计 µs，**只读不推进**——
+ *                     SetAlarm 会连续调用它比较多个闹钟，推进会把同一段时间重复计入。
+ *   截止中断里先把 epoch 设成“计划截止时刻”再 TimeDispatch，使 overrun 只包含中断延迟。
+ *
+ * 硬件：GPTMR2 通道 1 自由计数（100 MHz → 100 tick/µs），32 位计数器 42.9 s 回绕。
+ * 软件维护一个 32 位 µs 时钟（71 min 回绕，差值按无符号取模），tick→µs 的余数
+ * 累积在 s_tmr_us_rem 里，避免每次采样截断导致时钟偏慢。
+ */
+#define CANOPEN_TMR_CH (1U)
 
-#define CANOPEN_TMR_CH        (1U)
-#define CANOPEN_TMR_PERIOD_US (1000U)
+static uint32_t s_tmr_ticks_per_us;   /* 0 = 定时器未启动 */
+static uint32_t s_tmr_tick_last;      /* 上次推进 µs 时钟时的硬件计数 */
+static uint32_t s_tmr_us_now;         /* 自由运行 µs 时钟 */
+static uint32_t s_tmr_us_rem;         /* 未满 1 µs 的 tick 余量 */
+static uint32_t s_tmr_epoch_us;       /* 上次 TimeDispatch 的时间点 */
+static uint32_t s_tmr_deadline_us;    /* 已装载的唤醒时刻 */
+
+/* 持锁调用：采样硬件计数并推进 µs 时钟。采样与状态更新必须在同一临界区。 */
+static uint32_t canopen_timer_sample_locked(uint32_t *raw_out)
+{
+    uint32_t raw = gptmr_channel_get_counter(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH,
+                                             gptmr_counter_type_normal);
+    uint32_t ticks = (uint32_t)(raw - s_tmr_tick_last) + s_tmr_us_rem;
+
+    s_tmr_tick_last = raw;
+    s_tmr_us_now += ticks / s_tmr_ticks_per_us;
+    s_tmr_us_rem = ticks % s_tmr_ticks_per_us;
+    if (raw_out != NULL)
+    {
+        *raw_out = raw;
+    }
+    return s_tmr_us_now;
+}
+
+/* 单次装载上限：剩余 µs 换算成 tick 后必须留在 32 位内（≈21 s @100 MHz）。
+ * 更长的等待由 ISR 重新装载，不会丢截止点，也不需要专门的框架。 */
+static uint32_t canopen_timer_max_arm_us(void)
+{
+    return 0x7FFFFFFFU / s_tmr_ticks_per_us;
+}
+
+/* 持锁调用：把比较值装到 s_tmr_deadline_us。 */
+static void canopen_timer_arm_locked(uint32_t now_us, uint32_t raw_now)
+{
+    int32_t remain_us = (int32_t)(s_tmr_deadline_us - now_us);
+    uint32_t wait_us;
+    uint32_t ticks;
+
+    if (remain_us <= 0)
+    {
+        ticks = 1U;                       /* 已到点：下一个 tick 进 ISR */
+    }
+    else
+    {
+        wait_us = (uint32_t)remain_us;
+        if (wait_us > canopen_timer_max_arm_us())
+        {
+            wait_us = canopen_timer_max_arm_us();
+        }
+        ticks = wait_us * s_tmr_ticks_per_us;
+    }
+    /* 装载期间计数仍在走，零等待/极短等待可能在写比较值前已经到点。
+     * 写后确认目标还在前方，否则给出 2 us 的装载余量再试，避免漏等一整圈。 */
+    for (;;)
+    {
+        uint32_t target = raw_now + ticks;
+        uint32_t raw_after;
+
+        /* 驱动通常写 cmp-1；0/UINT32_MAX 特殊值最多使事件晚一个 tick。 */
+        gptmr_update_cmp(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH, 0, target + 1U);
+        raw_after = gptmr_channel_get_counter(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH,
+                                             gptmr_counter_type_normal);
+        if ((int32_t)(raw_after - target) < 0)
+        {
+            break;
+        }
+        (void)canopen_timer_sample_locked(&raw_now);
+        ticks = 2U * s_tmr_ticks_per_us;
+    }
+}
 
 void servo_canopen_timer_start(void)
 {
     gptmr_channel_config_t config;
     uint32_t hz = clock_get_frequency(BOARD_BLDC_TMR_CLOCK);
-    uint32_t period_ticks;
+    uint32_t irq_state;
 
-    s_canopen_ticks_per_us = hz / 1000000U;
-    if (s_canopen_ticks_per_us == 0U)
+    s_tmr_ticks_per_us = hz / 1000000U;
+    if (s_tmr_ticks_per_us == 0U)
     {
         return;
     }
-    period_ticks = s_canopen_ticks_per_us * CANOPEN_TMR_PERIOD_US;
+
     gptmr_channel_get_default_config(BOARD_BLDC_TMR_1MS, &config);
-    config.cmp[0] = period_ticks;
+    /* 自由计数：32 位计数器回绕由 µs 时钟吸收；cmp 先给满量程表示"不比较"。 */
+    config.cmp[0] = 0xFFFFFFFFU;
+    config.cmp[1] = 0U;
+    config.reload = 0xFFFFFFFFU;
     config.debug_mode = 0;
-    config.reload = period_ticks + 1U;
     gptmr_enable_irq(BOARD_BLDC_TMR_1MS, GPTMR_CH_CMP_IRQ_MASK(CANOPEN_TMR_CH, 0));
     gptmr_channel_config(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH, &config, true);
+    gptmr_clear_status(BOARD_BLDC_TMR_1MS, GPTMR_CH_CMP_IRQ_MASK(CANOPEN_TMR_CH, 0));
+
+    irq_state = bsp_irq_save();
+    s_tmr_tick_last = gptmr_channel_get_counter(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH,
+                                                gptmr_counter_type_normal);
+    s_tmr_us_now = 0U;
+    s_tmr_us_rem = 0U;
+    s_tmr_epoch_us = 0U;
+    /* CanFestival 的 total_sleep_time 初值就是 TIMEVAL_MAX。第一段没有任何
+     * 闹钟时也必须有一次唤醒，否则 "首个闹钟 > TIMEVAL_MAX" 永远装不上。 */
+    s_tmr_deadline_us = (uint32_t)TIMEVAL_MAX;
+    canopen_timer_arm_locked(s_tmr_us_now, s_tmr_tick_last);
+    bsp_irq_restore(irq_state);
 }
 
 void servo_canopen_timer_isr(void)
 {
+    uint32_t irq_state;
+    uint32_t raw_now;
+    uint32_t now;
+
     if (!gptmr_check_status(BOARD_BLDC_TMR_1MS, GPTMR_CH_CMP_IRQ_MASK(CANOPEN_TMR_CH, 0)))
     {
         return;
     }
     gptmr_clear_status(BOARD_BLDC_TMR_1MS, GPTMR_CH_CMP_IRQ_MASK(CANOPEN_TMR_CH, 0));
-    s_canopen_last_us = 0U;
-    s_canopen_elapsed = 0U;
+
+    irq_state = bsp_irq_save();
+    now = canopen_timer_sample_locked(&raw_now);
+    if ((int32_t)(now - s_tmr_deadline_us) < 0)
+    {
+        /* 比较值量化提前 1 tick 触发，或上次只装了分段上限：按剩余时间重装。 */
+        canopen_timer_arm_locked(now, raw_now);
+        bsp_irq_restore(irq_state);
+        return;
+    }
+    /* 截止时刻作为新 epoch：TimeDispatch 里的 getElapsedTime 只返回中断延迟。 */
+    s_tmr_epoch_us = s_tmr_deadline_us;
+    bsp_irq_restore(irq_state);
+
     TimeDispatch();
 }
 
 void setTimer(TIMEVAL value)
 {
-    TIMEVAL now;
-    TIMEVAL last;
-    uint32_t ticks;
+    uint32_t irq_state;
+    uint32_t raw_now;
+    uint32_t now;
 
-    if (s_canopen_ticks_per_us == 0U)
+    if (s_tmr_ticks_per_us == 0U)
     {
         return;
     }
-    now = gptmr_channel_get_counter(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH, gptmr_counter_type_normal) /
-          s_canopen_ticks_per_us;
-    s_canopen_elapsed += now - s_canopen_last_us;
-    last = (value >= (CANOPEN_TMR_PERIOD_US - 1U)) ? 0U : ((CANOPEN_TMR_PERIOD_US - 1U) - value);
-    s_canopen_last_us = last;
-    ticks = (uint32_t)last * s_canopen_ticks_per_us;
-    gptmr_channel_update_count(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH, ticks);
+
+    irq_state = bsp_irq_save();
+    now = canopen_timer_sample_locked(&raw_now);
+    s_tmr_deadline_us = now + (uint32_t)value;   /* value <= TIMEVAL_MAX */
+    canopen_timer_arm_locked(now, raw_now);
+    bsp_irq_restore(irq_state);
 }
 
 TIMEVAL getElapsedTime(void)
 {
-    TIMEVAL now;
+    uint32_t irq_state;
+    uint32_t elapsed_us;
 
-    if (s_canopen_ticks_per_us == 0U)
+    if (s_tmr_ticks_per_us == 0U)
     {
-        return s_canopen_elapsed;
+        return 0U;
     }
-    now = gptmr_channel_get_counter(BOARD_BLDC_TMR_1MS, CANOPEN_TMR_CH, gptmr_counter_type_normal) /
-          s_canopen_ticks_per_us;
-    if (now < s_canopen_last_us)
-    {
-        now += (CANOPEN_TMR_PERIOD_US - 1U);
-    }
-    return s_canopen_elapsed + (now - s_canopen_last_us);
+
+    irq_state = bsp_irq_save();
+    (void)canopen_timer_sample_locked(NULL);
+    /* 只读：epoch 只由截止中断推进，SetAlarm 连续调用不会消耗时间。 */
+    elapsed_us = s_tmr_us_now - s_tmr_epoch_us;
+    bsp_irq_restore(irq_state);
+    return elapsed_us;
 }
 
 unsigned char canSend(CAN_PORT notused, Message *message)
@@ -281,6 +391,7 @@ hpm_stat_t servo_can_init(uint32_t node_id, uint32_t bitrate_hz)
     s_ready = (status == status_success);
     if (s_ready)
     {
+        s_active_node_id = node_id;
         s_active_bitrate_hz = bitrate_hz;
     }
     return status;
@@ -295,6 +406,7 @@ void servo_can_get_status(servo_can_status_t *status)
 
     status->ready = s_ready;
     status->node_id = s_node_id;
+    status->active_node_id = s_active_node_id;
     status->bitrate_hz = s_bitrate_hz;
     status->active_bitrate_hz = s_active_bitrate_hz;
     status->last_error = s_last_error;
@@ -315,6 +427,10 @@ bool bsp_can_port_is_ready(bool debug_port)
 void bsp_set_can_id(uint32_t can_id)
 {
     s_node_id = can_id;
+#if !defined(USE_CANOPEN)
+    /* CAN_CIA402: node ID is compared on every frame, so the next frame uses the new ID. */
+    s_active_node_id = can_id;
+#endif
 }
 
 uint32_t bsp_get_can_id(void)
@@ -350,8 +466,6 @@ uint32_t bsp_get_can_mg_counts(void)
 #define CANFD_DEBUG       2U
 
 static uint8_t s_mav_seq;
-static uint8_t s_mav_sys_id = 1U;
-static uint8_t s_mav_comp_id = 0x15U;
 
 void bsp_can_on_rx_fifo1(const bsp_can_frame_t *frame)
 {
@@ -419,11 +533,11 @@ void bsp_get_can_mav_id(uint8_t *sys_id, uint8_t *comp_id)
 {
     if (sys_id != 0)
     {
-        *sys_id = s_mav_sys_id;
+        *sys_id = 1U;
     }
     if (comp_id != 0)
     {
-        *comp_id = s_mav_comp_id;
+        *comp_id = (uint8_t)(s_node_id & 0xFFU);
     }
 }
 #endif

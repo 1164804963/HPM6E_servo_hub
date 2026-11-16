@@ -18,6 +18,7 @@
 #include "ecatslv.h"
 #endif
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+#include "bsp_can.h"
 #include "servo_can.h"
 #endif
 
@@ -68,13 +69,64 @@ static void print_can_status(void)
     servo_can_status_t s;
 
     servo_can_get_status(&s);
-    printf("can  : ready=%u id=0x%03lX baud=%lu active=%lu err=%d\r\n",
-           (unsigned)s.ready, (unsigned long)s.node_id, (unsigned long)s.bitrate_hz,
-           (unsigned long)s.active_bitrate_hz, (int)s.last_error);
+    printf("can  : ready=%u id=0x%03lX active=0x%03lX baud=%lu active_baud=%lu err=%d\r\n",
+           (unsigned)s.ready,
+           (unsigned long)s.node_id, (unsigned long)s.active_node_id,
+           (unsigned long)s.bitrate_hz, (unsigned long)s.active_bitrate_hz,
+           (int)s.last_error);
     printf("can  : rx=%lu tx=%lu txerr=%lu ovf=%lu boff=%lu\r\n",
            (unsigned long)s.rx_count, (unsigned long)s.tx_count,
            (unsigned long)s.tx_error_count,
            (unsigned long)s.overflow_count, (unsigned long)s.busoff_count);
+}
+
+/* Read-only error-register snapshot for bus-off root cause: current state, the
+ * first bus-off latch (taken before IR was cleared) and the max TEC/REC seen. */
+static void print_can_diag(void)
+{
+    bsp_can_diag_t d;
+
+    bsp_can_get_diag(&d);
+    if (!d.inited)
+    {
+        printf("can  : diag not initialized\r\n");
+        return;
+    }
+    printf("can  : now bo=%u ep=%u ew=%u tec=%u rec=%u lec=%u dlec=%u\r\n",
+           (unsigned)d.now.bus_off, (unsigned)d.now.error_passive,
+           (unsigned)d.now.error_warning, (unsigned)d.now.tec, (unsigned)d.now.rec,
+           (unsigned)d.now.lec, (unsigned)d.now.dlec);
+    printf("can  : now psr=%08lX ecr=%08lX txfqs=%08lX rxf0s=%08lX rxf1s=%08lX ir=%08lX\r\n",
+           (unsigned long)d.now.psr, (unsigned long)d.now.ecr,
+           (unsigned long)d.now.tx_fqs, (unsigned long)d.now.rx0_s,
+           (unsigned long)d.now.rx1_s, (unsigned long)d.now.ir);
+    printf("can  : now rx0=%lu%c rx1=%lu%c txf_full=%u\r\n",
+           (unsigned long)d.now.rxfifo0_fill, d.now.rxfifo0_full ? 'F' : '-',
+           (unsigned long)d.now.rxfifo1_fill, d.now.rxfifo1_full ? 'F' : '-',
+           (unsigned)d.now.txfifo_full);
+    printf("can  : max tec=%u rec=%u\r\n",
+           (unsigned)d.max_tec, (unsigned)d.max_rec);
+    if (d.first_error_valid)
+    {
+        printf("can  : firsterr tec=%u rec=%u lec=%u dlec=%u psr=%08lX ir=%08lX\r\n",
+               (unsigned)d.first_error.tec, (unsigned)d.first_error.rec,
+               (unsigned)d.first_error.lec, (unsigned)d.first_error.dlec,
+               (unsigned long)d.first_error.psr, (unsigned long)d.first_error.ir);
+    }
+    if (!d.first_busoff_valid)
+    {
+        printf("can  : firstbo none\r\n");
+        return;
+    }
+    printf("can  : firstbo psr=%08lX ecr=%08lX txfqs=%08lX rxf0s=%08lX rxf1s=%08lX ir=%08lX\r\n",
+           (unsigned long)d.first_busoff.psr, (unsigned long)d.first_busoff.ecr,
+           (unsigned long)d.first_busoff.tx_fqs, (unsigned long)d.first_busoff.rx0_s,
+           (unsigned long)d.first_busoff.rx1_s, (unsigned long)d.first_busoff.ir);
+    printf("can  : firstbo tec=%u rec=%u lec=%u dlec=%u ep=%u ew=%u\r\n",
+           (unsigned)d.first_busoff.tec, (unsigned)d.first_busoff.rec,
+           (unsigned)d.first_busoff.lec, (unsigned)d.first_busoff.dlec,
+           (unsigned)d.first_busoff.error_passive,
+           (unsigned)d.first_busoff.error_warning);
 }
 #endif
 
@@ -172,8 +224,18 @@ static void cmd_help(int argc, char *argv[]);
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
 static void cmd_can(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
+    if (argc > 1)
+    {
+        if (strcmp(argv[1], "diag") == 0)
+        {
+            print_can_diag();
+        }
+        else
+        {
+            printf("usage: can [diag]; reboot MCU to reinitialize CAN\r\n");
+        }
+        return;
+    }
     print_can_status();
 }
 #endif
@@ -817,7 +879,7 @@ static const ConsoleCommand s_commands[] = {
     {"escope", cmd_escope,  "抓 1kHz 编码器计数序列，看角度有没有跳变"},
     {"echo",  cmd_echo,     "切换命令回显"},
 #if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
-    {"can",   cmd_can,      "J8/CAN4 状态。节点 ID 立即生效，波特率下次上电生效"},
+    {"can",   cmd_can,      "J8/CAN4 状态；can diag 打印错误寄存器快照"},
 #endif
 };
 

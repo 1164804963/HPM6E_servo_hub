@@ -35,16 +35,14 @@ Optional_application kOptional_application;
 
 UNS32 set_Controlword(UNS16 val){
     /* USER CODE BEGIN set_Controlword 0 */
-#ifdef USE_CIA402
-    /* [手工修复] 通信侧只入队，状态转移由 PDS_FSA_Run 在 1kHz 统一执行。 */
-    return Cia402FsmRequestControlword(val);
-#else
-    kPDS_FSA.Controlword = val;
-    return ABORT_CODE_SUCCESSFUL;
-#endif
     /* USER CODE END set_Controlword 0 */
+    kPDS_FSA.Controlword = val;
     /* USER CODE BEGIN set_Controlword 1 */
+#ifdef USE_CIA402
+    ControlwordChange_PDAS_FSA();//cia402的控制字只影响PDS_FSA的状态机
+#endif // USE_CIA402
     /* USER CODE END set_Controlword 1 */
+    return ABORT_CODE_SUCCESSFUL;
 }
 UNS16 get_Controlword(void){
     /* USER CODE BEGIN get_Controlword */

@@ -7,7 +7,9 @@ param(
     [string]$Root = (Join-Path $PSScriptRoot ".."),
     [ValidateSet("ETHERCAT", "CAN_CIA402", "CAN_ENCOS", "CANOPEN_CIA402", "CANFD_CUSTOM")]
     [string]$Bus = "ETHERCAT",
-    [switch]$CanPassthrough
+    [switch]$CanPassthrough,
+    [ValidateSet(0, 1000000, 2000000)]
+    [uint32]$CanFdDataBitrate = 0
 )
 
 $Root = (Resolve-Path $Root).Path
@@ -27,6 +29,7 @@ try {
         -DBOARD=hpm6e00YZ `
         "-DSERVO_BUS=$Bus" `
         "-DSERVO_CAN_PASSTHROUGH=$passthrough" `
+        "-DSERVO_CANFD_DATA_BITRATE=$CanFdDataBitrate" `
         -DHPM_BUILD_TYPE=flash_xip `
         -DCMAKE_BUILD_TYPE=debug `
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

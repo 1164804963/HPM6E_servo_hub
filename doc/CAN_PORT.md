@@ -1,100 +1,73 @@
-# HPM6E80 CAN（V_CAN_CIA402）说明
+# HPM6E80 CAN适配（原工程对齐口径）
 
-## 总线选择
+当前目标是适配先楫MCU和HPM6EMotorV20，使正常通信行为与servo_hub-master一致。原生缺陷只记录，优化在适配验收后单独进行；参见[原生问题清单](CAN_NATIVE_ISSUES.md)。前期015→415等优化已撤回，旧报告仅作历史记录。
 
-`embedded_project/HPM6E80` 通过 CMake `SERVO_BUS` 选择主固件总线：
+## 硬件与构建
 
-- `ETHERCAT`：默认，保留原 EtherCAT SSC/CiA402/PDO/DC 路径。次版本号 3。
-- `CAN_CIA402`：J8/MCAN4，CiA402 主路径。次版本号 0。当前使用的固件。
-- `CAN_ENCOS`：次版本号 1。原工程 `fdcan_encos_handle` 是空函数，这里同样收到帧后直接返回。
-- `CANOPEN_CIA402`：次版本号 2。CanFestival 从站，NMT/SYNC 过滤器和节点号掩码，GPTMR2 通道 1 做 1 µs 节拍。SYNC `0x080` 置目标更新。
-- `CANFD_CUSTOM`：次版本号 4。把收到的经典帧或 CAN FD 帧按本节点号回发，保留扩展帧和速率切换。
+J8使用MCAN4，PC16/PC17为TXD/RXD，PC18控制收发器待机；J9/MCAN7本阶段不初始化。CAN时钟80MHz，支持1Mbps和500kbps。默认节点0x15、1Mbps。
 
-J9 不初始化。`SERVO_CAN_PASSTHROUGH=ON` 时再打开 Y01 的 MAVLink CAN FD 透传：扩展帧进 FIFO1，速率切换关闭的帧交给 `MavlinkRecvCallback`，上位机发送改走 CAN FD 分包。默认关闭。
+构建：`pwsh -NoProfile -File tools/build_hpm6e80.ps1 -Bus CAN_CIA402`。还可选CANOPEN_CIA402、CAN_ENCOS、CANFD_CUSTOM和ETHERCAT。`-CanPassthrough`打开MAVLink CAN FD通道。可配置不等于协议全部实现：ENCOS仍是原工程的空接收，CUSTOM仍是诊断回显。
 
-`USE_CIA402` 由 `version.h` 产生。CiA402 和 CANopen 会带上对象字典与 1 kHz PDS_FSA。不同 `SERVO_BUS` 不能同时编进一个固件。
+## 普通CAN_CIA402协议
 
-## 硬件
+请求与应答使用同一标准ID，默认均为0x015，不再使用0x415。恢复标准11位ID的使用范围，不保留本阶段曾加入的0x3FF分区限制；CANopen仍按原来的7位节点规则初始化。参数层不新增原工程没有的越界拒绝策略。
 
-当前只有一路 CAN，对标 Y01 `bsp_fdcan`，接在 J8。
+请求载荷：`[op, index_lo, index_hi, subindex, value_le]`，value为1/2/4字节；op=0读、op=1写。应答固定8字节，前4字节保持op/index/subindex，后4字节为回调处理后的值。回调报错仍按原逻辑形成回包，因此**回包不代表应用已接受或执行**，需读实际对象/状态确认。原有子索引和模式检查缺口不在适配阶段优化。
 
-- J8 = MCAN4：PC16 TXD、PC17 RXD、PC18 STBY；U12 TJA1042T/3。STBY 高为待机、低为正常。
-- 端子为 2Pin：pin2=CANH，pin1=CANL；无 GND 脚，需另接公共地。
-- 板载固定分裂端接 R144/R146 各 60.4Ω、C129 10nF，无跳线。
-- J9 = MCAN7（PC31/PC30/PC29，U13）先不初始化。等这一路调通后再考虑是否拆成第二路。
-- 默认节点 ID `0x15`，默认 1 Mbps；初始化只接受 500 kbps 和 1 Mbps。节点 ID 改完下一帧就用；波特率只保存，下次上电才写入位时间。
-- 位时间与 Y01 在 80 MHz 下的配置相同。1 Mbps：分频 4、SEG1 14、SEG2 5、SJW 2。500 kbps：分频 10、SEG1 13、SEG2 2、SJW 2。
-- 控制器为 CAN FD、关闭速率切换，对应 Y01 的 `FDCAN_FRAME_FD_NO_BRS`。CiA402 回复仍是 8 字节经典标准帧，走 TX FIFO。
-
-## 协议（主机侧）
-
-经典 CAN 标准帧；请求总长只接受 5、6、8：
+默认节点SLCAN示例（末尾CR）：
 
 ```
-[op, index_lo, index_hi, subindex, value_le(1/2/4 bytes)]
-op=0 读，op=1 写
+t01580041600000000000    # 读6041:00，回复t0158...
+t0156014060000000        # 写6040:00=0（失能），回复t0158...
+t01550160600003          # 写6060:00=3（PV），只说明协议，不作为运动验收
 ```
 
-示例：
+同ID协议存在原生的双向竞争限制，主机采用单请求在途、收到应答再发下一条；本地脚本对控制字写入保留20ms保守间隔。不把无节流突发当正常通信，也不为消除这一遗留限制另改固件协议。控制字恢复母体的同步写入和状态机处理；不再使用新增控制字队列。回包仍不代表所有应用动作已执行成功。
 
-- 读 0x6041.0：`00 41 60 00 00`
-- 写 0x6040.0 = 0x000F：`01 40 60 00 0F`
-- 写 0x6060.0 = 3（速度模式）：`01 60 60 00 03`
-- 写 0x607A.0 = 0x00000180：`01 7A 60 00 80 01 00 00`
+## CANopen与平台必要适配
 
-成功回复固定 8 字节：
+CANopen接收恢复原来的匹配过滤后直接分派：NMT/SYNC和本节点的低7位匹配报文进入栈，不再用新增功能码白名单拦截本节点0x700远程节点守护。远程帧匹配策略恢复母体FDCAN_FILTER_REMOTE语义。复制到CanFestival Message时仍保留8字节容量边界。
 
-```
-[op, index_lo, index_hi, subindex, value_le32]
-```
+保留HPM GPTMR2通道1的微秒累计时基、重装和比较值处理，避免初版移植将长等待压成1ms或重复累计。这是硬件时基适配，不是修改CanFestival库原生问题。原SDO超时库逻辑已恢复，server-only缺陷列入后续清单。
 
-与 Y01 `fdcan_cia402_handle` 一致：回调返回值不改变回复，读和写之后都发 8 字节。帧长按字节数判断（5、6、8 对应值长 1、2、4）。MCAN 先把 DLC 换成字节数，不沿用 STM32 HAL 里把 DLC 编码直接拿来减的写法。
+CANopen/CUSTOM不新增接收计数优化，掉线权限门控也恢复适配基线。原普通CAN计数在寻址命中后、长度/opcode检查前增加。原生计数/权限/无效帧行为限制如实记录，不能套用先前优化版的验收预期。
 
-使能需按当前 CiA402 状态发送 `0x0006 → 0x0007 → 0x000F` 并读取状态字确认；上面的单条 `0x000F` 仅为编码示例。
+## MAVLink透传对齐
 
-## 权限、参数与故障
+原工程在CAN-host模式下不再解析UART MAVLink，本工程恢复该互斥：UART完整MAVLink帧被消费但不派发，避免与CAN共用COMM_0；UART文本console仍保留，二进制帧不会直接作为console命令输入。
 
-- CAN 主固件不把通信权限改成 HOST，保持参数初始化后的 `COMM_CONTROL_BUS`。写对象在权限为 HOST 时拒绝，与 Y01 `fdcan_cia402_handle` 相同。J8 初始化失败进入通信初始化故障；掉线检测只在权限为 BUS 且这一路已就绪时累计。
-- `set_app_Can_id` / `set_app_Can_baudrate` 与 Y01 一样先保存。节点 ID 马上参与过滤；波特率留到下次 `bsp_can_init`。不是 500 kbps 或 1 Mbps 时，初始化失败，不改当前控制器。
-- 收到本节点标准帧后在 MCAN 接收中断里解析并放入 TX FIFO。FIFO 满则这一帧回复丢掉，不再次调用对象字典回调。
-- 所有 PDS 转移统一在 1kHz 上下文，通信只入队。四槽环形队列可容纳三个请求，满时拒绝且不更改生效控制字。成功入队不等于已完成状态转换，应读状态字确认。
+默认映射sys_id=1，comp_id来自当前CAN节点的低8位，避免应用层固定15与BSP过滤节点分裂。过滤器仍在初始化生成，改节点后的扩展过滤生效时机与母体一致，需重启。原节点大于255时的8位映射限制不在本阶段优化。BRS约定、分包和原有并发限制仍需按目标使用场景验收。
 
-## 构建
+## 配置与诊断
 
-```powershell
-# 默认 EtherCAT
-cmake -S embedded_project/HPM6E80 -B build-hpm6e80 -G Ninja `
-  -DBOARD=hpm6e00YZ -DSERVO_BUS=ETHERCAT -DHPM_BUILD_TYPE=flash_xip -DCMAKE_BUILD_TYPE=debug
-cmake --build build-hpm6e80
+波特率配置下次初始化/重启生效。CANopen节点与过滤器也在初始化时一起生效；普通CAN按当前节点逐帧比较。保留`can`状态与`can diag`只读寄存器快照，显示配置/生效节点、波特率、收发/溢出/BO计数及首次BO快照。PSR读取会消耗LEC/DLEC状态，不把读诊断等同清故障。
 
-# CAN 主固件
-cmake -S embedded_project/HPM6E80 -B build-hpm6e80-can -G Ninja `
-  -DBOARD=hpm6e00YZ -DSERVO_BUS=CAN_CIA402 -DHPM_BUILD_TYPE=flash_xip -DCMAKE_BUILD_TYPE=debug
-cmake --build build-hpm6e80-can
-```
+前面新增的`can reset`、主循环bus-off扩展反应已撤回，运行恢复按原重启初始化流程。`can`的ready表示初始化成功，不代表已经排除总线错误，应结合diag观察。没有新增自动恢复或使能行为。
 
-`tools/build_hpm6e80.ps1 -Bus CAN_CIA402` 使用 `build-hpm6e80-can`。`-Bus` 还可以是 `CAN_ENCOS`、`CANOPEN_CIA402`、`CANFD_CUSTOM`，目录分别是 `build-hpm6e80-encos`、`build-hpm6e80-canopen`、`build-hpm6e80-canfd`。加上 `-CanPassthrough` 打开 MAVLink 透传。默认 `-Bus ETHERCAT` 仍为 `build-hpm6e80`。
+## 本阶段验收范围
 
-## 正式固件
+源码对照和构建覆盖默认五种总线及CAN_CIA402透传开关；实机只做失能通信、参数RAM回写恢复、CANopen SDO/NMT/心跳/节点守护，不使能或运动，不改驱动参数。具体结果以工程外交接中的common-alignment-20261115/RESULT.md为准。
 
-1. 正常 CAN 主固件：`build-hpm6e80-can/output/demo.elf`，只使用 J8/CAN4。
-2. EtherCAT 主固件：`build-hpm6e80/output/demo.elf`，真实 ESC。
+历史报告中的015→415、abort不回包、HOST免掉线、CUSTOM全扩展回显、server-only SDO超时修复等结论属于已撤回的优化版本，不再作为当前行为承诺。前期新增0x1010/0x2000参数保存扩展已撤回，保存配置仍走原MAVLink SysCmd=2接口。
 
-已验收的一次性板上软件测试、内部回环固件及主机测试源码已于 2026-11-13 按用户要求清理。历史板上测试与日志保存在工程外的清理归档。
+## 公共逻辑对齐补充（2026-11-15）
 
-## 已知边界
+公共CiA402状态机/头文件、OD变量/头文件、master回调、EtherCAT OD回调和FlashDB KV库七文件恢复servo_hub-master原文件。撤回新增控制字队列、故障复位/停机语义、EtherCAT错误码传播及通用GC修复；EtherCAT退出OP接线恢复set_Controlword(0)，保留更早已有的LAN925x适配。原生风险仅记录，参见CAN_NATIVE_ISSUES.md。
 
-- FlashDB 已接真实 NOR；保存协议、失能限制与恢复行为见 [PARAM_STORAGE.md](PARAM_STORAGE.md)。
-- 2026-11-13：本轮交叉软件测试固件已上板输出 `TEST PASS`（真实 FSM/codec/adapter + 硬件替身），随后恢复正常 CAN 固件。主机 CTest 因无原生编译器未运行。J8 实测读取/原值写回 0x605A、拒绝非法模式2及非零标量子索引，模式不变且 pwm=0；不等于 J9 外部运动/异常联调通过。
-- `flash_hpm6e80.ps1` 已支持 `-Elf`，CAN ELF 示例：
-  `powershell -File tools/flash_hpm6e80.ps1 -Elf build-hpm6e80-can/output/demo.elf`
-  本轮已用该脚本下载软件测试及恢复正常 CAN 固件，均校验通过。
-- 后续实机清单：J8 终端电阻/收发器、1M/500k 波形、错帧/abort 不回复、busoff 恢复、AppCanBusDisconnection 超时、`can reset`。J9 等这一路调通后再接。
+保留HPM专属前台失能存储、NOR端口、标定保存恢复和缺键处理；保存开始清旧状态只对BOARD_SERVO_HPM6E80生效。前台擦写仍关闭中断，不能视作实时异步存储。此次仅失能通信及状态转换验证，没有运动或EtherCAT在线验收。
 
-## 后续实机验证
+## CAN剩余适配补验（2026-11-15）
 
-最后使用正常 CAN 主固件，与另一 CAN 节点或 USB 转 CAN 进行外部通信测试。`can` 查看状态，`can reset` 显式重初始化并失能；重初始化成功不代表已清除 CiA402 Fault，后续仍需正常故障复位/使能流程。
+`tools/build_hpm6e80.ps1` 新增 `-CanFdDataBitrate 2000000`，对应 CMake `SERVO_CANFD_DATA_BITRATE`；默认 `0` 继续让数据段沿用原仲裁时序，不改变母体约定。显式 `1000000` 可固定数据段为1Mbps。2Mbps只改变数据段速度，仲裁速率仍由原参数决定。
 
-参数保存与异步完成状态见 [PARAM_STORAGE.md](PARAM_STORAGE.md)：总线权限下由 J8 写 0x1010:01=`save`，再读 0x2000:00，状态 2 才表示保存完成。
+当前MKS CANable V2.0旧固件只提供2M/5M数据段。对1Mbps仲裁/2Mbps数据组合，板端80MHz时钟下采用仲裁1/69/10/SJW8（1Mbps、87.5%、SJW100ns），数据2/14/5/SJW2（2Mbps、75%）及SDK默认TDC配置。原75%仲裁配置与该适配器的88.2%配置配合时，在BRS测试中出现DLEC3/4；固定适配器状态的75%→87.5%→75%对照复现了差异。修正限定在显式2Mbps数据段且仲裁1Mbps分支，默认配置不受影响。没有增加5Mbps板端配置或更新适配器固件。
 
-清理记录：2026-11-13 保留完整 COM4 串口调试台、MAVLink、J8/CAN4 与 J9/CAN7 适配；删除独立测试固件/构建目录和一次性探测脚本。归档位置见 `doc/HANDOFF.md`。
+HPM/RV32的共享64位参数及波形完整64位读取使用短IRQ保存/恢复；HOMING直接拷贝也覆盖。PLIC硬件读回支持31级、数值越大优先级越高，UART由10改为4，低于CAN5及控制6，避免UART打断控制反馈的两条32位写指令。无新增控制字队列、错误应答语义或电机算法变更。
+
+UART0 RX已适配HDMA通道0和DMAMUX，4KiB非缓存循环缓冲由DMA持续接收，前台servo_host_poll解析，避免控制中断延迟造成32字节硬件FIFO溢出。原母体也使用UART RX DMA，本修改限HPM通道实现。UART IRQ仅处理线路错误及非阻塞TX；线路错误通知前台丢弃残帧。发送整帧入队，空间不足丢弃新整帧，保持已排队帧顺序。MAVLink2带签名帧额外13字节尾部完整消费，避免二进制泄漏至控制台；共享MAV协议及签名验证策略保持原样。自写测试端SLCAN配置命令仍留处理间隔，UART写包已无需8字节/2ms拆分。实测74/100/107字节各1000包、另160连包，共3160包CRC/序号/数据匹配，环溢出、DMA错误和线路错误均0；5次坏波特率后恢复通过。缓冲容量有限（921600 8N1下4KiB约44ms输入），该结论不代表任意无限突发或长期关闭中断下不丢包。
+
+本轮实测：2Mbps候选在USB-CAN重插后10000/10000经典/FD规范长度及五种数据模式回显，最大TEC/REC均0；MAVLink长帧、多片原值写入、参数及身份往返通过；真实20kHz抢占负对照捕获撕裂，200000次受保护写入及3987次中断取样无撕裂；普通CAN1500读/30轮不使能状态转换、UART100轮2→3→2改值、CANopen基本SDO/NMT/心跳/守护通过。具体证据在工程外交接 `remaining-can-20261115/RESULT.md`。
+
+1Mbps数据段/BRS仍因当前适配器不支持而未直接验收；J9按要求不测，ENCOS维持原空桩，运动和EtherCAT在线不在本轮范围。原生问题继续保留在CAN_NATIVE_ISSUES.md，Flash长关中断限制未在本阶段优化。
+
+2026-11-16补验：CUSTOM+CAN-host+可选2Mbps配置下，经典/FD回显与100次MAV参数读取交错、长帧分片/95字节写入、节点21→22→21、Quickstop2→3→2及重启恢复通过；UART签名帧隔离且CUSTOM控制字样式载荷不触发CiA402，TEC/REC最大0。UART DMA最终代码重新构建五种总线配置；普通CAN 1500读/30轮失能转换、CANopen SDO/NMT/心跳/RTR守护再次通过。证据在工程外交接uart-can-closeout-20261115/RESULT.md。默认仍为CAN_CIA402/透传OFF/data0，直接1Mbps BRS外部互通受当前USB-CAN固件能力限制，未声称通过。

@@ -8,6 +8,10 @@
 #include "hpm_mcan_soc.h"
 #include "version.h"
 
+#ifndef SERVO_CANFD_DATA_BITRATE
+#define SERVO_CANFD_DATA_BITRATE 0U /* 0 keeps the original nominal/data timing. */
+#endif
+
 /* HPM6E80 MCAN message RAM lives in AHB SRAM (0xF0200000..). */
 static ATTR_PLACE_AT(".ahb_sram") uint32_t s_mcan_msg_buf[MCAN_MSG_BUF_SIZE_IN_WORDS];
 
@@ -19,6 +23,15 @@ static volatile uint32_t s_overflow_count;
 static volatile uint32_t s_busoff_count;
 static bool s_inited;
 static uint32_t s_node_id;
+
+/* Root-cause instrumentation: one latch of the first bus-off and the max error
+ * counters seen on error interrupts. Cleared only by an explicit bsp_can_init(). */
+static volatile bool s_first_error_valid;
+static bsp_can_error_snapshot_t s_first_error;
+static volatile bool s_first_busoff_valid;
+static bsp_can_error_snapshot_t s_first_busoff;
+static volatile uint16_t s_max_tec;
+static volatile uint16_t s_max_rec;
 
 #if IS_USE_CAN_PASSTHROUGH
 #define CANID_FLAG_GLOBAL   (2U)
@@ -57,6 +70,25 @@ static bool timing_for_bitrate(uint32_t bitrate_hz, mcan_bit_timing_param_t *tim
     }
     timing->enable_tdc = false;
     return true;
+}
+
+/* Data timing is independent of the arbitration rate. Values are TQ counts. */
+static mcan_bit_timing_param_t data_timing_for(const mcan_bit_timing_param_t *nominal)
+{
+    mcan_bit_timing_param_t data = *nominal;
+#if SERVO_CANFD_DATA_BITRATE == 1000000
+    (void)timing_for_bitrate(1000000U, &data);
+#elif SERVO_CANFD_DATA_BITRATE == 2000000
+    /* SDK 80 MHz CAN FD profile: 80 MHz / (2 * (1 + 14 + 5)) = 2 Mbps. */
+    data.prescaler = 2U;
+    data.num_seg1 = 14U;
+    data.num_seg2 = 5U;
+    data.num_sjw = 2U;
+    data.enable_tdc = true;
+#elif SERVO_CANFD_DATA_BITRATE != 0
+#error Unsupported CAN FD data bitrate
+#endif
+    return data;
 }
 
 static uint8_t dlc_from_bytes(uint8_t len)
@@ -113,10 +145,87 @@ static hpm_stat_t transmit(mcan_tx_frame_t *tx)
     return mcan_transmit_via_txfifo_nonblocking(BOARD_APP_CAN_BASE, tx, &fifo_index);
 }
 
+/*
+ * Read-only MCAN snapshot. PSR is read once and decoded from that value: reading
+ * PSR resets LEC/DLEC to "no change" in the hardware, so a second read would lose
+ * the error code we are trying to record.
+ */
+static void can_capture_snapshot(bsp_can_error_snapshot_t *s)
+{
+    uint32_t psr = BOARD_APP_CAN_BASE->PSR;
+    uint32_t ecr = BOARD_APP_CAN_BASE->ECR;
+    mcan_protocol_status_t ps;
+
+    s->psr = psr;
+    s->ecr = ecr;
+    s->tx_fqs = BOARD_APP_CAN_BASE->TXFQS;
+    s->rx0_s = BOARD_APP_CAN_BASE->RXF0S;
+    s->rx1_s = BOARD_APP_CAN_BASE->RXF1S;
+    s->ir = mcan_get_interrupt_flags(BOARD_APP_CAN_BASE);
+
+    s->lec = (uint8_t)MCAN_PSR_LEC_GET(psr);
+    s->dlec = (uint8_t)MCAN_PSR_DLEC_GET(psr);
+    s->tec = (uint16_t)MCAN_ECR_TEC_GET(ecr);
+    s->rec = (uint16_t)MCAN_ECR_REC_GET(ecr);
+    s->error_passive = (MCAN_ECR_RP_GET(ecr) != 0U);
+
+    if (mcan_parse_protocol_status(psr, &ps) == status_success)
+    {
+        s->bus_off = ps.in_bus_off_state;
+        s->error_passive = s->error_passive || ps.in_error_passive_state;
+        s->error_warning = ps.in_warning_state;
+    }
+
+    s->rxfifo0_fill = mcan_get_rxfifo_fill_level(BOARD_APP_CAN_BASE, 0U);
+    s->rxfifo1_fill = mcan_get_rxfifo_fill_level(BOARD_APP_CAN_BASE, 1U);
+    s->rxfifo0_full = mcan_is_rxfifo_full(BOARD_APP_CAN_BASE, 0U);
+    s->rxfifo1_full = mcan_is_rxfifo_full(BOARD_APP_CAN_BASE, 1U);
+    s->txfifo_full = mcan_is_txfifo_full(BOARD_APP_CAN_BASE);
+}
+
 SDK_DECLARE_EXT_ISR_M(BOARD_APP_CAN_IRQn, bsp_can_isr)
 void bsp_can_isr(void)
 {
     uint32_t flags = mcan_get_interrupt_flags(BOARD_APP_CAN_BASE);
+
+    if ((flags & MCAN_EVENT_ERROR) != 0U)
+    {
+        /* Bounded sampling: only when an error interrupt actually fires, never per
+         * received frame. ECR is read once and used for both counters. */
+        uint32_t ecr = BOARD_APP_CAN_BASE->ECR;
+        uint16_t tec = (uint16_t)MCAN_ECR_TEC_GET(ecr);
+        uint16_t rec = (uint16_t)MCAN_ECR_REC_GET(ecr);
+
+        if (!s_first_error_valid && ((tec != 0U) || (rec != 0U)))
+        {
+            can_capture_snapshot(&s_first_error);
+            s_first_error_valid = true;
+        }
+        if (tec > s_max_tec)
+        {
+            s_max_tec = tec;
+        }
+        if (rec > s_max_rec)
+        {
+            s_max_rec = rec;
+        }
+    }
+    if ((flags & MCAN_INT_BUS_OFF_STATUS) != 0U)
+    {
+        bsp_can_error_snapshot_t snapshot = {0};
+        can_capture_snapshot(&snapshot);
+        /* BO interrupt reports both entry and recovery. Count only entry. */
+        if (snapshot.bus_off)
+        {
+            if (!s_first_busoff_valid)
+            {
+                /* Capture before draining RX FIFO or clearing interrupt flags. */
+                s_first_busoff = snapshot;
+                s_first_busoff_valid = true;
+            }
+            s_busoff_count++;
+        }
+    }
 
     if ((flags & MCAN_INT_RXFIFO0_NEW_MSG) != 0U)
     {
@@ -141,10 +250,6 @@ void bsp_can_isr(void)
     if ((flags & MCAN_INT_RXFIFO0_MSG_LOST) != 0U)
     {
         s_overflow_count++;
-    }
-    if ((flags & MCAN_INT_BUS_OFF_STATUS) != 0U)
-    {
-        s_busoff_count++;
     }
 
     mcan_clear_interrupt_flags(BOARD_APP_CAN_BASE, flags);
@@ -230,6 +335,13 @@ hpm_stat_t bsp_can_init(uint32_t node_id, uint32_t bitrate_hz)
 #endif
     s_overflow_count = 0U;
     s_busoff_count = 0U;
+    /* Instrumentation state is reset only by an explicit (re)initialisation. */
+    s_first_error_valid = false;
+    memset(&s_first_error, 0, sizeof(s_first_error));
+    s_first_busoff_valid = false;
+    s_max_tec = 0U;
+    s_max_rec = 0U;
+    memset(&s_first_busoff, 0, sizeof(s_first_busoff));
 
     ram_attr.ram_base = (uint32_t)s_mcan_msg_buf;
     ram_attr.ram_size = sizeof(s_mcan_msg_buf);
@@ -241,10 +353,26 @@ hpm_stat_t bsp_can_init(uint32_t node_id, uint32_t bitrate_hz)
 
     mcan_get_default_config(BOARD_APP_CAN_BASE, &can_config);
     can_config.use_lowlevel_timing_setting = true;
+#if SERVO_CANFD_DATA_BITRATE == 2000000
+    if (bitrate_hz == 1000000U)
+    {
+        /* Match the adapter arbitration sample point during BRS transitions. */
+        timing.prescaler = 1U;
+        timing.num_seg1 = 69U;
+        timing.num_seg2 = 10U;
+        timing.num_sjw = 8U;
+    }
+#endif
     can_config.can_timing = timing;
-    can_config.canfd_timing = timing;
+    can_config.canfd_timing = data_timing_for(&timing);
     can_config.enable_canfd = true;
-    can_config.enable_tdc = false;
+    can_config.enable_tdc = can_config.canfd_timing.enable_tdc;
+    if (can_config.enable_tdc)
+    {
+        /* Let the SDK derive SSP offset and measurement filter together. */
+        can_config.tdc_config.ssp_offset = 0U;
+        can_config.tdc_config.filter_window_length = 0U;
+    }
     can_config.enable_transmit_pause = true;
     can_config.disable_auto_retransmission = false;
     can_config.disable_protocol_exception_handling = true;
@@ -255,13 +383,10 @@ hpm_stat_t bsp_can_init(uint32_t node_id, uint32_t bitrate_hz)
         MCAN_ACCEPT_NON_MATCHING_FRAME_OPTION_REJECT;
     can_config.all_filters_config.global_filter_config.accept_non_matching_ext_frame_option =
         MCAN_ACCEPT_NON_MATCHING_FRAME_OPTION_REJECT;
-#if defined(USE_CANOPEN)
+    /* Y01 uses FDCAN_FILTER_REMOTE: matching remote frames reach the application.
+     * CANopen node guarding needs this path. */
     can_config.all_filters_config.global_filter_config.reject_remote_std_frame = false;
     can_config.all_filters_config.global_filter_config.reject_remote_ext_frame = false;
-#else
-    can_config.all_filters_config.global_filter_config.reject_remote_std_frame = true;
-    can_config.all_filters_config.global_filter_config.reject_remote_ext_frame = true;
-#endif
     can_config.interrupt_mask = MCAN_EVENT_RECEIVE | MCAN_INT_RXFIFO0_MSG_LOST | MCAN_EVENT_ERROR;
     can_config.txbuf_trans_interrupt_mask = 0U;
 
@@ -385,4 +510,36 @@ uint32_t bsp_can_overflow_count(void)
 uint32_t bsp_can_busoff_count(void)
 {
     return s_busoff_count;
+}
+
+void bsp_can_get_diag(bsp_can_diag_t *diag)
+{
+    uint32_t irq_state;
+
+    if (diag == NULL)
+    {
+        return;
+    }
+    memset(diag, 0, sizeof(*diag));
+    diag->inited = s_inited;
+    if (!s_inited)
+    {
+        return;
+    }
+
+    can_capture_snapshot(&diag->now);
+
+    /* The first-bus-off latch and the max counters are written from the RX ISR;
+     * copy them as one consistent set. */
+    irq_state = disable_global_irq(CSR_MSTATUS_MIE_MASK);
+    diag->first_error_valid = s_first_error_valid;
+    diag->first_error = s_first_error;
+    diag->first_busoff_valid = s_first_busoff_valid;
+    diag->first_busoff = s_first_busoff;
+    diag->max_tec = s_max_tec;
+    diag->max_rec = s_max_rec;
+    if ((irq_state & CSR_MSTATUS_MIE_MASK) != 0U)
+    {
+        enable_global_irq(CSR_MSTATUS_MIE_MASK);
+    }
 }
