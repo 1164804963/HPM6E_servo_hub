@@ -1021,90 +1021,112 @@ uint8_t get_app_Brake_state(void)
 uint32_t set_app_Modes_of_operation(int8_t val)
 {
     /* USER CODE BEGIN set_app_Modes_of_operation 0 */
-#if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
-    /* [移植补丁 15] 修上游"重复模式检查"的恒真 bug。
-     *
-     * get_app_Modes_of_operation_display() 内部就是
-     *   return kAppOpMode.Modes_of_operation;
-     * 所以原来的 "if (val == get_app_Modes_of_operation_display()) return;"
-     * 在写非负模式时恒成立 —— 0/1/2/3 这些运行模式全被直接 return 吞掉，
-     * motor_ctl_sm_config.mode 永远不变、set_app_callback 永远不触发，
-     * 表现出来的就是"切速度模式没反应、使能后电机不动、标定也永远做不完"。
-     * （辨识模式是负值，被 val>=0 条件排除，所以只有辨识能切——这正是
-     *  之前只有辨识能用、运行模式全废的原因。）
-     *
-     * 修法：逻辑模式（0x6060 的 CSP/CSV/CST/HOMING）与底层控制模式
-     * （POSITION/SPEED/TORQUE/IDLE）不是同一套枚举，重复判据必须同时看两者：
-     * 请求值未变，且该请求对应的底层模式已经生效，才算同一模式的重复下发。
-     * 不能只比较 val 与底层 mode：CSP(8) 会被误判成模式变化而每周期重新 Init；
-     * 也不能只比较 val 与缓存：初始化时缓存已是请求值但底层仍是 IDLE 时，
-     * 首次设置会被吞掉。 */
+    int8_t low_mode;
+    APP_NAMES app_name;
+    void (*set_app_cb)(APP_NAMES app_name);
+
+    /* 先把请求模式完整映射；没有 APP 项目对应的值不改任何状态。 */
+    switch (val)
     {
-        extern Axis kAxis;
-
-        /* [移植补丁 15b] 挡住上位机的"状态轮询回写 0"。
-         * 上位机在周期同步时会把它自身缓存的旧 opmode（通常是 0）反复发下来，
-         * set_app_Modes_of_operation(0) 于是每周期把刚切好的运行模式清回 IDLE，
-         * 表现为"切速度模式没反应、电机不动、标定做不完"。
-         * 判据：请求 IDLE(0) 且控制层当前处于运行/辨识模式时，视为回写噪声忽略。
-         * 真正要回到 IDLE，应先失能（Controlword=0）再发 0，届时控制层已 idle。 */
-        if ((val == MOTOR_CTL_SM_MODE_IDLE) &&
-            (kAxis.motor_ctl_sm_config.mode != MOTOR_CTL_SM_MODE_IDLE))
-        {
-            return APP_PARAM_SUCCESS;
-        }
-        if (val < 0)
-        {
-            /* 负值辨识模式保持原有规则：只看底层模式是否已经切入。 */
-            if (val == (int8_t)kAxis.motor_ctl_sm_config.mode)
-            {
-                return APP_PARAM_SUCCESS;
-            }
-        }
-        else
-        {
-            /* 请求的逻辑模式对应的底层控制模式。PV/PP/PT 在本工程中直接
-             * 使用底层 SPEED/POSITION/TORQUE 的编码值，其余运行模式需要映射。 */
-            int8_t expected_low_mode = val;
-
-            switch (val)
-            {
-            case MOTOR_CTL_SM_MODE_CSP:
-                expected_low_mode = MOTOR_CTL_SM_MODE_POSITION;
-                break;
-            case MOTOR_CTL_SM_MODE_CSV:
-            case MOTOR_CTL_SM_MODE_HOMING:
-                expected_low_mode = MOTOR_CTL_SM_MODE_SPEED;
-                break;
-            case MOTOR_CTL_SM_MODE_CST:
-                expected_low_mode = MOTOR_CTL_SM_MODE_TORQUE;
-                break;
-            default:
-                break;
-            }
-
-            /* 只有“请求值未变 + 对应底层模式已生效”才是同一模式的重复下发。
-             * 这样同一 CSV/CSP/CST 周期 PDO 不会重复 Init；而 PV↔CSV、
-             * PP↔CSP、PT↔CST 虽然底层模式相同，逻辑请求值变化仍会真正切换。 */
-            if ((val == kAppOpMode.Modes_of_operation) &&
-                (expected_low_mode == (int8_t)kAxis.motor_ctl_sm_config.mode))
-            {
-                return APP_PARAM_SUCCESS;
-            }
-        }
+    case MOTOR_CTL_SM_MODE_IDLE:
+        low_mode = MOTOR_CTL_SM_MODE_IDLE;
+        app_name = APP_NULL;
+        break;
+    case MOTOR_CTL_SM_MODE_TORQUE:
+        low_mode = MOTOR_CTL_SM_MODE_TORQUE;
+        app_name = APP_PT_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_SPEED:
+        low_mode = MOTOR_CTL_SM_MODE_SPEED;
+        app_name = APP_PV_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_POSITION:
+        low_mode = MOTOR_CTL_SM_MODE_POSITION;
+        app_name = APP_PP_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_MIT:
+        low_mode = MOTOR_CTL_SM_MODE_MIT;
+        app_name = APP_MIT_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_HOMING: // 回零实际使用速度模式
+        low_mode = MOTOR_CTL_SM_MODE_SPEED;
+        app_name = APP_HM_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_CSP:
+        low_mode = MOTOR_CTL_SM_MODE_POSITION;
+        app_name = APP_CSP_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_CSV:
+        low_mode = MOTOR_CTL_SM_MODE_SPEED;
+        app_name = APP_CSV_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_CST:
+        low_mode = MOTOR_CTL_SM_MODE_TORQUE;
+        app_name = APP_CST_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_ELECTRIC_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_ELECTRIC_IDENTIFICATION;
+        app_name = APP_ELEC_ID_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_POLE_PAIRS_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_POLE_PAIRS_IDENTIFICATION;
+        app_name = APP_POLE_PAIRS_ID_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_DIRECTION_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_DIRECTION_IDENTIFICATION;
+        app_name = APP_DIR_ID_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_ELECTRIC_ANGLE_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_ELECTRIC_ANGLE_IDENTIFICATION;
+        app_name = APP_ELEC_ANGLE_ID_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_MECHANICAL_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_MECHANICAL_IDENTIFICATION;
+        app_name = APP_MEC_ID_MODE;
+        break;
+    case MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION:
+        low_mode = MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION;
+        app_name = APP_TQ_FC_ID_MODE;
+        break;
+    default:
+        return APP_PARAM_OUT_OF_RANGE;
     }
-#else
-#if defined(PORT_PATCH_ID_MODE_RESEND) && (PORT_PATCH_ID_MODE_RESEND)
-    /* [移植补丁] 辨识模式（负值）允许重复下发：上位机再点一次"开始辨识"会重新写同一个
-     * 模式值，如果这里直接 return，辨识 APP 不会重新 Init（不会重设辨识电流、不会复位
-     * 状态机），现场表现为"必须先点停止辨识，再点开始辨识"才能重试。
-     * 见 doc/PORTING_PATCHES.md 补丁 5。 */
-    if (val == get_app_Modes_of_operation_display() && val >= 0)
+
+    set_app_cb = callback_registry.set_app_callback;
+    if (set_app_cb == NULL)
+    {
+        return APP_PARAM_WRITE_STATE_ERROR;
+    }
+    /* 后续只使用已校验的回调快照；并发注册的同步仍由调用方负责。 */
+
+    /* 使能中不静默忽略 IDLE：明确拒绝且不改字段。 */
+    if ((val == MOTOR_CTL_SM_MODE_IDLE) &&
+        (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE))
+    {
+        return APP_PARAM_WRITE_STATE_ERROR;
+    }
+
+    /* 逻辑请求值和底层模式都已对应才算重复。只比底层会把 CSP/CSV/CST
+     * 的重复请求误判；只比缓存会在初始化缓存已是请求值、底层仍 IDLE 时
+     * 吞掉第一次切换。PV<->CSV、PP<->CSP、PT<->CST 逻辑值不同，仍会调用
+     * 原回调。 */
+#if defined(PORT_PATCH_OPMODE_DIRECT_APPLY) && (PORT_PATCH_OPMODE_DIRECT_APPLY)
+    if ((val == kAppOpMode.Modes_of_operation) &&
+        (low_mode == (int8_t)axis->motor_ctl_sm_config.mode))
     {
         return APP_PARAM_SUCCESS;
     }
 #else
-    if (val == get_app_Modes_of_operation_display())
+#if defined(PORT_PATCH_ID_MODE_RESEND) && (PORT_PATCH_ID_MODE_RESEND)
+    /* 非 DIRECT 路径保持原约定：负的辨识模式允许重复下发。 */
+    if ((val >= 0) && (val == kAppOpMode.Modes_of_operation) &&
+        (low_mode == (int8_t)axis->motor_ctl_sm_config.mode))
+    {
+        return APP_PARAM_SUCCESS;
+    }
+#else
+    if ((val == kAppOpMode.Modes_of_operation) &&
+        (low_mode == (int8_t)axis->motor_ctl_sm_config.mode))
     {
         return APP_PARAM_SUCCESS;
     }
@@ -1113,82 +1135,18 @@ uint32_t set_app_Modes_of_operation(int8_t val)
     /* USER CODE END set_app_Modes_of_operation 0 */
     kAppOpMode.Modes_of_operation = val;
     /* USER CODE BEGIN set_app_Modes_of_operation 1 */
-    if (callback_registry.set_app_callback == NULL)
-    {
-        return APP_PARAM_OUT_OF_RANGE;
-    }
-    switch (kAppOpMode.Modes_of_operation)
-    {
-    case MOTOR_CTL_SM_MODE_POSITION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_POSITION;
-        callback_registry.set_app_callback(APP_PP_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_SPEED:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_SPEED;
-        callback_registry.set_app_callback(APP_PV_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_TORQUE:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_TORQUE;
-        callback_registry.set_app_callback(APP_PT_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_MIT:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_MIT;
-        callback_registry.set_app_callback(APP_MIT_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_HOMING: // 回零模式实际使用速度模式
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_SPEED;
-        callback_registry.set_app_callback(APP_HM_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_CSP:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_POSITION;
-        callback_registry.set_app_callback(APP_CSP_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_CSV:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_SPEED;
-        callback_registry.set_app_callback(APP_CSV_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_CST:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_TORQUE;
-        callback_registry.set_app_callback(APP_CST_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_DIRECTION_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_DIRECTION_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_DIR_ID_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_ELECTRIC_ANGLE_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_ELECTRIC_ANGLE_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_ELEC_ANGLE_ID_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_ELECTRIC_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_ELECTRIC_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_ELEC_ID_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_MECHANICAL_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_MECHANICAL_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_MEC_ID_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_POLE_PAIRS_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_POLE_PAIRS_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_POLE_PAIRS_ID_MODE);
-        break;
-    case MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION;
-        callback_registry.set_app_callback(APP_TQ_FC_ID_MODE);
+    /* 先提交当前模式再调用原 void 回调，APP init 会读取该模式。 */
+    axis->motor_ctl_sm_config.mode = low_mode;
+    set_app_cb(app_name);
 #if defined(PORT_PATCH_TQFC_POS_TAR_INIT) && (PORT_PATCH_TQFC_POS_TAR_INIT)
-        /* [移植补丁] 每次切入转矩脉动辨识时复位它的状态机。
-         * 上一次跑飞被中止会留下 ERROR(-1)，而 TqFcIdStep 在 ERROR 分支里每周期
-         * 强制失能，于是永远等不到"失能→使能"的沿，ModeCheckInInit 跑不到，
-         * ERROR 就再也清不掉——表现为"再点一次辨识电机根本不动"。
-         * 位置目标也在这里一起对齐，避免陈旧值造成几十万 counts 的跟随误差。 */
+    if (val == MOTOR_CTL_SM_MODE_TQ_FRICTION_IDENTIFICATION)
+    {
+        /* 重新进入转矩脉动辨识：复位其状态机并对齐位置目标。 */
         axis->tq_fc_id_output.state_now = IDENTIFICATION_MODE_STATE_IDLE;
         axis->tq_fc_id_input.start = 0;
         axis->pos_speed_ctl_input.pos_tar_p = axis->motor_pos_sensor_output.enc_sum_p;
-#endif
-        break;
-    default:
-        axis->motor_ctl_sm_config.mode = MOTOR_CTL_SM_MODE_IDLE;
-        break;
     }
+#endif
     /* USER CODE END set_app_Modes_of_operation 1 */
     return APP_PARAM_SUCCESS;
 }

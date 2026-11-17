@@ -123,54 +123,63 @@ INTEGER16 get_Quick_stop_option_code(void){
 }
 
 UNS32 set_Modes_of_operation(INTEGER8 val){
-    INTEGER8 old_Modes_of_operation;
-    uint32_t app_status = APP_PARAM_SUCCESS;
     /* USER CODE BEGIN set_Modes_of_operation 0 */
-    /* USER CODE END set_Modes_of_operation 0 */
-    old_Modes_of_operation = kPDS_FSA.Modes_of_operation;
-    kPDS_FSA.Modes_of_operation = val;
-    /* USER CODE BEGIN set_Modes_of_operation 1 */
-    //目前支持的cia402模式:PP,PV,PT,HM,CSP,CSV,CST,MIT
-    switch(kPDS_FSA.Modes_of_operation){
-        case kOd6060_PPM:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_POSITION);
-            break;
-        case kOd6060_PVM:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_SPEED);
-            break;
-        case kOd6060_TPM:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_TORQUE);
-            break;
-        case kOd6060_HM:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_HOMING);
-            break;
-        case kOd6060_CSP:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSP);
-            break;
-        case kOd6060_CSV:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSV);
-            break;
-        case kOd6060_CST:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CST);
-            break;
-        case kOd6060_MIT:
-            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_MIT);
-            break;
-        default:
-            break;
+    uint32_t app_status = APP_PARAM_SUCCESS;
+    int8_t app_mode;
+
+    /* 0x6060 只接受本工程已实现的模式；未知值在任何状态变更前拒绝。 */
+    switch (val)
+    {
+    case kOd6060_NO_MODE:
+        app_mode = MOTOR_CTL_SM_MODE_IDLE;
+        break;
+    case kOd6060_PPM:
+        app_mode = MOTOR_CTL_SM_MODE_POSITION;
+        break;
+    case kOd6060_PVM:
+        app_mode = MOTOR_CTL_SM_MODE_SPEED;
+        break;
+    case kOd6060_TPM:
+        app_mode = MOTOR_CTL_SM_MODE_TORQUE;
+        break;
+    case kOd6060_HM:
+        app_mode = MOTOR_CTL_SM_MODE_HOMING;
+        break;
+    case kOd6060_CSP:
+        app_mode = MOTOR_CTL_SM_MODE_CSP;
+        break;
+    case kOd6060_CSV:
+        app_mode = MOTOR_CTL_SM_MODE_CSV;
+        break;
+    case kOd6060_CST:
+        app_mode = MOTOR_CTL_SM_MODE_CST;
+        break;
+    case kOd6060_MIT:
+        app_mode = MOTOR_CTL_SM_MODE_MIT;
+        break;
+    default:
+        return ABORT_CODE_VALUE_OUT_OF_RANGE;
     }
+
+    /* APP 拒绝时不写 kPDS_FSA 缓存；下面的自动字段赋值只在成功路径执行。 */
+    app_status = set_app_Modes_of_operation(app_mode);
     if (app_status != APP_PARAM_SUCCESS)
     {
-        kPDS_FSA.Modes_of_operation = old_Modes_of_operation;
         return cia402_app_status_to_abort(app_status);
     }
+    /* USER CODE END set_Modes_of_operation 0 */
+    kPDS_FSA.Modes_of_operation = val;
+    /* USER CODE BEGIN set_Modes_of_operation 1 */
     /* USER CODE END set_Modes_of_operation 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
 INTEGER8 get_Modes_of_operation(void){
     /* USER CODE BEGIN get_Modes_of_operation */
-    //目前支持的cia402模式:PP,PV,PT,HM,CSP,CSV,CST,MIT
+    /* 空闲(0)和无 CiA402 对应值的负辨识模式都返回 NO_MODE，避免遗留旧缓存。 */
     switch(get_app_Modes_of_operation()){
+        case MOTOR_CTL_SM_MODE_IDLE:
+            kPDS_FSA.Modes_of_operation = kOd6060_NO_MODE;
+            break;
         case MOTOR_CTL_SM_MODE_POSITION:
             kPDS_FSA.Modes_of_operation = kOd6060_PPM;
             break;
@@ -196,6 +205,7 @@ INTEGER8 get_Modes_of_operation(void){
             kPDS_FSA.Modes_of_operation = kOd6060_MIT;
             break;
         default:
+            kPDS_FSA.Modes_of_operation = kOd6060_NO_MODE;
             break;
     }
     /* USER CODE END get_Modes_of_operation */
@@ -212,7 +222,11 @@ UNS32 set_Modes_of_operation_display(INTEGER8 val){
 }
 INTEGER8 get_Modes_of_operation_display(void){
     /* USER CODE BEGIN get_Modes_of_operation_display */
+    /* 与 get_Modes_of_operation 相同：空闲和负辨识均显示 NO_MODE。 */
     switch(get_app_Modes_of_operation_display()){
+        case MOTOR_CTL_SM_MODE_IDLE:
+            kPDS_FSA.Modes_of_operation_display = kOd6060_NO_MODE;
+            break;
         case MOTOR_CTL_SM_MODE_POSITION:
             kPDS_FSA.Modes_of_operation_display = kOd6060_PPM;
             break;
@@ -238,6 +252,7 @@ INTEGER8 get_Modes_of_operation_display(void){
             kPDS_FSA.Modes_of_operation_display = kOd6060_MIT;
             break;
         default:
+            kPDS_FSA.Modes_of_operation_display = kOd6060_NO_MODE;
             break;
     }
     /* USER CODE END get_Modes_of_operation_display */
