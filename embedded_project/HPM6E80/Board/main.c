@@ -97,9 +97,16 @@ int main(void)
         }
         else
         {
+            servo_can_status_t can_status;
+
+            servo_can_get_status(&can_status);
             printf("main: J8 CAN4 ready id=0x%03X baud=%lu\r\n",
                    (unsigned)kAppBaseConfig.Can_id,
                    (unsigned long)kAppBaseConfig.Can_baudrate);
+            printf("main: J8 CAN4 reply=0x%03lX mode=%s\r\n",
+                   (unsigned long)can_status.reply_id,
+                   can_status.split_reply ? "split" :
+                   (can_status.legacy_same_id ? "legacy" : "n/a"));
         }
     }
 #endif
@@ -137,7 +144,7 @@ int main(void)
 
     /* 7. 主循环：控制在 20kHz/1kHz 中断里。参数擦写由 servo_storage_poll() 在前台处理。
      *    EtherCAT 的 MainLoop() 也在这里。UART DMA 持续接收字节，MAVLink/console
-     *    的解析在 servo_host_poll() 前台执行。 */
+     *    的解析在 servo_host_poll() 前台执行；普通 CAN 应答也在这里的 poll 中发送。 */
     servo_console_init();
     servo_host_init();
     while (1)
@@ -148,5 +155,8 @@ int main(void)
         servo_host_poll();
         servo_console_poll();
         servo_storage_poll();
+#if defined(CONFIG_SERVO_CAN) && (CONFIG_SERVO_CAN)
+        servo_can_poll();
+#endif
     }
 }

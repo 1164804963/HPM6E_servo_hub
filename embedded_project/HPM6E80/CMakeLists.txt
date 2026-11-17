@@ -48,6 +48,8 @@ option(SERVO_CAN_PASSTHROUGH "Send MAVLink on J8 CAN FD. Same switch as Y01 IS_U
 if(SERVO_CAN_PASSTHROUGH AND SERVO_BUS STREQUAL "ETHERCAT")
     message(FATAL_ERROR "SERVO_CAN_PASSTHROUGH applies to a CAN bus")
 endif()
+# 仅普通 CAN_CIA402 生效：ON 时退回应答与请求同 ID，并允许节点 0..0x7FF。
+option(SERVO_CAN_LEGACY_SAME_ID "CAN_CIA402 compatibility: request/reply share one ID (nodes 0..0x7FF)" OFF)
 
 # 0 preserves Y01 timing; an explicit data rate is useful with CAN FD peers.
 set(SERVO_CANFD_DATA_BITRATE "0" CACHE STRING "CAN FD data bitrate: 0 follows nominal, 1000000, 2000000")
@@ -56,6 +58,13 @@ if(NOT SERVO_CANFD_DATA_BITRATE MATCHES "^(0|1000000|2000000)$")
     message(FATAL_ERROR "SERVO_CANFD_DATA_BITRATE must be 0, 1000000 or 2000000")
 endif()
 sdk_compile_definitions(-DSERVO_CANFD_DATA_BITRATE=${SERVO_CANFD_DATA_BITRATE})
+
+# 1: 普通 CAN_CIA402 默认独立请求/应答 ID；其他总线或显式 LegacySameId 为 0。
+if(SERVO_BUS STREQUAL "CAN_CIA402" AND NOT SERVO_CAN_LEGACY_SAME_ID)
+    sdk_compile_definitions(-DSERVO_CAN_SPLIT_REPLY=1)
+else()
+    sdk_compile_definitions(-DSERVO_CAN_SPLIT_REPLY=0)
+endif()
 
 set(SERVO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../..")
 

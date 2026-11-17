@@ -1604,6 +1604,13 @@ int64_t get_app_Home_position_offset_value(void)
 uint32_t set_app_Can_id(uint32_t val)
 {
     /* USER CODE BEGIN set_app_Can_id 0 */
+#if defined(SERVO_CAN_SPLIT_REPLY) && (SERVO_CAN_SPLIT_REPLY == 1)
+    /* 独立请求/应答 ID：请求节点只允许 0..0x3FF。必须在写入数据库前拒绝。 */
+    if (val > 0x3FFU)
+    {
+        return APP_PARAM_OUT_OF_RANGE;
+    }
+#endif
     /* USER CODE END set_app_Can_id 0 */
     kAppBaseConfig.Can_id = val;
     /* USER CODE BEGIN set_app_Can_id 1 */

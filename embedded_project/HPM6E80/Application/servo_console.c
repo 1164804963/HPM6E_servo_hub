@@ -78,6 +78,12 @@ static void print_can_status(void)
            (unsigned long)s.rx_count, (unsigned long)s.tx_count,
            (unsigned long)s.tx_error_count,
            (unsigned long)s.overflow_count, (unsigned long)s.busoff_count);
+    printf("can  : reply=0x%03lX split=%u legacy=%u\r\n",
+           (unsigned long)s.reply_id, (unsigned)s.split_reply,
+           (unsigned)s.legacy_same_id);
+    printf("can  : replyq pending=%lu drop=%lu highwater=%lu\r\n",
+           (unsigned long)s.reply_pending, (unsigned long)s.reply_drop_count,
+           (unsigned long)s.reply_highwater);
 }
 
 /* Read-only error-register snapshot for bus-off root cause: current state, the

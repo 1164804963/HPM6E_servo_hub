@@ -1,28 +1,36 @@
 # HPM6E80 CAN适配（原工程对齐口径）
 
-当前目标是适配先楫MCU和HPM6EMotorV20，使正常通信行为与servo_hub-master一致。原生缺陷只记录，优化在适配验收后单独进行；参见[原生问题清单](CAN_NATIVE_ISSUES.md)。前期015→415等优化已撤回，旧报告仅作历史记录。
+当前目标是适配先楫MCU和HPM6EMotorV20。原生问题的优化按阶段单独进行；参见[原生问题清单](CAN_NATIVE_ISSUES.md)。前期015→415旧优化已撤回，旧报告仅作历史记录；A01重新定义了独立请求/应答ID协议，见下文普通CAN_CIA402章节。
 
 ## 硬件与构建
 
 J8使用MCAN4，PC16/PC17为TXD/RXD，PC18控制收发器待机；J9/MCAN7本阶段不初始化。CAN时钟80MHz，支持1Mbps和500kbps。默认节点0x15、1Mbps。
 
-构建：`pwsh -NoProfile -File tools/build_hpm6e80.ps1 -Bus CAN_CIA402`。还可选CANOPEN_CIA402、CAN_ENCOS、CANFD_CUSTOM和ETHERCAT。`-CanPassthrough`打开MAVLink CAN FD通道。可配置不等于协议全部实现：ENCOS仍是原工程的空接收，CUSTOM仍是诊断回显。
+构建：`pwsh -NoProfile -File tools/build_hpm6e80.ps1 -Bus CAN_CIA402`。旧同ID兼容构建加`-LegacySameId`。还可选CANOPEN_CIA402、CAN_ENCOS、CANFD_CUSTOM和ETHERCAT。`-CanPassthrough`打开MAVLink CAN FD通道。可配置不等于协议全部实现：ENCOS仍是原工程的空接收，CUSTOM仍是诊断回显。
 
 ## 普通CAN_CIA402协议
 
-请求与应答使用同一标准ID，默认均为0x015，不再使用0x415。恢复标准11位ID的使用范围，不保留本阶段曾加入的0x3FF分区限制；CANopen仍按原来的7位节点规则初始化。参数层不新增原工程没有的越界拒绝策略。
+默认使用独立请求/应答ID：请求ID就是节点号，范围0..0x3FF；应答ID为`request | 0x400`。默认节点0x15，应答为0x415。只有构建时显式加`-LegacySameId`（CMake `SERVO_CAN_LEGACY_SAME_ID=ON`）才退回原同ID方式，并允许节点0..0x7FF；该开关只影响普通CAN_CIA402，CANopen、ENCOS、CUSTOM和EtherCAT不受影响。
+
+节点上限为1023（0x3FF）。初始化时越界直接拒绝，不进入总线；运行中`set_app_Can_id`在写入数据库和BSP前拒绝，返回`APP_PARAM_OUT_OF_RANGE`。Legacy模式保留标准11位ID范围，也保留原有同ID双向竞争限制。
 
 请求载荷：`[op, index_lo, index_hi, subindex, value_le]`，value为1/2/4字节；op=0读、op=1写。应答固定8字节，前4字节保持op/index/subindex，后4字节为回调处理后的值。回调报错仍按原逻辑形成回包，因此**回包不代表应用已接受或执行**，需读实际对象/状态确认。原有子索引和模式检查缺口不在适配阶段优化。
 
 默认节点SLCAN示例（末尾CR）：
 
 ```
-t01580041600000000000    # 读6041:00，回复t0158...
-t0156014060000000        # 写6040:00=0（失能），回复t0158...
+t01580041600000000000    # 读6041:00，回复t4158...
+t0156014060000000        # 写6040:00=0（失能），回复t4158...
 t01550160600003          # 写6060:00=3（PV），只说明协议，不作为运动验收
 ```
 
-同ID协议存在原生的双向竞争限制，主机采用单请求在途、收到应答再发下一条；本地脚本对控制字写入保留20ms保守间隔。不把无节流突发当正常通信，也不为消除这一遗留限制另改固件协议。控制字恢复母体的同步写入和状态机处理；不再使用新增控制字队列。回包仍不代表所有应用动作已执行成功。
+应答由128槽软件队列缓冲：RX中断解析请求并同步执行OD回调（控制字不排队、不延迟），只把8字节应答和收包时确定的应答ID入队；前台`servo_can_poll()`每圈最多提交8帧。MCAN TXFIFO满时保留队首、下次重试，不计丢包；其他发送错误丢弃该应答并计入txerr。队列满时先拒绝执行OD回调并同时增加reply drop和txerr，避免形成没有应答的部分动作。队列只保存应答，不保存或重放控制字；128槽是有界容量，不承诺超过128的无限突发不丢。
+
+Legacy同ID模式仍有原生的双向竞争限制，主机应保持单请求在途或足够间隔。不把无节流突发当正常通信。回包仍不代表所有应用动作已执行成功。
+
+HPM6E80的SDK未启用`CAN_SOC_TX_RX_BUFFER_ACCESS_WORKAROUND`；`mcan_transmit_via_txfifo_nonblocking`提交时只检查TXFIFO并写寄存器，没有等待接收活动的忙等。前台发送只使用短临界区保护队列索引和这次非阻塞提交，不关闭长中断。
+
+本阶段的0x400应答分区是显式的新协议变更，不是恢复此前被撤回的015→415旧优化。`-CanPassthrough`仍保留原有MAVLink ISR发送路径，本队列只覆盖普通CAN_CIA402应答。
 
 ## CANopen与平台必要适配
 
@@ -40,7 +48,7 @@ CANopen/CUSTOM不新增接收计数优化，掉线权限门控也恢复适配基
 
 ## 配置与诊断
 
-波特率配置下次初始化/重启生效。CANopen节点与过滤器也在初始化时一起生效；普通CAN按当前节点逐帧比较。保留`can`状态与`can diag`只读寄存器快照，显示配置/生效节点、波特率、收发/溢出/BO计数及首次BO快照。PSR读取会消耗LEC/DLEC状态，不把读诊断等同清故障。
+波特率配置下次初始化/重启生效。CANopen节点与过滤器也在初始化时一起生效；普通CAN按当前节点逐帧比较。保留`can`状态与`can diag`只读寄存器快照，显示配置/生效节点、波特率、收发/溢出/BO计数及首次BO快照。`can`在原有输出后新增`reply`/`split`/`legacy`和`replyq pending/drop/highwater`，旧字段和原输出行保持不变；启动信息也显示应答ID及split/legacy模式。PSR读取会消耗LEC/DLEC状态，不把读诊断等同清故障。
 
 前面新增的`can reset`、主循环bus-off扩展反应已撤回，运行恢复按原重启初始化流程。`can`的ready表示初始化成功，不代表已经排除总线错误，应结合diag观察。没有新增自动恢复或使能行为。
 
@@ -48,7 +56,7 @@ CANopen/CUSTOM不新增接收计数优化，掉线权限门控也恢复适配基
 
 源码对照和构建覆盖默认五种总线及CAN_CIA402透传开关；实机只做失能通信、参数RAM回写恢复、CANopen SDO/NMT/心跳/节点守护，不使能或运动，不改驱动参数。具体结果以工程外交接中的common-alignment-20261115/RESULT.md为准。
 
-历史报告中的015→415、abort不回包、HOST免掉线、CUSTOM全扩展回显、server-only SDO超时修复等结论属于已撤回的优化版本，不再作为当前行为承诺。前期新增0x1010/0x2000参数保存扩展已撤回，保存配置仍走原MAVLink SysCmd=2接口。
+历史报告中的旧版015→415偏移（没有独立应答队列）、abort不回包、HOST免掉线、CUSTOM全扩展回显、server-only SDO超时修复等结论属于已撤回的优化版本，不再作为当前行为承诺。A01的0x400应答分区与128槽应答队列是重新定义的新行为，不是恢复上述旧实现。前期新增0x1010/0x2000参数保存扩展已撤回，保存配置仍走原MAVLink SysCmd=2接口。
 
 ## 公共逻辑对齐补充（2026-11-15）
 
@@ -71,3 +79,5 @@ UART0 RX已适配HDMA通道0和DMAMUX，4KiB非缓存循环缓冲由DMA持续接
 1Mbps数据段/BRS仍因当前适配器不支持而未直接验收；J9按要求不测，ENCOS维持原空桩，运动和EtherCAT在线不在本轮范围。原生问题继续保留在CAN_NATIVE_ISSUES.md，Flash长关中断限制未在本阶段优化。
 
 2026-11-16补验：CUSTOM+CAN-host+可选2Mbps配置下，经典/FD回显与100次MAV参数读取交错、长帧分片/95字节写入、节点21→22→21、Quickstop2→3→2及重启恢复通过；UART签名帧隔离且CUSTOM控制字样式载荷不触发CiA402，TEC/REC最大0。UART DMA最终代码重新构建五种总线配置；普通CAN 1500读/30轮失能转换、CANopen SDO/NMT/心跳/RTR守护再次通过。证据在工程外交接uart-can-closeout-20261115/RESULT.md。默认仍为CAN_CIA402/透传OFF/data0，直接1Mbps BRS外部互通受当前USB-CAN固件能力限制，未声称通过。
+
+2026-11-17 A01原生问题修复验收：默认普通CAN独立ID及128槽应答队列已上板，两轮5000读取、3轮20条一次USB写突发、3轮128条请求及512条请求列均完整回复且TEC/REC0。当前USB-CAN一次USB写128命令时曾仅109到板端，失败记录保留；>20条测试按16命令/2.5ms投递，不等待回复或重试，并严格核对板端RX、全部回复及顺序。通过临时暂停前台发送单独占满128槽，证明第129条写在执行前被拒、参数不变，释放后128回复完整，未把主机投递丢失或未达到满队误算成板端通过。临时夹具均撤回；节点边界、旧ID兼容、五配置构建、CANopen/CUSTOM及30轮失能控制回归通过。当前最终请求015/回复415、ID21/1M/原参数/PWM0/错误0。详见工程外交接native-fixes-20261117/A01_RESULT.md；其他原生项按顺序待办。

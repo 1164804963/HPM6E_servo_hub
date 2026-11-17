@@ -1,5 +1,6 @@
 ﻿# 编译 HPM6E80 固件：先 configure 再 build。默认 EtherCAT。
 # CAN 协议与 Y01 次版本号对应，各自使用独立目录。
+# 普通CAN默认独立请求/应答ID；需要旧同ID时加 -LegacySameId。
 #
 # 参数与 .vscode/settings.json 里的 cmake.* 保持一致；改了那边的配置要同步改这里。
 
@@ -9,7 +10,8 @@ param(
     [string]$Bus = "ETHERCAT",
     [switch]$CanPassthrough,
     [ValidateSet(0, 1000000, 2000000)]
-    [uint32]$CanFdDataBitrate = 0
+    [uint32]$CanFdDataBitrate = 0,
+    [switch]$LegacySameId
 )
 
 $Root = (Resolve-Path $Root).Path
@@ -22,6 +24,7 @@ $buildDir = switch ($Bus) {
     default { "build-hpm6e80" }
 }
 $passthrough = if ($CanPassthrough) { "ON" } else { "OFF" }
+$legacy = if ($LegacySameId) { "ON" } else { "OFF" }
 Push-Location $Root
 try {
     Write-Host "== configure ($Bus) ==" -ForegroundColor Cyan
@@ -30,6 +33,7 @@ try {
         "-DSERVO_BUS=$Bus" `
         "-DSERVO_CAN_PASSTHROUGH=$passthrough" `
         "-DSERVO_CANFD_DATA_BITRATE=$CanFdDataBitrate" `
+        "-DSERVO_CAN_LEGACY_SAME_ID=$legacy" `
         -DHPM_BUILD_TYPE=flash_xip `
         -DCMAKE_BUILD_TYPE=debug `
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON

@@ -7,6 +7,10 @@
 #include "data_param.h"
 #include "master_cia402_callback.h"
 
+#if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+#include "hpm_mcan_drv.h"   /* status_mcan_txfifo_full */
+#endif
+
 #if defined(USE_CANOPEN)
 #include "board.h"
 #include "hpm_clock_drv.h"
@@ -23,6 +27,12 @@
 #define SERVO_CAN_DEFAULT_NODE_ID (0x15U)
 #define SERVO_CAN_DEFAULT_BITRATE (1000000U)
 
+#if defined(SERVO_CAN_SPLIT_REPLY) && (SERVO_CAN_SPLIT_REPLY == 1)
+#define CIA402_REPLY_ID(request_id) ((request_id) | 0x400U)
+#else
+#define CIA402_REPLY_ID(request_id) (request_id)
+#endif
+
 static bool s_ready;
 static volatile uint32_t s_node_id = SERVO_CAN_DEFAULT_NODE_ID;
 static volatile uint32_t s_active_node_id = SERVO_CAN_DEFAULT_NODE_ID;
@@ -34,6 +44,60 @@ static volatile uint32_t s_tx_count;
 static volatile uint32_t s_tx_error_count;
 
 #if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+/*
+ * 应答队列：RX 中断只做协议解析、同步执行 OD 回调和入队，实际发送放到前台
+ * servo_can_poll()。索引由短临界区保护；生产者和消费者各只有一个。
+ * 128 槽是当前功能的有界容量，不承诺超过它的突发不丢。
+ */
+#define CIA402_REPLY_QUEUE_SLOTS (128U)
+#define CIA402_REPLY_QUEUE_MASK  (CIA402_REPLY_QUEUE_SLOTS - 1U)
+
+typedef struct
+{
+    uint32_t id;             /* 收到请求时算好的应答 ID */
+    uint8_t data[8];
+} cia402_reply_t;
+
+static cia402_reply_t s_reply_queue[CIA402_REPLY_QUEUE_SLOTS];
+static volatile uint32_t s_reply_head;   /* 前台消费者 */
+static volatile uint32_t s_reply_tail;   /* RX 中断生产者 */
+static volatile uint32_t s_reply_drop_count;
+static volatile uint32_t s_reply_highwater;
+
+static uint32_t cia402_reply_pending(void)
+{
+    return s_reply_tail - s_reply_head;
+}
+
+/* 先确认有空位再执行 OD 回调；只有中断生产者写 tail，因此回调后一定还能入队。 */
+static bool cia402_reply_queue_has_space(void)
+{
+    bool has_space;
+    uint32_t irq_state = bsp_irq_save();
+
+    has_space = (cia402_reply_pending() < CIA402_REPLY_QUEUE_SLOTS);
+    bsp_irq_restore(irq_state);
+    return has_space;
+}
+
+static void cia402_reply_queue_push(uint32_t id, const uint8_t *data)
+{
+    uint32_t irq_state = bsp_irq_save();
+    uint32_t tail = s_reply_tail;
+    cia402_reply_t *entry = &s_reply_queue[tail & CIA402_REPLY_QUEUE_MASK];
+    uint32_t pending;
+
+    entry->id = id;
+    memcpy(entry->data, data, 8U);
+    s_reply_tail = tail + 1U;
+    pending = s_reply_tail - s_reply_head;
+    if (pending > s_reply_highwater)
+    {
+        s_reply_highwater = pending;
+    }
+    bsp_irq_restore(irq_state);
+}
+
 /* Same sequence as Y01 fdcan_cia402_handle. Length is bytes, already converted from DLC. */
 static void handle_cia402(const bsp_can_frame_t *rx)
 {
@@ -41,6 +105,7 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     uint16_t obj_index;
     uint8_t obj_subindex;
     uint32_t obj_data = 0U;
+    uint32_t reply_id;
     uint8_t data_length;
     uint8_t tx_data[8];
 
@@ -78,17 +143,29 @@ static void handle_cia402(const bsp_can_frame_t *rx)
         return;
     }
 
+    if ((is_write != 0U) && (is_write != 1U))
+    {
+        return;
+    }
+
+    /* 应答 ID 在收到请求时确定；后续节点变化不改已排队帧的目标。 */
+    reply_id = CIA402_REPLY_ID(rx->id);
+
+    /* 队满时不执行 OD 回调：避免形成没有对应应答的部分动作，并明确计数。 */
+    if (!cia402_reply_queue_has_space())
+    {
+        s_reply_drop_count++;
+        s_tx_error_count++;
+        return;
+    }
+
     if (is_write == 1U)
     {
         (void)master_cia402_write_callback(obj_index, obj_subindex, &obj_data);
     }
-    else if (is_write == 0U)
-    {
-        (void)master_cia402_read_callback(obj_index, obj_subindex, &obj_data);
-    }
     else
     {
-        return;
+        (void)master_cia402_read_callback(obj_index, obj_subindex, &obj_data);
     }
 
     tx_data[0] = is_write;
@@ -100,16 +177,59 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     tx_data[6] = (uint8_t)((obj_data >> 16) & 0xFFU);
     tx_data[7] = (uint8_t)((obj_data >> 24) & 0xFFU);
 
-    if (bsp_can_send(s_active_node_id, tx_data, 8U) == status_success)
-    {
-        s_tx_count++;
-    }
-    else
-    {
-        s_tx_error_count++;
-    }
+    cia402_reply_queue_push(reply_id, tx_data);
 }
 #endif
+
+void servo_can_poll(void)
+{
+#if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+    uint32_t attempts;
+
+    for (attempts = 0U; attempts < 8U; attempts++)
+    {
+        cia402_reply_t reply;
+        hpm_stat_t status;
+        uint32_t irq_state;
+
+        irq_state = bsp_irq_save();
+        if (s_reply_head == s_reply_tail)
+        {
+            bsp_irq_restore(irq_state);
+            break;
+        }
+        reply = s_reply_queue[s_reply_head & CIA402_REPLY_QUEUE_MASK];
+        bsp_irq_restore(irq_state);
+
+        /* MCAN 提交窗口：SDK 在 HPM6E80 上是非阻塞写入（TXFIFO 满立即返回），
+         * 这里只关一个很短的窗口，避免与使能透传时的 ISR 发送交错。 */
+        irq_state = bsp_irq_save();
+        status = bsp_can_send(reply.id, reply.data, 8U);
+        bsp_irq_restore(irq_state);
+        if (status == status_success)
+        {
+            irq_state = bsp_irq_save();
+            s_reply_head++;
+            s_tx_count++;
+            bsp_irq_restore(irq_state);
+            continue;
+        }
+        if (status == status_mcan_txfifo_full)
+        {
+            /* 硬件 TXFIFO 暂忙：保留队首，下次前台继续尝试，不计丢包。 */
+            break;
+        }
+
+        /* 其他发送错误：丢弃这一帧并明确计数，避免队首永久阻塞。 */
+        irq_state = bsp_irq_save();
+        s_reply_head++;
+        s_tx_error_count++;
+        bsp_irq_restore(irq_state);
+    }
+#else
+    /* CANopen/ENCOS/CUSTOM 保持原有发送路径，不经过应答队列。 */
+#endif
+}
 
 #if defined(USE_CANOPEN)
 static void handle_canopen(const bsp_can_frame_t *rx)
@@ -376,6 +496,25 @@ hpm_stat_t servo_can_init(uint32_t node_id, uint32_t bitrate_hz)
     s_tx_count = 0U;
     s_tx_error_count = 0U;
     s_active_bitrate_hz = 0U;
+#if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+    s_reply_head = 0U;
+    s_reply_tail = 0U;
+    s_reply_drop_count = 0U;
+    s_reply_highwater = 0U;
+#endif
+
+#if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+#if defined(SERVO_CAN_SPLIT_REPLY) && (SERVO_CAN_SPLIT_REPLY == 1)
+    if (node_id > 0x3FFU)
+#else
+    if (node_id > 0x7FFU)
+#endif
+    {
+        s_last_error = status_invalid_argument;
+        s_ready = false;
+        return status_invalid_argument;
+    }
+#endif
 
     status = bsp_can_init(node_id, bitrate_hz);
 #if defined(USE_CANOPEN)
@@ -415,6 +554,31 @@ void servo_can_get_status(servo_can_status_t *status)
     status->tx_error_count = s_tx_error_count;
     status->overflow_count = bsp_can_overflow_count();
     status->busoff_count = bsp_can_busoff_count();
+#if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
+    {
+        uint32_t irq_state = bsp_irq_save();
+
+        status->reply_pending = cia402_reply_pending();
+        status->reply_drop_count = s_reply_drop_count;
+        status->reply_highwater = s_reply_highwater;
+        bsp_irq_restore(irq_state);
+    }
+    status->reply_id = s_ready ? CIA402_REPLY_ID(s_active_node_id) : 0U;
+#if defined(SERVO_CAN_SPLIT_REPLY) && (SERVO_CAN_SPLIT_REPLY == 1)
+    status->split_reply = true;
+    status->legacy_same_id = false;
+#else
+    status->split_reply = false;
+    status->legacy_same_id = true;
+#endif
+#else
+    status->reply_id = 0U;
+    status->split_reply = false;
+    status->legacy_same_id = false;
+    status->reply_pending = 0U;
+    status->reply_drop_count = 0U;
+    status->reply_highwater = 0U;
+#endif
 }
 
 /* Node ID is used on the next frame. Baudrate is stored until the next init. */
@@ -428,7 +592,8 @@ void bsp_set_can_id(uint32_t can_id)
 {
     s_node_id = can_id;
 #if !defined(USE_CANOPEN)
-    /* CAN_CIA402: node ID is compared on every frame, so the next frame uses the new ID. */
+    /* CAN_CIA402: node ID is compared on every frame, so the next frame uses the new ID.
+     * 已排队的应答保留接收时算出的 ID，不随这次修改重定向。 */
     s_active_node_id = can_id;
 #endif
 }
