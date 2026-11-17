@@ -417,8 +417,18 @@ static inline bool AppCanBusDisconnectionErrorCheck(void)
 
     kAppCheck.can_mg_counts_now = bsp_get_can_mg_counts();
 
+    // 上位机接管期间不做掉线监测：清零累计时间并跟随当前计数，
+    // 交回总线控制权后从最近一次扫描重新计时，原有总线超时策略不变。
+    if (get_app_Comm_control_authority() != COMM_CONTROL_BUS)
+    {
+        time_count = 0;
+        kAppCheck.can_mg_counts_last = kAppCheck.can_mg_counts_now;
+        return false;
+    }
+
     if (0 == kAppCheck.can_mg_counts_now && 0 == kAppCheck.can_mg_counts_last) // 未接受到CAN消息
     {
+        time_count = 0;
         kAppCheck.can_mg_counts_last = kAppCheck.can_mg_counts_now;
         return false;
     }
