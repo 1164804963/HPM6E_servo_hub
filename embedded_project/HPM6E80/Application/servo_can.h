@@ -15,7 +15,7 @@ typedef struct
     uint32_t bitrate_hz;         /* 已配置的波特率，重启后生效 */
     uint32_t active_bitrate_hz;
     hpm_stat_t last_error;
-    uint32_t rx_count;           /* CAN_CIA402 寻址命中计数（长度/opcode 不参与） */
+    uint32_t rx_count;           /* 各总线确认可处理的本地入站请求计数；不代表协议执行成功 */
     uint32_t tx_count;
     uint32_t tx_error_count;
     uint32_t overflow_count;

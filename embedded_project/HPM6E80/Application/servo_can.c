@@ -43,6 +43,18 @@ static volatile uint32_t s_rx_count;
 static volatile uint32_t s_tx_count;
 static volatile uint32_t s_tx_error_count;
 
+#if !defined(USE_ENCOS)
+/* 只有 FIFO0 的协议入口写这个计数。保持 0 表示尚未收到可处理的请求。 */
+static void note_can_activity(void)
+{
+    s_rx_count++;
+    if (s_rx_count == 0U)
+    {
+        s_rx_count = 1U;
+    }
+}
+#endif
+
 #if !defined(USE_CANOPEN) && !defined(USE_ENCOS) && !defined(USE_CUSTOM)
 /*
  * 应答队列：RX 中断只做协议解析、同步执行 OD 回调和入队，实际发送放到前台
@@ -110,12 +122,10 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     uint8_t tx_data[8];
     uint32_t od_result;
 
-    if (rx->extended || (rx->id != s_active_node_id))
+    if (rx->extended || rx->remote || (rx->id != s_active_node_id))
     {
         return;
     }
-
-    s_rx_count = (s_rx_count == 0U) ? 1U : (s_rx_count + 1U);
 
     if (rx->len < 5U)
     {
@@ -148,6 +158,9 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     {
         return;
     }
+
+    /* 长度和 opcode 已确认是本节点可处理的数据请求；OD 失败/队满仍算收到。 */
+    note_can_activity();
 
     /* 应答 ID 在收到请求时确定；后续节点变化不改已排队帧的目标。 */
     reply_id = CIA402_REPLY_ID(rx->id);
@@ -248,6 +261,122 @@ void servo_can_poll(void)
 }
 
 #if defined(USE_CANOPEN)
+/* SDO 服务端请求：只认实际配置的客户端->服务端 COB-ID，且 ccs 在 0..4。 */
+static bool canopen_sdo_request_counts(const bsp_can_frame_t *rx)
+{
+    UNS16 offset;
+
+    if ((rx->id < 0x580U) || (rx->id > 0x67FU) ||
+        (SlaveOD_Data.firstIndex->SDO_SVR == 0U))
+    {
+        return false;
+    }
+    for (offset = SlaveOD_Data.firstIndex->SDO_SVR;
+         offset <= SlaveOD_Data.lastIndex->SDO_SVR; offset++)
+    {
+        UNS32 cob_id = *(UNS32 *)SlaveOD_Data.objdict[offset].pSubindex[1].pObject;
+
+        if (cob_id == rx->id)
+        {
+            return (rx->data[0] >> 5) <= 4U;
+        }
+    }
+    return false;
+}
+
+/* RPDO 请求：COB-ID 与实际 0x1400 配置匹配，长度满足当前映射。 */
+static bool canopen_rpdo_counts(const bsp_can_frame_t *rx)
+{
+    UNS16 offset;
+
+    if ((rx->id < 0x180U) || (rx->id > 0x57FU) ||
+        (SlaveOD_Data.firstIndex->PDO_RCV == 0U))
+    {
+        return false;
+    }
+    for (offset = SlaveOD_Data.firstIndex->PDO_RCV;
+         offset <= SlaveOD_Data.lastIndex->PDO_RCV; offset++)
+    {
+        UNS16 map_offset;
+        UNS8 map_count;
+        UNS8 i;
+        UNS32 bits = 0U;
+        bool valid = true;
+
+        if (*(UNS32 *)SlaveOD_Data.objdict[offset].pSubindex[1].pObject != rx->id)
+        {
+            continue;
+        }
+        map_offset = (UNS16)(SlaveOD_Data.firstIndex->PDO_RCV_MAP +
+                             (offset - SlaveOD_Data.firstIndex->PDO_RCV));
+        if (map_offset > SlaveOD_Data.lastIndex->PDO_RCV_MAP)
+        {
+            return false;
+        }
+        map_count = *(UNS8 *)SlaveOD_Data.objdict[map_offset].pSubindex[0].pObject;
+        if ((map_count == 0U) ||
+            (map_count >= SlaveOD_Data.objdict[map_offset].bSubCount))
+        {
+            return false;
+        }
+        for (i = 0U; i < map_count; i++)
+        {
+            UNS32 param = *(UNS32 *)SlaveOD_Data.objdict[map_offset].pSubindex[i + 1U].pObject;
+            UNS8 size = (UNS8)(param & 0xFFU);
+
+            if (size == 0U)
+            {
+                valid = false;
+                break;
+            }
+            bits += size;
+        }
+        return valid && (bits <= 64U) &&
+               (rx->len >= (uint8_t)((bits + 7U) / 8U)) && (rx->len <= 8U);
+    }
+    return false;
+}
+
+/* CANopen 计数资格：本节点可处理的经典入站请求，不代替协议栈校验。 */
+static bool canopen_rx_counts(const bsp_can_frame_t *rx)
+{
+    uint8_t node = *SlaveOD_Data.bDeviceNodeId;
+
+    /* CANopen FD 未实现，只覆盖 0..8 字节经典数据帧。 */
+    if (rx->extended || rx->canfd || (rx->len > 8U))
+    {
+        return false;
+    }
+    if (rx->remote)
+    {
+        return (rx->id == (0x700U + node)) && (rx->len == 0U) &&
+               (SlaveOD_Data.CurrentCommunicationState.csLifeGuard != 0);
+    }
+    if (rx->id == 0x000U)
+    {
+        return (rx->len == 2U) &&
+               ((rx->data[1] == 0U) || (rx->data[1] == node)) &&
+               (SlaveOD_Data.nodeState == Pre_operational ||
+                SlaveOD_Data.nodeState == Operational ||
+                SlaveOD_Data.nodeState == Stopped) &&
+               ((rx->data[0] == 0x01U) || (rx->data[0] == 0x02U) ||
+                (rx->data[0] == 0x80U) || (rx->data[0] == 0x81U) ||
+                (rx->data[0] == 0x82U));
+    }
+    if (rx->id == 0x080U)
+    {
+        return (rx->len == 0U) &&
+               (SlaveOD_Data.CurrentCommunicationState.csSYNC != 0);
+    }
+    if ((SlaveOD_Data.CurrentCommunicationState.csSDO != 0) &&
+        (rx->len == 8U) && canopen_sdo_request_counts(rx))
+    {
+        return true;
+    }
+    return (SlaveOD_Data.CurrentCommunicationState.csPDO != 0) &&
+           canopen_rpdo_counts(rx);
+}
+
 static void handle_canopen(const bsp_can_frame_t *rx)
 {
     Message message;
@@ -259,6 +388,10 @@ static void handle_canopen(const bsp_can_frame_t *rx)
     if (message.len > 0U)
     {
         memcpy(message.data, rx->data, message.len);
+    }
+    if (canopen_rx_counts(rx))
+    {
+        note_can_activity();
     }
     canDispatch(&SlaveOD_Data, &message);
     if ((message.cob_id == 0x080U) && (SlaveOD_Data.nodeState == Operational))
@@ -474,6 +607,10 @@ static void handle_encos(const bsp_can_frame_t *rx)
 #elif defined(USE_CUSTOM)
 static void handle_custom(const bsp_can_frame_t *rx)
 {
+    if (!rx->remote && (rx->len <= (rx->canfd ? 64U : 8U)))
+    {
+        note_can_activity();
+    }
     if (rx->canfd)
     {
         (void)bsp_can_send_fd(s_node_id, rx->extended, rx->bitrate_switch, rx->data, rx->len);
