@@ -22,6 +22,24 @@ INTEGER32 limit_64_to_32(int64_t val_64)
 
 /* USER CODE END AREA 0 */
 
+/* APP_PARAM_STATUS (set_app_*) 返回值到 CANopen abort code 的映射。 */
+static UNS32 cia402_app_status_to_abort(uint32_t status)
+{
+    switch (status)
+    {
+    case APP_PARAM_SUCCESS:
+        return ABORT_CODE_SUCCESSFUL;
+    case APP_PARAM_READ_ONLY:
+        return ABORT_CODE_CANNOT_WRITE_RO_OBJECT;
+    case APP_PARAM_OUT_OF_RANGE:
+        return ABORT_CODE_VALUE_OUT_OF_RANGE;
+    case APP_PARAM_WRITE_STATE_ERROR:
+        return ABORT_CODE_DRIVE_STATE_DENIED;
+    default:
+        return ABORT_CODE_GENERAL_ERROR;
+    }
+}
+
 PDS_FSA kPDS_FSA;
 Factor_group kFactor_group;
 Profile_position_mode kProfile_position_mode;
@@ -81,8 +99,16 @@ UNS16 get_Error_code(void){
 }
 
 UNS32 set_Quick_stop_option_code(INTEGER16 val){
+    INTEGER16 old_Quick_stop_option_code;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Quick_stop_option_code 0 */
-    set_app_Quick_stop_option_code(val);
+    old_Quick_stop_option_code = kPDS_FSA.Quick_stop_option_code;
+    app_status = set_app_Quick_stop_option_code(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPDS_FSA.Quick_stop_option_code = old_Quick_stop_option_code;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Quick_stop_option_code 0 */
     kPDS_FSA.Quick_stop_option_code = val;
     /* USER CODE BEGIN set_Quick_stop_option_code 1 */
@@ -97,38 +123,46 @@ INTEGER16 get_Quick_stop_option_code(void){
 }
 
 UNS32 set_Modes_of_operation(INTEGER8 val){
+    INTEGER8 old_Modes_of_operation;
+    uint32_t app_status = APP_PARAM_SUCCESS;
     /* USER CODE BEGIN set_Modes_of_operation 0 */
     /* USER CODE END set_Modes_of_operation 0 */
+    old_Modes_of_operation = kPDS_FSA.Modes_of_operation;
     kPDS_FSA.Modes_of_operation = val;
     /* USER CODE BEGIN set_Modes_of_operation 1 */
     //目前支持的cia402模式:PP,PV,PT,HM,CSP,CSV,CST,MIT
     switch(kPDS_FSA.Modes_of_operation){
         case kOd6060_PPM:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_POSITION);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_POSITION);
             break;
         case kOd6060_PVM:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_SPEED);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_SPEED);
             break;
         case kOd6060_TPM:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_TORQUE);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_TORQUE);
             break;
         case kOd6060_HM:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_HOMING);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_HOMING);
             break;
         case kOd6060_CSP:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSP);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSP);
             break;
         case kOd6060_CSV:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSV);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CSV);
             break;
         case kOd6060_CST:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CST);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_CST);
             break;
         case kOd6060_MIT:
-            set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_MIT);
+            app_status = set_app_Modes_of_operation(MOTOR_CTL_SM_MODE_MIT);
             break;
         default:
             break;
+    }
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPDS_FSA.Modes_of_operation = old_Modes_of_operation;
+        return cia402_app_status_to_abort(app_status);
     }
     /* USER CODE END set_Modes_of_operation 1 */
     return ABORT_CODE_SUCCESSFUL;
@@ -225,11 +259,19 @@ UNS8 get_Position_encoder_resolution(void){
 }
 
 UNS32 set_Position_encoder_resolution_Encoder_increments(UNS32 val){
+    UNS32 old_Position_encoder_resolution_Encoder_increments;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_encoder_resolution_Encoder_increments 0 */
     /* USER CODE END set_Position_encoder_resolution_Encoder_increments 0 */
+    old_Position_encoder_resolution_Encoder_increments = kFactor_group.Position_encoder_resolution_Encoder_increments;
     kFactor_group.Position_encoder_resolution_Encoder_increments = val;
     /* USER CODE BEGIN set_Position_encoder_resolution_Encoder_increments 1 */
-    set_app_Load_encoder_resolution(val);   //设置负载端编码器分辨率
+    app_status = set_app_Load_encoder_resolution(val);   //设置负载端编码器分辨率
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kFactor_group.Position_encoder_resolution_Encoder_increments = old_Position_encoder_resolution_Encoder_increments;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_encoder_resolution_Encoder_increments 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -241,11 +283,19 @@ UNS32 get_Position_encoder_resolution_Encoder_increments(void){
 }
 
 UNS32 set_Position_encoder_resolution_Motor_revolutions(UNS32 val){
+    UNS32 old_Position_encoder_resolution_Motor_revolutions;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_encoder_resolution_Motor_revolutions 0 */
     /* USER CODE END set_Position_encoder_resolution_Motor_revolutions 0 */
+    old_Position_encoder_resolution_Motor_revolutions = kFactor_group.Position_encoder_resolution_Motor_revolutions;
     kFactor_group.Position_encoder_resolution_Motor_revolutions = val;
     /* USER CODE BEGIN set_Position_encoder_resolution_Motor_revolutions 1 */
-    set_app_Motor_encoder_resolution(val);  //设置电机端编码器分辨率
+    app_status = set_app_Motor_encoder_resolution(val);  //设置电机端编码器分辨率
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kFactor_group.Position_encoder_resolution_Motor_revolutions = old_Position_encoder_resolution_Motor_revolutions;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_encoder_resolution_Motor_revolutions 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -271,12 +321,20 @@ UNS8 get_Gear_ratio(void){
 }
 
 UNS32 set_Motor_revolutions(UNS32 val){
+    UNS32 old_Motor_revolutions;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Motor_revolutions 0 */
     /* USER CODE END set_Motor_revolutions 0 */
+    old_Motor_revolutions = kFactor_group.Motor_revolutions;
     kFactor_group.Motor_revolutions = val;
     /* USER CODE BEGIN set_Motor_revolutions 1 */
     //电子齿轮比分母
-    set_app_Reduction_ratio_den(val);
+    app_status = set_app_Reduction_ratio_den(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kFactor_group.Motor_revolutions = old_Motor_revolutions;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Motor_revolutions 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -288,12 +346,20 @@ UNS32 get_Motor_revolutions(void){
 }
 
 UNS32 set_Shaft_revolutions(UNS32 val){
+    UNS32 old_Shaft_revolutions;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Shaft_revolutions 0 */
     /* USER CODE END set_Shaft_revolutions 0 */
+    old_Shaft_revolutions = kFactor_group.Shaft_revolutions;
     kFactor_group.Shaft_revolutions = val;
     /* USER CODE BEGIN set_Shaft_revolutions 1 */
     //电子齿轮比分子
-    set_app_Reduction_ratio_num(val);
+    app_status = set_app_Reduction_ratio_num(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kFactor_group.Shaft_revolutions = old_Shaft_revolutions;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Shaft_revolutions 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -305,11 +371,19 @@ UNS32 get_Shaft_revolutions(void){
 }
 
 UNS32 set_Polarity(UNS8 val){
+    UNS8 old_Polarity;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Polarity 0 */
     /* USER CODE END set_Polarity 0 */
+    old_Polarity = kFactor_group.Polarity;
     kFactor_group.Polarity = val;
     /* USER CODE BEGIN set_Polarity 1 */
-    set_app_Polarity(val);
+    app_status = set_app_Polarity(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kFactor_group.Polarity = old_Polarity;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Polarity 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -321,11 +395,19 @@ UNS8 get_Polarity(void){
 }
 
 UNS32 set_Target_position(INTEGER32 val){
+    INTEGER32 old_Target_position;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Target_position 0 */
     /* USER CODE END set_Target_position 0 */
+    old_Target_position = kProfile_position_mode.Target_position;
     kProfile_position_mode.Target_position = val;
     /* USER CODE BEGIN set_Target_position 1 */
-    set_app_Target_position(val);
+    app_status = set_app_Target_position(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Target_position = old_Target_position;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Target_position 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -351,11 +433,19 @@ UNS8 get_Position_range_limit(void){
 }
 
 UNS32 set_Position_range_limit_Minimal_position_limit(INTEGER32 val){
+    INTEGER32 old_Position_range_limit_Minimal_position_limit;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_range_limit_Minimal_position_limit 0 */
     /* USER CODE END set_Position_range_limit_Minimal_position_limit 0 */
+    old_Position_range_limit_Minimal_position_limit = kProfile_position_mode.Position_range_limit_Minimal_position_limit;
     kProfile_position_mode.Position_range_limit_Minimal_position_limit = val;
     /* USER CODE BEGIN set_Position_range_limit_Minimal_position_limit 1 */
-    set_app_Position_range_limit_Minimal_position_limit(val);
+    app_status = set_app_Position_range_limit_Minimal_position_limit(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Position_range_limit_Minimal_position_limit = old_Position_range_limit_Minimal_position_limit;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_range_limit_Minimal_position_limit 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -367,11 +457,19 @@ INTEGER32 get_Position_range_limit_Minimal_position_limit(void){
 }
 
 UNS32 set_Position_range_limit_Maximal_position_limit(INTEGER32 val){
+    INTEGER32 old_Position_range_limit_Maximal_position_limit;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_range_limit_Maximal_position_limit 0 */
     /* USER CODE END set_Position_range_limit_Maximal_position_limit 0 */
+    old_Position_range_limit_Maximal_position_limit = kProfile_position_mode.Position_range_limit_Maximal_position_limit;
     kProfile_position_mode.Position_range_limit_Maximal_position_limit = val;
     /* USER CODE BEGIN set_Position_range_limit_Maximal_position_limit 1 */
-    set_app_Position_range_limit_Maximal_position_limit(val);
+    app_status = set_app_Position_range_limit_Maximal_position_limit(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Position_range_limit_Maximal_position_limit = old_Position_range_limit_Maximal_position_limit;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_range_limit_Maximal_position_limit 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -397,11 +495,19 @@ UNS8 get_Software_position_limit(void){
 }
 
 UNS32 set_Software_position_limit_Minimal_position_limit(INTEGER32 val){
+    INTEGER32 old_Software_position_limit_Minimal_position_limit;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Software_position_limit_Minimal_position_limit 0 */
     /* USER CODE END set_Software_position_limit_Minimal_position_limit 0 */
+    old_Software_position_limit_Minimal_position_limit = kProfile_position_mode.Software_position_limit_Minimal_position_limit;
     kProfile_position_mode.Software_position_limit_Minimal_position_limit = val;
     /* USER CODE BEGIN set_Software_position_limit_Minimal_position_limit 1 */
-    set_app_Software_position_limit_Minimal_position_limit(val);
+    app_status = set_app_Software_position_limit_Minimal_position_limit(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Software_position_limit_Minimal_position_limit = old_Software_position_limit_Minimal_position_limit;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Software_position_limit_Minimal_position_limit 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -413,11 +519,19 @@ INTEGER32 get_Software_position_limit_Minimal_position_limit(void){
 }
 
 UNS32 set_Software_position_limit_Maximal_position_limit(INTEGER32 val){
+    INTEGER32 old_Software_position_limit_Maximal_position_limit;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Software_position_limit_Maximal_position_limit 0 */
     /* USER CODE END set_Software_position_limit_Maximal_position_limit 0 */
+    old_Software_position_limit_Maximal_position_limit = kProfile_position_mode.Software_position_limit_Maximal_position_limit;
     kProfile_position_mode.Software_position_limit_Maximal_position_limit = val;
     /* USER CODE BEGIN set_Software_position_limit_Maximal_position_limit 1 */
-    set_app_Software_position_limit_Maximal_position_limit(val);
+    app_status = set_app_Software_position_limit_Maximal_position_limit(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Software_position_limit_Maximal_position_limit = old_Software_position_limit_Maximal_position_limit;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Software_position_limit_Maximal_position_limit 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -429,12 +543,20 @@ INTEGER32 get_Software_position_limit_Maximal_position_limit(void){
 }
 
 UNS32 set_Max_profile_velocity(UNS32 val){
+    UNS32 old_Max_profile_velocity;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_profile_velocity 0 */
     /* USER CODE END set_Max_profile_velocity 0 */
+    old_Max_profile_velocity = kProfile_position_mode.Max_profile_velocity;
     kProfile_position_mode.Max_profile_velocity = val;
     /* USER CODE BEGIN set_Max_profile_velocity 1 */
     // P/s转RPM
-    set_app_Max_profile_velocity((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Max_profile_velocity((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Max_profile_velocity = old_Max_profile_velocity;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_profile_velocity 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -446,11 +568,19 @@ UNS32 get_Max_profile_velocity(void){
 }
 
 UNS32 set_Max_motor_speed(UNS32 val){
+    UNS32 old_Max_motor_speed;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_motor_speed 0 */
     /* USER CODE END set_Max_motor_speed 0 */
+    old_Max_motor_speed = kProfile_position_mode.Max_motor_speed;
     kProfile_position_mode.Max_motor_speed = val;
     /* USER CODE BEGIN set_Max_motor_speed 1 */
-    set_app_Max_motor_speed((float)val);
+    app_status = set_app_Max_motor_speed((float)val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Max_motor_speed = old_Max_motor_speed;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_motor_speed 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -462,12 +592,20 @@ UNS32 get_Max_motor_speed(void){
 }
 
 UNS32 set_Profile_velocity(UNS32 val){
+    UNS32 old_Profile_velocity;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Profile_velocity 0 */
     /* USER CODE END set_Profile_velocity 0 */
+    old_Profile_velocity = kProfile_position_mode.Profile_velocity;
     kProfile_position_mode.Profile_velocity = val;
     /* USER CODE BEGIN set_Profile_velocity 1 */
     // P/s转RPM
-    set_app_Profile_velocity((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Profile_velocity((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Profile_velocity = old_Profile_velocity;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Profile_velocity 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -479,12 +617,20 @@ UNS32 get_Profile_velocity(void){
 }
 
 UNS32 set_Profile_acceleration(UNS32 val){
+    UNS32 old_Profile_acceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Profile_acceleration 0 */
     /* USER CODE END set_Profile_acceleration 0 */
+    old_Profile_acceleration = kProfile_position_mode.Profile_acceleration;
     kProfile_position_mode.Profile_acceleration = val;
     /* USER CODE BEGIN set_Profile_acceleration 1 */
     // P/s/s转RPM/s
-    set_app_Profile_acceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Profile_acceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Profile_acceleration = old_Profile_acceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Profile_acceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -496,12 +642,20 @@ UNS32 get_Profile_acceleration(void){
 }
 
 UNS32 set_Profile_deceleration(UNS32 val){
+    UNS32 old_Profile_deceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Profile_deceleration 0 */
     /* USER CODE END set_Profile_deceleration 0 */
+    old_Profile_deceleration = kProfile_position_mode.Profile_deceleration;
     kProfile_position_mode.Profile_deceleration = val;
     /* USER CODE BEGIN set_Profile_deceleration 1 */
     // P/s/s转RPM/s
-    set_app_Profile_deceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Profile_deceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Profile_deceleration = old_Profile_deceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Profile_deceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -513,12 +667,20 @@ UNS32 get_Profile_deceleration(void){
 }
 
 UNS32 set_Quick_stop_deceleration(UNS32 val){
+    UNS32 old_Quick_stop_deceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Quick_stop_deceleration 0 */
     /* USER CODE END set_Quick_stop_deceleration 0 */
+    old_Quick_stop_deceleration = kProfile_position_mode.Quick_stop_deceleration;
     kProfile_position_mode.Quick_stop_deceleration = val;
     /* USER CODE BEGIN set_Quick_stop_deceleration 1 */
     // P/s/s转RPM/s
-    set_app_Quick_stop_deceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Quick_stop_deceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Quick_stop_deceleration = old_Quick_stop_deceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Quick_stop_deceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -530,12 +692,20 @@ UNS32 get_Quick_stop_deceleration(void){
 }
 
 UNS32 set_Max_acceleration(UNS32 val){
+    UNS32 old_Max_acceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_acceleration 0 */
     /* USER CODE END set_Max_acceleration 0 */
+    old_Max_acceleration = kProfile_position_mode.Max_acceleration;
     kProfile_position_mode.Max_acceleration = val;
     /* USER CODE BEGIN set_Max_acceleration 1 */
     // P/s/s转RPM/s
-    set_app_Max_acceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Max_acceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Max_acceleration = old_Max_acceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_acceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -547,12 +717,20 @@ UNS32 get_Max_acceleration(void){
 }
 
 UNS32 set_Max_deceleration(UNS32 val){
+    UNS32 old_Max_deceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_deceleration 0 */
     /* USER CODE END set_Max_deceleration 0 */
+    old_Max_deceleration = kProfile_position_mode.Max_deceleration;
     kProfile_position_mode.Max_deceleration = val;
     /* USER CODE BEGIN set_Max_deceleration 1 */
     // P/s/s转RPM/s
-    set_app_Max_deceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Max_deceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_position_mode.Max_deceleration = old_Max_deceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_deceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -564,11 +742,19 @@ UNS32 get_Max_deceleration(void){
 }
 
 UNS32 set_Home_offset(INTEGER32 val){
+    INTEGER32 old_Home_offset;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Home_offset 0 */
     /* USER CODE END set_Home_offset 0 */
+    old_Home_offset = kHoming_mode.Home_offset;
     kHoming_mode.Home_offset = val;
     /* USER CODE BEGIN set_Home_offset 1 */
-    set_app_Home_offset(val);
+    app_status = set_app_Home_offset(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kHoming_mode.Home_offset = old_Home_offset;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Home_offset 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -580,11 +766,19 @@ INTEGER32 get_Home_offset(void){
 }
 
 UNS32 set_Homing_method(INTEGER8 val){
+    INTEGER8 old_Homing_method;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Homing_method 0 */
     /* USER CODE END set_Homing_method 0 */
+    old_Homing_method = kHoming_mode.Homing_method;
     kHoming_mode.Homing_method = val;
     /* USER CODE BEGIN set_Homing_method 1 */
-    set_app_Homing_method(val);
+    app_status = set_app_Homing_method(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kHoming_mode.Homing_method = old_Homing_method;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Homing_method 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -610,12 +804,20 @@ UNS8 get_Homing_speeds(void){
 }
 
 UNS32 set_Homing_speeds_Speed_for_switch_search(UNS32 val){
+    UNS32 old_Homing_speeds_Speed_for_switch_search;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Homing_speeds_Speed_for_switch_search 0 */
     /* USER CODE END set_Homing_speeds_Speed_for_switch_search 0 */
+    old_Homing_speeds_Speed_for_switch_search = kHoming_mode.Homing_speeds_Speed_for_switch_search;
     kHoming_mode.Homing_speeds_Speed_for_switch_search = val;
     /* USER CODE BEGIN set_Homing_speeds_Speed_for_switch_search 1 */
     // P/s转RPM
-    set_app_Homing_speed_search_for_switch((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Homing_speed_search_for_switch((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kHoming_mode.Homing_speeds_Speed_for_switch_search = old_Homing_speeds_Speed_for_switch_search;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Homing_speeds_Speed_for_switch_search 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -628,12 +830,20 @@ UNS32 get_Homing_speeds_Speed_for_switch_search(void){
 }
 
 UNS32 set_Homing_speeds_Speed_for_zero_search(UNS32 val){
+    UNS32 old_Homing_speeds_Speed_for_zero_search;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Homing_speeds_Speed_for_zero_search 0 */
     /* USER CODE END set_Homing_speeds_Speed_for_zero_search 0 */
+    old_Homing_speeds_Speed_for_zero_search = kHoming_mode.Homing_speeds_Speed_for_zero_search;
     kHoming_mode.Homing_speeds_Speed_for_zero_search = val;
     /* USER CODE BEGIN set_Homing_speeds_Speed_for_zero_search 1 */
     // P/s转RPM
-    set_app_Homing_speed_search_for_zero((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Homing_speed_search_for_zero((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kHoming_mode.Homing_speeds_Speed_for_zero_search = old_Homing_speeds_Speed_for_zero_search;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Homing_speeds_Speed_for_zero_search 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -646,12 +856,20 @@ UNS32 get_Homing_speeds_Speed_for_zero_search(void){
 }
 
 UNS32 set_Homing_acceleration(UNS32 val){
+    UNS32 old_Homing_acceleration;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Homing_acceleration 0 */
     /* USER CODE END set_Homing_acceleration 0 */
+    old_Homing_acceleration = kHoming_mode.Homing_acceleration;
     kHoming_mode.Homing_acceleration = val;
     /* USER CODE BEGIN set_Homing_acceleration 1 */
     // P/s/s转RPM/s
-    set_app_Homing_acceleration((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Homing_acceleration((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kHoming_mode.Homing_acceleration = old_Homing_acceleration;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Homing_acceleration 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -709,8 +927,16 @@ INTEGER32 get_Position_actual_value(void){
 }
 
 UNS32 set_Following_error_window(UNS32 val){
+    UNS32 old_Following_error_window;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Following_error_window 0 */
-    set_app_Following_error_window(val);
+    old_Following_error_window = kPosition_control_function.Following_error_window;
+    app_status = set_app_Following_error_window(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPosition_control_function.Following_error_window = old_Following_error_window;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Following_error_window 0 */
     kPosition_control_function.Following_error_window = val;
     /* USER CODE BEGIN set_Following_error_window 1 */
@@ -725,11 +951,19 @@ UNS32 get_Following_error_window(void){
 }
 
 UNS32 set_Following_error_time_out(UNS16 val){
+    UNS16 old_Following_error_time_out;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Following_error_time_out 0 */
     /* USER CODE END set_Following_error_time_out 0 */
+    old_Following_error_time_out = kPosition_control_function.Following_error_time_out;
     kPosition_control_function.Following_error_time_out = val;
     /* USER CODE BEGIN set_Following_error_time_out 1 */
-    set_app_Following_error_time_out((float)val * 0.001f);
+    app_status = set_app_Following_error_time_out((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPosition_control_function.Following_error_time_out = old_Following_error_time_out;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Following_error_time_out 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -741,8 +975,16 @@ UNS16 get_Following_error_time_out(void){
 }
 
 UNS32 set_Position_window(UNS32 val){
+    UNS32 old_Position_window;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_window 0 */
-    set_app_Position_window(val);
+    old_Position_window = kPosition_control_function.Position_window;
+    app_status = set_app_Position_window(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPosition_control_function.Position_window = old_Position_window;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_window 0 */
     kPosition_control_function.Position_window = val;
     /* USER CODE BEGIN set_Position_window 1 */
@@ -757,8 +999,16 @@ UNS32 get_Position_window(void){
 }
 
 UNS32 set_Position_window_time(UNS16 val){
+    UNS16 old_Position_window_time;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Position_window_time 0 */
-    set_app_Position_window_time((float)val * 0.001f);
+    old_Position_window_time = kPosition_control_function.Position_window_time;
+    app_status = set_app_Position_window_time((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kPosition_control_function.Position_window_time = old_Position_window_time;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Position_window_time 0 */
     kPosition_control_function.Position_window_time = val;
     /* USER CODE BEGIN set_Position_window_time 1 */
@@ -802,11 +1052,19 @@ UNS8 get_Interpolation_time_period(void){
 }
 
 UNS32 set_Interpolation_time_period_Ip_time_units(UNS8 val){
+    UNS8 old_Interpolation_time_period_Ip_time_units;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_units 0 */
     /* USER CODE END set_Interpolation_time_period_Ip_time_units 0 */
+    old_Interpolation_time_period_Ip_time_units = kInterpolated_position_mode.Interpolation_time_period_Ip_time_units;
     kInterpolated_position_mode.Interpolation_time_period_Ip_time_units = val;
     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_units 1 */
-    set_app_Interp_time_value(val);
+    app_status = set_app_Interp_time_value(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kInterpolated_position_mode.Interpolation_time_period_Ip_time_units = old_Interpolation_time_period_Ip_time_units;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Interpolation_time_period_Ip_time_units 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -817,11 +1075,19 @@ UNS8 get_Interpolation_time_period_Ip_time_units(void){
 }
 
 UNS32 set_Interpolation_time_period_Ip_time_index(INTEGER8 val){
+    INTEGER8 old_Interpolation_time_period_Ip_time_index;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_index 0 */
     /* USER CODE END set_Interpolation_time_period_Ip_time_index 0 */
+    old_Interpolation_time_period_Ip_time_index = kInterpolated_position_mode.Interpolation_time_period_Ip_time_index;
     kInterpolated_position_mode.Interpolation_time_period_Ip_time_index = val;
     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_index 1 */
-    set_app_Interp_time_index(val);
+    app_status = set_app_Interp_time_index(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kInterpolated_position_mode.Interpolation_time_period_Ip_time_index = old_Interpolation_time_period_Ip_time_index;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Interpolation_time_period_Ip_time_index 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -864,9 +1130,17 @@ INTEGER32 get_Velocity_actual_value(void){
 }
 
 UNS32 set_Velocity_window(UNS16 val){
+    UNS16 old_Velocity_window;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Velocity_window 0 */
     // P/s转RPM
-    set_app_Velocity_window((float)val * get_app_Load_pps_2_rpm());
+    old_Velocity_window = kProfile_velocity_mode.Velocity_window;
+    app_status = set_app_Velocity_window((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_velocity_mode.Velocity_window = old_Velocity_window;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Velocity_window 0 */
     kProfile_velocity_mode.Velocity_window = val;
     /* USER CODE BEGIN set_Velocity_window 1 */
@@ -881,8 +1155,16 @@ UNS16 get_Velocity_window(void){
 }
 
 UNS32 set_Velocity_window_time(UNS16 val){
+    UNS16 old_Velocity_window_time;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Velocity_window_time 0 */
-    set_app_Velocity_window_time((float)val * 0.001f);
+    old_Velocity_window_time = kProfile_velocity_mode.Velocity_window_time;
+    app_status = set_app_Velocity_window_time((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_velocity_mode.Velocity_window_time = old_Velocity_window_time;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Velocity_window_time 0 */
     kProfile_velocity_mode.Velocity_window_time = val;
     /* USER CODE BEGIN set_Velocity_window_time 1 */
@@ -897,9 +1179,17 @@ UNS16 get_Velocity_window_time(void){
 }
 
 UNS32 set_Velocity_threshold(UNS16 val){
+    UNS16 old_Velocity_threshold;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Velocity_threshold 0 */
     // P/s转RPM
-    set_app_Velocity_threshold((float)val * get_app_Load_pps_2_rpm());
+    old_Velocity_threshold = kProfile_velocity_mode.Velocity_threshold;
+    app_status = set_app_Velocity_threshold((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_velocity_mode.Velocity_threshold = old_Velocity_threshold;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Velocity_threshold 0 */
     kProfile_velocity_mode.Velocity_threshold = val;
     /* USER CODE BEGIN set_Velocity_threshold 1 */
@@ -914,8 +1204,16 @@ UNS16 get_Velocity_threshold(void){
 }
 
 UNS32 set_Velocity_threshold_time(UNS16 val){
+    UNS16 old_Velocity_threshold_time;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Velocity_threshold_time 0 */
-    set_app_Velocity_threshold_time((float)val * 0.001f);
+    old_Velocity_threshold_time = kProfile_velocity_mode.Velocity_threshold_time;
+    app_status = set_app_Velocity_threshold_time((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_velocity_mode.Velocity_threshold_time = old_Velocity_threshold_time;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Velocity_threshold_time 0 */
     kProfile_velocity_mode.Velocity_threshold_time = val;
     /* USER CODE BEGIN set_Velocity_threshold_time 1 */
@@ -930,12 +1228,20 @@ UNS16 get_Velocity_threshold_time(void){
 }
 
 UNS32 set_Target_velocity(INTEGER32 val){
+    INTEGER32 old_Target_velocity;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Target_velocity 0 */
     /* USER CODE END set_Target_velocity 0 */
+    old_Target_velocity = kProfile_velocity_mode.Target_velocity;
     kProfile_velocity_mode.Target_velocity = val;
     /* USER CODE BEGIN set_Target_velocity 1 */
     // P/s 转 RPM
-    set_app_Target_velocity((float)val * get_app_Load_pps_2_rpm());
+    app_status = set_app_Target_velocity((float)val * get_app_Load_pps_2_rpm());
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_velocity_mode.Target_velocity = old_Target_velocity;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Target_velocity 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -948,12 +1254,20 @@ INTEGER32 get_Target_velocity(void){
 }
 
 UNS32 set_Target_torque(INTEGER16 val){
+    INTEGER16 old_Target_torque;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Target_torque 0 */
     /* USER CODE END set_Target_torque 0 */
+    old_Target_torque = kProfile_torque_mode.Target_torque;
     kProfile_torque_mode.Target_torque = val;
     /* USER CODE BEGIN set_Target_torque 1 */
     // 额定电流千分比转实际电流
-    set_app_Target_torque((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    app_status = set_app_Target_torque((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Target_torque = old_Target_torque;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Target_torque 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -965,12 +1279,20 @@ INTEGER16 get_Target_torque(void){
 }
 
 UNS32 set_Max_torque(UNS16 val){
+    UNS16 old_Max_torque;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_torque 0 */
     /* USER CODE END set_Max_torque 0 */
+    old_Max_torque = kProfile_torque_mode.Max_torque;
     kProfile_torque_mode.Max_torque = val;
     /* USER CODE BEGIN set_Max_torque 1 */
     // 额定电流千分比转实际电流
-    set_app_Max_current((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    app_status = set_app_Max_current((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Max_torque = old_Max_torque;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_torque 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -982,11 +1304,19 @@ UNS16 get_Max_torque(void){
 }
 
 UNS32 set_Max_current(UNS16 val){
+    UNS16 old_Max_current;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Max_current 0 */
     /* USER CODE END set_Max_current 0 */
+    old_Max_current = kProfile_torque_mode.Max_current;
     kProfile_torque_mode.Max_current = val;
     /* USER CODE BEGIN set_Max_current 1 */
-    set_app_Max_current((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    app_status = set_app_Max_current((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Max_current = old_Max_current;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Max_current 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -1013,11 +1343,19 @@ INTEGER16 get_Torque_demand_value(void){
 }
 
 UNS32 set_Motor_rated_current(UNS32 val){
+    UNS32 old_Motor_rated_current;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Motor_rated_current 0 */
     /* USER CODE END set_Motor_rated_current 0 */
+    old_Motor_rated_current = kProfile_torque_mode.Motor_rated_current;
     kProfile_torque_mode.Motor_rated_current = val;
     /* USER CODE BEGIN set_Motor_rated_current 1 */
-    set_app_Motor_rated_current((float)val * 0.001f);
+    app_status = set_app_Motor_rated_current((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Motor_rated_current = old_Motor_rated_current;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Motor_rated_current 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -1029,12 +1367,20 @@ UNS32 get_Motor_rated_current(void){
 }
 
 UNS32 set_Motor_rated_torque(UNS32 val){
+    UNS32 old_Motor_rated_torque;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Motor_rated_torque 0 */
     /* USER CODE END set_Motor_rated_torque 0 */
+    old_Motor_rated_torque = kProfile_torque_mode.Motor_rated_torque;
     kProfile_torque_mode.Motor_rated_torque = val;
     /* USER CODE BEGIN set_Motor_rated_torque 1 */
     // mNm 转 Nm
-    set_app_Motor_rated_torque((float)val * 0.001f);
+    app_status = set_app_Motor_rated_torque((float)val * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Motor_rated_torque = old_Motor_rated_torque;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Motor_rated_torque 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -1094,12 +1440,20 @@ UNS32 get_DC_link_circuit_voltage(void){
 }
 
 UNS32 set_Torque_slope(UNS32 val){
+    UNS32 old_Torque_slope;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Torque_slope 0 */
     /* USER CODE END set_Torque_slope 0 */
+    old_Torque_slope = kProfile_torque_mode.Torque_slope;
     kProfile_torque_mode.Torque_slope = val;
     /* USER CODE BEGIN set_Torque_slope 1 */
     // 千分比转电流
-    set_app_Torque_slope((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    app_status = set_app_Torque_slope((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kProfile_torque_mode.Torque_slope = old_Torque_slope;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Torque_slope 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -1182,11 +1536,19 @@ UNS8 get_Digital_outputs(void){
 }
 
 UNS32 set_Digital_outputs_Physical_outputs(UNS32 val){
+    UNS32 old_Digital_outputs_Physical_outputs;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Digital_outputs_Physical_outputs 0 */
     /* USER CODE END set_Digital_outputs_Physical_outputs 0 */
+    old_Digital_outputs_Physical_outputs = kOptional_application.Digital_outputs_Physical_outputs;
     kOptional_application.Digital_outputs_Physical_outputs = val;
     /* USER CODE BEGIN set_Digital_outputs_Physical_outputs 1 */
-    set_app_Digital_io_outputs_phys(val);
+    app_status = set_app_Digital_io_outputs_phys(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kOptional_application.Digital_outputs_Physical_outputs = old_Digital_outputs_Physical_outputs;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Digital_outputs_Physical_outputs 1 */
     return ABORT_CODE_SUCCESSFUL;
 }
@@ -1197,11 +1559,19 @@ UNS32 get_Digital_outputs_Physical_outputs(void){
 }
 
 UNS32 set_Digital_outputs_Bit_mask(UNS32 val){
+    UNS32 old_Digital_outputs_Bit_mask;
+    uint32_t app_status;
     /* USER CODE BEGIN set_Digital_outputs_Bit_mask 0 */
     /* USER CODE END set_Digital_outputs_Bit_mask 0 */
+    old_Digital_outputs_Bit_mask = kOptional_application.Digital_outputs_Bit_mask;
     kOptional_application.Digital_outputs_Bit_mask = val;
     /* USER CODE BEGIN set_Digital_outputs_Bit_mask 1 */
-    set_app_Digital_io_outputs_mask(val);
+    app_status = set_app_Digital_io_outputs_mask(val);
+    if (app_status != APP_PARAM_SUCCESS)
+    {
+        kOptional_application.Digital_outputs_Bit_mask = old_Digital_outputs_Bit_mask;
+        return cia402_app_status_to_abort(app_status);
+    }
     /* USER CODE END set_Digital_outputs_Bit_mask 1 */
     return ABORT_CODE_SUCCESSFUL;
 }

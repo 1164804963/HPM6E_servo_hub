@@ -108,6 +108,7 @@ static void handle_cia402(const bsp_can_frame_t *rx)
     uint32_t reply_id;
     uint8_t data_length;
     uint8_t tx_data[8];
+    uint32_t od_result;
 
     if (rx->extended || (rx->id != s_active_node_id))
     {
@@ -161,21 +162,36 @@ static void handle_cia402(const bsp_can_frame_t *rx)
 
     if (is_write == 1U)
     {
-        (void)master_cia402_write_callback(obj_index, obj_subindex, &obj_data);
+        od_result = master_cia402_write_callback(obj_index, obj_subindex, &obj_data);
     }
     else
     {
-        (void)master_cia402_read_callback(obj_index, obj_subindex, &obj_data);
+        od_result = master_cia402_read_callback(obj_index, obj_subindex, &obj_data);
     }
 
-    tx_data[0] = is_write;
-    tx_data[1] = (uint8_t)(obj_index & 0xFFU);
-    tx_data[2] = (uint8_t)((obj_index >> 8) & 0xFFU);
-    tx_data[3] = obj_subindex;
-    tx_data[4] = (uint8_t)(obj_data & 0xFFU);
-    tx_data[5] = (uint8_t)((obj_data >> 8) & 0xFFU);
-    tx_data[6] = (uint8_t)((obj_data >> 16) & 0xFFU);
-    tx_data[7] = (uint8_t)((obj_data >> 24) & 0xFFU);
+    if (od_result != 0U)
+    {
+        /* OD 回调失败：应答固定为 8 字节 abort 帧。 */
+        tx_data[0] = 0x80U;
+        tx_data[1] = (uint8_t)(obj_index & 0xFFU);
+        tx_data[2] = (uint8_t)((obj_index >> 8) & 0xFFU);
+        tx_data[3] = obj_subindex;
+        tx_data[4] = (uint8_t)(od_result & 0xFFU);
+        tx_data[5] = (uint8_t)((od_result >> 8) & 0xFFU);
+        tx_data[6] = (uint8_t)((od_result >> 16) & 0xFFU);
+        tx_data[7] = (uint8_t)((od_result >> 24) & 0xFFU);
+    }
+    else
+    {
+        tx_data[0] = is_write;
+        tx_data[1] = (uint8_t)(obj_index & 0xFFU);
+        tx_data[2] = (uint8_t)((obj_index >> 8) & 0xFFU);
+        tx_data[3] = obj_subindex;
+        tx_data[4] = (uint8_t)(obj_data & 0xFFU);
+        tx_data[5] = (uint8_t)((obj_data >> 8) & 0xFFU);
+        tx_data[6] = (uint8_t)((obj_data >> 16) & 0xFFU);
+        tx_data[7] = (uint8_t)((obj_data >> 24) & 0xFFU);
+    }
 
     cia402_reply_queue_push(reply_id, tx_data);
 }

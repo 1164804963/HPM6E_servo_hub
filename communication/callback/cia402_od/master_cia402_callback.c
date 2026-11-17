@@ -46,7 +46,22 @@ UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data)
         case 0x60B1: return OD_0x60B1_Velocity_offset_Write_Callback(subindex, data); break;
         case 0x60B2: return OD_0x60B2_Torque_offset_Write_Callback(subindex, data); break;
         case 0x60FE: return OD_0x60FE_Digital_outputs_Write_Callback(subindex, data); break;
-        default: return ABORT_CODE_CANNOT_WRITE_RO_OBJECT; break;
+        case 0x603F:
+        case 0x6041:
+        case 0x6061:
+        case 0x6062:
+        case 0x6063:
+        case 0x6064:
+        case 0x606B:
+        case 0x606C:
+        case 0x6074:
+        case 0x6077:
+        case 0x6078:
+        case 0x6079:
+        case 0x60F4:
+        case 0x60FD:
+            return ABORT_CODE_CANNOT_WRITE_RO_OBJECT;
+        default: return ABORT_CODE_OBJECT_NOT_EXIST; break;
     }
 }
 
@@ -107,6 +122,6 @@ UNS32 master_cia402_read_callback(uint16_t index, uint8_t subindex, void *data){
         case 0x60B2: return OD_0x60B2_Torque_offset_Read_Callback(subindex, data); break;
         case 0x60FD: return OD_0x60FD_Digital_inputs_Read_Callback(subindex, data); break;
         case 0x60FE: return OD_0x60FE_Digital_outputs_Read_Callback(subindex, data); break;
-        default: return ABORT_CODE_CANNOT_READ_WO_OBJECT; break;
+        default: return ABORT_CODE_OBJECT_NOT_EXIST; break;
     }
 }

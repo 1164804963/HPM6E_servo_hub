@@ -17,6 +17,9 @@ typedef uint32_t UNS32;
 #define ABORT_CODE_VALUE_TOO_HIGH           (0x06090031) //Value of parameter written too high
 #define ABORT_CODE_VALUE_TOO_LOW            (0x06090032) //Value of parameter written too low
 #define ABORT_CODE_DRIVE_STATE_DENIED       (0x08000022) //Data cannot be transferred or stored to the application because of the present device state
+#define ABORT_CODE_VALUE_OUT_OF_RANGE        (0x06090030) //Value of parameter written out of range
+#define ABORT_CODE_GENERAL_ERROR             (0x08000000) //General error
+#define ABORT_CODE_OBJECT_NOT_EXIST          (0x06020000) //Object does not exist in the object dictionary
 
 typedef struct
 {
