@@ -63,6 +63,8 @@ extern uint8_t mavlink_tx_buff[MAVLINK_SEND_BUFF_SIZE];
 #endif
 
 void MavlinkRecvCallback(Axis *axis, AxisDw *axis_dw, uint8_t rx_data[], uint32_t len);
+/* 完整独立包入口；流式UART入口保持原语义。 */
+void MavlinkRecvPacketCallback(Axis *axis, AxisDw *axis_dw, uint8_t rx_data[], uint32_t len);
 
 #ifdef __cplusplus
 }

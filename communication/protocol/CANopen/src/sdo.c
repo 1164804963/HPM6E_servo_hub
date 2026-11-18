@@ -141,15 +141,31 @@ INLINE UNS8 _readNetworkDict (CO_Data* d, UNS8 nodeId, UNS16 index, UNS8 subInde
 void SDOTimeoutAlarm(CO_Data* d, UNS32 id)
 {
 	UNS16 offset;
-	UNS8 nodeId;
-	/* Get the client->server cobid.*/
-	offset = d->firstIndex->SDO_CLT;
-	if ((offset == 0) || ((offset+d->transfers[id].CliServNbr) > d->lastIndex->SDO_CLT)) {
+	UNS8 nodeId = 0;
+	UNS8 isClient = 0;
+
+	/* 先验证线号，再忽略已经关闭的传输。 */
+	if ((id >= SDO_MAX_SIMULTANEOUS_TRANSFERS) ||
+	    ((d->transfers[id].state != SDO_DOWNLOAD_IN_PROGRESS) &&
+	     (d->transfers[id].state != SDO_UPLOAD_IN_PROGRESS))) {
 		return ;
 	}
-	nodeId = *((UNS8*) d->objdict[offset+d->transfers[id].CliServNbr].pSubindex[3].pObject);
+	/* 客户端传输要回查 SDO_CLT 里的服务端节点号；服务端传输只把 abort 回给客户端，
+	   不依赖客户端字典，否则纯服务端配置下的超时永远无法收敛。 */
+	if (d->transfers[id].whoami == SDO_CLIENT) {
+		offset = d->firstIndex->SDO_CLT;
+		if ((offset == 0) || ((offset+d->transfers[id].CliServNbr) > d->lastIndex->SDO_CLT)) {
+			return ;
+		}
+		nodeId = *((UNS8*) d->objdict[offset+d->transfers[id].CliServNbr].pSubindex[3].pObject);
+		isClient = 1;
+	} else if (d->transfers[id].whoami != SDO_SERVER) {
+		return ;
+	}
 	MSG_ERR(0x1A01, "SDO timeout. SDO response not received.", 0);
-	MSG_WAR(0x2A02, "server node id : ", nodeId);
+	if (isClient != 0) {
+		MSG_WAR(0x2A02, "server node id : ", nodeId);
+	}
 	MSG_WAR(0x2A02, "         index : ", d->transfers[id].index);
 	MSG_WAR(0x2A02, "      subIndex : ", d->transfers[id].subIndex);
 	/* Reset timer handler */
@@ -160,8 +176,8 @@ void SDOTimeoutAlarm(CO_Data* d, UNS32 id)
 	sendSDOabort(d, d->transfers[id].whoami, d->transfers[id].CliServNbr,
 			d->transfers[id].index, d->transfers[id].subIndex, SDOABT_TIMED_OUT);
 	d->transfers[id].abortCode = SDOABT_TIMED_OUT;
-	/* Call the user function to inform of the problem.*/
-	if(d->transfers[id].Callback)
+	/* Callback 属于客户端语义：服务端超时只发 abort 并释放线路。 */
+	if ((isClient != 0) && d->transfers[id].Callback)
 		/*If ther is a callback, it is responsible to close SDO transfer (client)*/
 		(*d->transfers[id].Callback)(d, nodeId);
 	/*Reset the line if (whoami == SDO_SERVER) or the callback did not close the line.

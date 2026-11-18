@@ -84,6 +84,10 @@ static void print_can_status(void)
     printf("can  : replyq pending=%lu drop=%lu highwater=%lu\r\n",
            (unsigned long)s.reply_pending, (unsigned long)s.reply_drop_count,
            (unsigned long)s.reply_highwater);
+    printf("can  : mav txq=%lu txdrop=%lu rxq=%lu rxdrop=%lu comp=%u\r\n",
+           (unsigned long)s.mav_tx_pending, (unsigned long)s.mav_tx_dropped,
+           (unsigned long)s.mav_rx_pending, (unsigned long)s.mav_rx_dropped,
+           (unsigned)s.mav_active_comp_id);
 }
 
 /* Read-only error-register snapshot for bus-off root cause: current state, the

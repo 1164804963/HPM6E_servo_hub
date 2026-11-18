@@ -118,6 +118,7 @@ void AppStatusScanInit(void);        // 应用状态扫描初始化函数
 void AppStatusScanFast(void);        // 错误轮询检查函数  位置环调用
 void AppStatusScanSlow(void);        // 错误轮询检查函数  1ms任务调用
 void AppLedStateUpdata1ms(void);     // LED状态更新函数   1ms任务调用
+void AppSetCanBusPeerLost(bool lost); // CANopen 消费者实时失联状态；故障仍须显式清除
 
 
 // 外部接口 获取错误、警告和状态值

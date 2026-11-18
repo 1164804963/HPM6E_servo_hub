@@ -1,6 +1,7 @@
 #include "Cia402_ObjectDictionary_Variable.h"
 
 /* USER CODE BEGIN AREA 0 */
+#include "bsp_api.h"
 #include "cia402_fsm.h"
 #include "coordinate_conversion.h"
 #include "data_param.h"
@@ -53,12 +54,14 @@ Optional_application kOptional_application;
 
 UNS32 set_Controlword(UNS16 val){
     /* USER CODE BEGIN set_Controlword 0 */
+    uint32_t irq_state = bsp_irq_save();
     /* USER CODE END set_Controlword 0 */
     kPDS_FSA.Controlword = val;
     /* USER CODE BEGIN set_Controlword 1 */
 #ifdef USE_CIA402
     ControlwordChange_PDAS_FSA();//cia402的控制字只影响PDS_FSA的状态机
 #endif // USE_CIA402
+    bsp_irq_restore(irq_state);
     /* USER CODE END set_Controlword 1 */
     return ABORT_CODE_SUCCESSFUL;
 }

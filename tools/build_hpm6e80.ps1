@@ -16,6 +16,9 @@ param(
 
 $Root = (Resolve-Path $Root).Path
 $Bus = $Bus.ToUpperInvariant()
+if ($Bus -eq "CAN_ENCOS") {
+    throw "CAN_ENCOS 不受支持：ENCOS 传输尚无实现，请选择其他 SERVO_BUS"
+}
 $buildDir = switch ($Bus) {
     "CAN_CIA402" { "build-hpm6e80-can" }
     "CAN_ENCOS" { "build-hpm6e80-encos" }

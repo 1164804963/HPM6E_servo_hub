@@ -26,6 +26,12 @@ typedef struct
     uint32_t reply_pending;      /* 软件应答队列中待发送帧数 */
     uint32_t reply_drop_count;   /* 队满导致请求未执行、应答未生成的计数 */
     uint32_t reply_highwater;    /* 队列 pending 的历史最大值 */
+    /* CAN 透传 MAVLink 传输状态；非透传总线这些字段保持 0。 */
+    uint32_t mav_tx_pending;     /* 待发送的整包任务数 */
+    uint32_t mav_tx_dropped;     /* 入队被拒绝或发送永久失败的整包数 */
+    uint32_t mav_rx_pending;     /* 已收全、等待前台解析的包数 */
+    uint32_t mav_rx_dropped;     /* 重装被丢弃的次数 */
+    uint8_t mav_active_comp_id;  /* 本次初始化锁定的 MAV 组件 ID */
 } servo_can_status_t;
 
 hpm_stat_t servo_can_init(uint32_t node_id, uint32_t bitrate_hz);

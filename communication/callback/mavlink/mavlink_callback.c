@@ -116,6 +116,17 @@ static mavlink_status_t status;
 static mavlink_message_t send_msg;
 static uint16_t mavlink_parse_fail_cnt = 0;  // 解析失败计数器
 
+/* MAVLink channel helpers have translation-unit-local state. Reset here, not in
+ * the CAN driver, and preserve TX sequence/signing configuration. */
+void MavlinkRecvPacketCallback(Axis *axis, AxisDw *axis_dw, uint8_t rx_data[], uint32_t len)
+{
+    mavlink_reset_channel_status(MAVLINK_COMM_0);
+    mavlink_parse_fail_cnt = 0;
+    MavlinkRecvCallback(axis, axis_dw, rx_data, len);
+    mavlink_reset_channel_status(MAVLINK_COMM_0);
+    mavlink_parse_fail_cnt = 0;
+}
+
 void MavlinkRecvCallback(Axis *axis, AxisDw *axis_dw, uint8_t rx_data[], uint32_t len)
 {
     bool is_mavlink_parse_success = false;

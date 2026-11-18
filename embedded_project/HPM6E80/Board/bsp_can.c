@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "bsp_api.h"
 #include "board.h"
 #include "hpm_interrupt.h"
 #include "hpm_mcan_drv.h"
@@ -141,8 +142,16 @@ static hpm_stat_t read_fifo(uint32_t fifo, bsp_can_frame_t *frame)
 static hpm_stat_t transmit(mcan_tx_frame_t *tx)
 {
     uint32_t fifo_index;
+    uint32_t irq_state;
+    hpm_stat_t status;
 
-    return mcan_transmit_via_txfifo_nonblocking(BOARD_APP_CAN_BASE, tx, &fifo_index);
+    /* 所有 TX 调用者共用同一个 TXFIFO：空间检查、消息 RAM 拷贝和提交必须在同一
+     * 临界区内完成；该 SDK 调用在 HPM6E80 上非阻塞且不等待 RX，窗口有界。 */
+    irq_state = bsp_irq_save();
+    status = mcan_transmit_via_txfifo_nonblocking(BOARD_APP_CAN_BASE, tx, &fifo_index);
+    bsp_irq_restore(irq_state);
+
+    return status;
 }
 
 /*
@@ -258,21 +267,14 @@ void bsp_can_isr(void)
 static void setup_filters(mcan_config_t *can_config)
 {
 #if defined(USE_CANOPEN)
-    /* NMT 0x000 and SYNC 0x080, plus any function code addressed to this node. */
-    s_std_filters[0].filter_type = MCAN_FILTER_TYPE_SPECIFIED_ID_FILTER;
+    /* 标准帧全部进入 FIFO0；当前 OD 能识别的服务在 servo_can.c 里做软件准入。 */
+    s_std_filters[0].filter_type = MCAN_FILTER_TYPE_RANGE_FILTER;
     s_std_filters[0].filter_config = MCAN_FILTER_ELEM_CFG_STORE_IN_RX_FIFO0_IF_MATCH;
     s_std_filters[0].can_id_type = MCAN_CAN_ID_TYPE_STANDARD;
     s_std_filters[0].sync_message = 0U;
-    s_std_filters[0].id1 = 0x000U;
-    s_std_filters[0].id2 = 0x080U;
-
-    s_std_filters[1].filter_type = MCAN_FILTER_TYPE_CLASSIC_FILTER;
-    s_std_filters[1].filter_config = MCAN_FILTER_ELEM_CFG_STORE_IN_RX_FIFO0_IF_MATCH;
-    s_std_filters[1].can_id_type = MCAN_CAN_ID_TYPE_STANDARD;
-    s_std_filters[1].sync_message = 0U;
-    s_std_filters[1].filter_id = s_node_id;
-    s_std_filters[1].filter_mask = 0x7FU;
-    can_config->all_filters_config.std_id_filter_list.mcan_filter_elem_count = 2U;
+    s_std_filters[0].start_id = 0U;
+    s_std_filters[0].end_id = 0x7FFU;
+    can_config->all_filters_config.std_id_filter_list.mcan_filter_elem_count = 1U;
 #else
     /* Accept every standard ID. The application compares the node ID, as Y01 does. */
     s_std_filters[0].filter_type = MCAN_FILTER_TYPE_RANGE_FILTER;

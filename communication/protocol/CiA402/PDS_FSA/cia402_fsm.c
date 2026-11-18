@@ -1,4 +1,5 @@
 #include "cia402_fsm.h"
+#include "bsp_api.h"
 #include "cia402_error_code.h"
 #include "cia402_statusword.h"
 #include "Cia402_ObjectDictionary_Variable.h"
@@ -6,12 +7,17 @@
 #include "data_param.h"
 
 static bool last_fault_reset_bit = false;
+static bool fault_reset_pending = false;
+typedef enum { FaultResetArm, FaultResetRequested, FaultResetAwaitClear } FaultResetStep;
+static FaultResetStep fault_reset_step = FaultResetArm;
 static uint16_t last_controlword = 0;
 Cia402State CurrentState = kStart; // Initial state
 static bool quick_stop_start_flag = false;
 static void PDS_FSA_set_statusword(Cia402State CurrentState);
 static void ControlwordBit4UpedgeCheck(void);
 static bool QuickStopRun(void);
+static void controlword_change_locked(void);
+static void pds_fsa_run_locked(void);
 
 //Automatic transition
 bool AutomaticTransition(void) {
@@ -237,19 +243,23 @@ void Transition_14_Action(void) {
 //Fault reset command from control device or local signal
 bool Transition_15_Event(void) {
     if((CIA402_READ_BIT(get_Controlword(), kOd6040_FaultReset) != 0) && (last_fault_reset_bit == false)){
-        set_app_Controlword(APP_CTRL_CLEAR_ERROR);  //清除应用层错误
-        return true;
+        /* 应用以 0->3 检测清错沿，先让一个应用扫描周期观察到 0。 */
+        set_app_Controlword(APP_CTRL_DISABLE);
+        fault_reset_step = FaultResetArm;
+        fault_reset_pending = true;
     }
-    else{
-        return false;
-    }
+    //错误码可能在本周期稍后才归零,由PDS_FSA_Run补做故障退出
+    return fault_reset_pending && (fault_reset_step == FaultResetAwaitClear) &&
+           (get_Error_code() == 0) && (get_app_Error_word() == 0);
 }
 
 //A reset of the fault condition is carried out, if no fault exists currently on the drive device; 
 //after leaving the Fault state, the Fault reset bit in the get_Controlword() shall be cleared by the control device.
 void Transition_15_Action(void) {
     //执行故障复位操作
-    ;
+    fault_reset_pending = false;
+    fault_reset_step = FaultResetArm;
+    set_app_Controlword(APP_CTRL_DISABLE);
 }
 
 //Enable operation command from control device, if the quick stop option code is 5, 6, 7, or 8
@@ -296,6 +306,14 @@ Cia402State get_CurrentState(void){
 
 //控制字切换状态机(通过总线或者内部方式改变控制字)
 void ControlwordChange_PDAS_FSA(void){
+    uint32_t irq_state = bsp_irq_save();
+
+    controlword_change_locked();
+    bsp_irq_restore(irq_state);
+}
+
+//持锁版本:调用者已屏蔽中断
+static void controlword_change_locked(void){
 
     uint16_t const controlword_tar = get_Controlword();
 
@@ -326,14 +344,26 @@ void ControlwordChange_PDAS_FSA(void){
 
 //轮询状态机(中断或者任务中轮询)
 void PDS_FSA_Run(void) {
+    uint32_t irq_state = bsp_irq_save();
+
+    pds_fsa_run_locked();
+    bsp_irq_restore(irq_state);
+}
+
+//持锁版本:调用者已屏蔽中断
+static void pds_fsa_run_locked(void) {
 
     //内部紧急停车（QuickStop）需求，运行一次状态机更新进入QuickStop状态
     if (CurrentState == kOperationEnable && get_app_Emergency_brake_requested()) {
-        ControlwordChange_PDAS_FSA();
+        controlword_change_locked();
     }
 
     //任何状态触发错误，直接跳转到故障状态
     if(Transition_13_Event()) {
+        //新故障作废未完成的复位请求;同一故障持续期间保持pending
+        if ((CurrentState != kFaultReactionActive) && (CurrentState != kFault)) {
+            fault_reset_pending = false;
+        }
         CurrentState = kFaultReactionActive;
         Transition_13_Action();
         PDS_FSA_set_statusword(CurrentState);
@@ -349,6 +379,25 @@ void PDS_FSA_Run(void) {
             CurrentState = stateTable[i].NextState;
             PDS_FSA_set_statusword(CurrentState);
         }
+    }
+
+    /* 本函数在应用扫描之后调用：低电平已被扫描后发出一次清错，下一周期确认拉低。
+     * 不让清错命令永久停在 3，否则第二次故障复位无法再产生 0->3。 */
+    if ((CurrentState == kFault) && fault_reset_pending) {
+        if (fault_reset_step == FaultResetArm) {
+            set_app_Controlword(APP_CTRL_CLEAR_ERROR);
+            fault_reset_step = FaultResetRequested;
+        } else if (fault_reset_step == FaultResetRequested) {
+            set_app_Controlword(APP_CTRL_DISABLE);
+            fault_reset_step = FaultResetAwaitClear;
+        }
+    }
+    if ((CurrentState == kFault) && fault_reset_pending &&
+        (fault_reset_step == FaultResetAwaitClear) &&
+        (get_Error_code() == 0) && (get_app_Error_word() == 0)) {
+        Transition_15_Action();
+        CurrentState = kSwitchOnDisable;
+        PDS_FSA_set_statusword(CurrentState);
     }
 
     //启动quick stop功能，在kOperationEnable完成急停动作后，由内部跳转到kQuickStopActive状态

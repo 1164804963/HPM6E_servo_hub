@@ -2,6 +2,7 @@
 #include "motor_ctl_loop.h"
 
 static Axis *const axis = &kAxis; // 引用电机对象实例化
+static volatile bool s_can_peer_lost;
 AppCheckVal kAppCheck =
 {
     .di_io.all = 0,
@@ -426,6 +427,8 @@ static inline bool AppCanBusDisconnectionErrorCheck(void)
         return false;
     }
 
+    if (s_can_peer_lost) return true;
+
     if (0 == kAppCheck.can_mg_counts_now && 0 == kAppCheck.can_mg_counts_last) // 未接受到CAN消息
     {
         time_count = 0;
@@ -447,6 +450,15 @@ static inline bool AppCanBusDisconnectionErrorCheck(void)
     }
     kAppCheck.can_mg_counts_last = kAppCheck.can_mg_counts_now;
     return false;
+}
+
+void AppSetCanBusPeerLost(bool lost)
+{
+    uint32_t irq_state = bsp_irq_save();
+    s_can_peer_lost = lost;
+    if (lost && get_app_Comm_control_authority() == COMM_CONTROL_BUS)
+        kAppCheck.error.bits.can_bus_disconnection_error = true;
+    bsp_irq_restore(irq_state);
 }
 
 /**
@@ -857,6 +869,10 @@ void AppStatusScanFast(void)
             kAppCheck.error.all |= (CheckTable[i].check_func() << i); // 对应bit置1
         }
     }
+
+    // 活跃的消费者失联条件不能被一次清错脉冲绕过。
+    if (s_can_peer_lost && get_app_Comm_control_authority() == COMM_CONTROL_BUS)
+        kAppCheck.error.bits.can_bus_disconnection_error = true;
 
     // 发生错误失能电机
     if (kAppCheck.error.all != 0)
