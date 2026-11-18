@@ -1,0 +1,1375 @@
+diff --git a/app/app_store_param.c b/app/app_store_param.c
+index c8dc091..33c8fc4 100644
+--- a/app/app_store_param.c
++++ b/app/app_store_param.c
+@@ -90,6 +90,8 @@ bool AppStoreRestoreElecBias(float *out_bias_rad)
+ 
+ FLASH_PARAM_STRUCT kFlashStorage;
+ 
++
++
+ void flash_param_update(void)
+ {
+     kFlashStorage.input_shaping_config_wn_Hz = kAxis.input_shaping_config.wn_Hz;
+@@ -284,6 +286,8 @@ void flash_param_update(void)
+     kFlashStorage.app_motion_param_Homing_speed_search_for_switch = kAppMotionParam.Homing_speed_search_for_switch;
+     kFlashStorage.app_motion_param_Homing_speed_search_for_zero = kAppMotionParam.Homing_speed_search_for_zero;
+     kFlashStorage.app_motion_param_Homing_acceleration = kAppMotionParam.Homing_acceleration;
++    /* Calibration metadata is initialized by BSS and updated only on a valid
++     * calibration. A parameter snapshot must preserve it across every save. */
+ }
+ 
+ void flash_param_init(void)
+diff --git a/app/app_store_param.h b/app/app_store_param.h
+index 5ae63ff..d0130a1 100644
+--- a/app/app_store_param.h
++++ b/app/app_store_param.h
+@@ -193,9 +193,15 @@ typedef struct {
+     float app_motion_param_Homing_speed_search_for_switch;
+     float app_motion_param_Homing_speed_search_for_zero;
+     float app_motion_param_Homing_acceleration;
++    /* [移植补丁 14] 电流零漂标定结果。标定成功后存这里，上电直接恢复，
++     * 省掉每次上电都要先"使能一次做标定"才能让电机转。
++     * cal_drift_magic = CURRENT_CAL_DRIFT_MAGIC 表示下面三路有效。 */
+     uint32_t current_cal_drift_magic;
+     uint16_t current_cal_drift[3];
+     uint16_t current_cal_drift_crc;
++    /* [移植补丁 16] 电角度零点标定值。上电从 Flash 恢复，避免零点写死在头文件里。
++     * 有效标志：elec_angle_bias_magic == CURRENT_ELEC_BIAS_MAGIC。
++     * bias 为弧度制（与 motor_pos_sensor_config.elec_angle_bias_rad 同单位）。 */
+     uint32_t elec_angle_bias_magic;
+     float elec_angle_bias_rad;
+     uint16_t elec_angle_bias_crc;
+diff --git a/communication/callback/cia402_od/Cia402_ObjectDictionary_Callback.c b/communication/callback/cia402_od/Cia402_ObjectDictionary_Callback.c
+index f01288b..c9558ed 100644
+--- a/communication/callback/cia402_od/Cia402_ObjectDictionary_Callback.c
++++ b/communication/callback/cia402_od/Cia402_ObjectDictionary_Callback.c
+@@ -269,10 +269,6 @@ UNS32 OD_0x6091_Gear_ratio_Read_Callback(UNS8 subindex, void *value)
+ UNS32 OD_0x607E_Polarity_Write_Callback(UNS8 subindex, void *value)
+ {
+     UNS32 abort_code = ABORT_CODE_SUCCESSFUL;
+-    if (*(UNS8*)value > 1)
+-    {
+-        return ABORT_CODE_VALUE_TOO_HIGH;
+-    }
+     /* USER CODE BEGIN 0x607E 0x00 WRITE 0 */
+     if (subindex != 0U) return ABORT_CODE_SUB_INDEX_NOT_EXIST;
+     if (*(UNS8*)value > 1)
+diff --git a/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.c b/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.c
+index d7e656b..749b2ec 100644
+--- a/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.c
++++ b/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.c
+@@ -23,6 +23,24 @@ INTEGER32 limit_64_to_32(int64_t val_64)
+ 
+ /* USER CODE END AREA 0 */
+ 
++/* APP_PARAM_STATUS (set_app_*) 返回值到 CANopen abort code 的映射。 */
++static UNS32 cia402_app_status_to_abort(uint32_t status)
++{
++    switch (status)
++    {
++    case APP_PARAM_SUCCESS:
++        return ABORT_CODE_SUCCESSFUL;
++    case APP_PARAM_READ_ONLY:
++        return ABORT_CODE_CANNOT_WRITE_RO_OBJECT;
++    case APP_PARAM_OUT_OF_RANGE:
++        return ABORT_CODE_VALUE_OUT_OF_RANGE;
++    case APP_PARAM_WRITE_STATE_ERROR:
++        return ABORT_CODE_DRIVE_STATE_DENIED;
++    default:
++        return ABORT_CODE_GENERAL_ERROR;
++    }
++}
++
+ PDS_FSA kPDS_FSA;
+ Factor_group kFactor_group;
+ Profile_position_mode kProfile_position_mode;
+@@ -84,6 +102,8 @@ UNS16 get_Error_code(void){
+ }
+ 
+ UNS32 set_Quick_stop_option_code(INTEGER16 val){
++    INTEGER16 old_Quick_stop_option_code;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Quick_stop_option_code 0 */
+     old_Quick_stop_option_code = kPDS_FSA.Quick_stop_option_code;
+     app_status = set_app_Quick_stop_option_code(val);
+@@ -257,8 +277,11 @@ UNS8 get_Position_encoder_resolution(void){
+ }
+ 
+ UNS32 set_Position_encoder_resolution_Encoder_increments(UNS32 val){
++    UNS32 old_Position_encoder_resolution_Encoder_increments;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_encoder_resolution_Encoder_increments 0 */
+     /* USER CODE END set_Position_encoder_resolution_Encoder_increments 0 */
++    old_Position_encoder_resolution_Encoder_increments = kFactor_group.Position_encoder_resolution_Encoder_increments;
+     kFactor_group.Position_encoder_resolution_Encoder_increments = val;
+     /* USER CODE BEGIN set_Position_encoder_resolution_Encoder_increments 1 */
+     app_status = set_app_Load_encoder_resolution(val);   //设置负载端编码器分辨率
+@@ -278,8 +301,11 @@ UNS32 get_Position_encoder_resolution_Encoder_increments(void){
+ }
+ 
+ UNS32 set_Position_encoder_resolution_Motor_revolutions(UNS32 val){
++    UNS32 old_Position_encoder_resolution_Motor_revolutions;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_encoder_resolution_Motor_revolutions 0 */
+     /* USER CODE END set_Position_encoder_resolution_Motor_revolutions 0 */
++    old_Position_encoder_resolution_Motor_revolutions = kFactor_group.Position_encoder_resolution_Motor_revolutions;
+     kFactor_group.Position_encoder_resolution_Motor_revolutions = val;
+     /* USER CODE BEGIN set_Position_encoder_resolution_Motor_revolutions 1 */
+     app_status = set_app_Motor_encoder_resolution(val);  //设置电机端编码器分辨率
+@@ -313,8 +339,11 @@ UNS8 get_Gear_ratio(void){
+ }
+ 
+ UNS32 set_Motor_revolutions(UNS32 val){
++    UNS32 old_Motor_revolutions;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Motor_revolutions 0 */
+     /* USER CODE END set_Motor_revolutions 0 */
++    old_Motor_revolutions = kFactor_group.Motor_revolutions;
+     kFactor_group.Motor_revolutions = val;
+     /* USER CODE BEGIN set_Motor_revolutions 1 */
+     //电子齿轮比分母
+@@ -335,8 +364,11 @@ UNS32 get_Motor_revolutions(void){
+ }
+ 
+ UNS32 set_Shaft_revolutions(UNS32 val){
++    UNS32 old_Shaft_revolutions;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Shaft_revolutions 0 */
+     /* USER CODE END set_Shaft_revolutions 0 */
++    old_Shaft_revolutions = kFactor_group.Shaft_revolutions;
+     kFactor_group.Shaft_revolutions = val;
+     /* USER CODE BEGIN set_Shaft_revolutions 1 */
+     //电子齿轮比分子
+@@ -357,8 +389,11 @@ UNS32 get_Shaft_revolutions(void){
+ }
+ 
+ UNS32 set_Polarity(UNS8 val){
++    UNS8 old_Polarity;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Polarity 0 */
+     /* USER CODE END set_Polarity 0 */
++    old_Polarity = kFactor_group.Polarity;
+     kFactor_group.Polarity = val;
+     /* USER CODE BEGIN set_Polarity 1 */
+     app_status = set_app_Polarity(val);
+@@ -378,8 +413,11 @@ UNS8 get_Polarity(void){
+ }
+ 
+ UNS32 set_Target_position(INTEGER32 val){
++    INTEGER32 old_Target_position;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Target_position 0 */
+     /* USER CODE END set_Target_position 0 */
++    old_Target_position = kProfile_position_mode.Target_position;
+     kProfile_position_mode.Target_position = val;
+     /* USER CODE BEGIN set_Target_position 1 */
+     app_status = set_app_Target_position(val);
+@@ -413,8 +451,11 @@ UNS8 get_Position_range_limit(void){
+ }
+ 
+ UNS32 set_Position_range_limit_Minimal_position_limit(INTEGER32 val){
++    INTEGER32 old_Position_range_limit_Minimal_position_limit;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_range_limit_Minimal_position_limit 0 */
+     /* USER CODE END set_Position_range_limit_Minimal_position_limit 0 */
++    old_Position_range_limit_Minimal_position_limit = kProfile_position_mode.Position_range_limit_Minimal_position_limit;
+     kProfile_position_mode.Position_range_limit_Minimal_position_limit = val;
+     /* USER CODE BEGIN set_Position_range_limit_Minimal_position_limit 1 */
+     app_status = set_app_Position_range_limit_Minimal_position_limit(val);
+@@ -434,8 +475,11 @@ INTEGER32 get_Position_range_limit_Minimal_position_limit(void){
+ }
+ 
+ UNS32 set_Position_range_limit_Maximal_position_limit(INTEGER32 val){
++    INTEGER32 old_Position_range_limit_Maximal_position_limit;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_range_limit_Maximal_position_limit 0 */
+     /* USER CODE END set_Position_range_limit_Maximal_position_limit 0 */
++    old_Position_range_limit_Maximal_position_limit = kProfile_position_mode.Position_range_limit_Maximal_position_limit;
+     kProfile_position_mode.Position_range_limit_Maximal_position_limit = val;
+     /* USER CODE BEGIN set_Position_range_limit_Maximal_position_limit 1 */
+     app_status = set_app_Position_range_limit_Maximal_position_limit(val);
+@@ -469,8 +513,11 @@ UNS8 get_Software_position_limit(void){
+ }
+ 
+ UNS32 set_Software_position_limit_Minimal_position_limit(INTEGER32 val){
++    INTEGER32 old_Software_position_limit_Minimal_position_limit;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Software_position_limit_Minimal_position_limit 0 */
+     /* USER CODE END set_Software_position_limit_Minimal_position_limit 0 */
++    old_Software_position_limit_Minimal_position_limit = kProfile_position_mode.Software_position_limit_Minimal_position_limit;
+     kProfile_position_mode.Software_position_limit_Minimal_position_limit = val;
+     /* USER CODE BEGIN set_Software_position_limit_Minimal_position_limit 1 */
+     app_status = set_app_Software_position_limit_Minimal_position_limit(val);
+@@ -490,8 +537,11 @@ INTEGER32 get_Software_position_limit_Minimal_position_limit(void){
+ }
+ 
+ UNS32 set_Software_position_limit_Maximal_position_limit(INTEGER32 val){
++    INTEGER32 old_Software_position_limit_Maximal_position_limit;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Software_position_limit_Maximal_position_limit 0 */
+     /* USER CODE END set_Software_position_limit_Maximal_position_limit 0 */
++    old_Software_position_limit_Maximal_position_limit = kProfile_position_mode.Software_position_limit_Maximal_position_limit;
+     kProfile_position_mode.Software_position_limit_Maximal_position_limit = val;
+     /* USER CODE BEGIN set_Software_position_limit_Maximal_position_limit 1 */
+     app_status = set_app_Software_position_limit_Maximal_position_limit(val);
+@@ -511,8 +561,11 @@ INTEGER32 get_Software_position_limit_Maximal_position_limit(void){
+ }
+ 
+ UNS32 set_Max_profile_velocity(UNS32 val){
++    UNS32 old_Max_profile_velocity;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_profile_velocity 0 */
+     /* USER CODE END set_Max_profile_velocity 0 */
++    old_Max_profile_velocity = kProfile_position_mode.Max_profile_velocity;
+     kProfile_position_mode.Max_profile_velocity = val;
+     /* USER CODE BEGIN set_Max_profile_velocity 1 */
+     // P/s转RPM
+@@ -533,8 +586,11 @@ UNS32 get_Max_profile_velocity(void){
+ }
+ 
+ UNS32 set_Max_motor_speed(UNS32 val){
++    UNS32 old_Max_motor_speed;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_motor_speed 0 */
+     /* USER CODE END set_Max_motor_speed 0 */
++    old_Max_motor_speed = kProfile_position_mode.Max_motor_speed;
+     kProfile_position_mode.Max_motor_speed = val;
+     /* USER CODE BEGIN set_Max_motor_speed 1 */
+     app_status = set_app_Max_motor_speed((float)val);
+@@ -554,8 +610,11 @@ UNS32 get_Max_motor_speed(void){
+ }
+ 
+ UNS32 set_Profile_velocity(UNS32 val){
++    UNS32 old_Profile_velocity;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Profile_velocity 0 */
+     /* USER CODE END set_Profile_velocity 0 */
++    old_Profile_velocity = kProfile_position_mode.Profile_velocity;
+     kProfile_position_mode.Profile_velocity = val;
+     /* USER CODE BEGIN set_Profile_velocity 1 */
+     // P/s转RPM
+@@ -576,8 +635,11 @@ UNS32 get_Profile_velocity(void){
+ }
+ 
+ UNS32 set_Profile_acceleration(UNS32 val){
++    UNS32 old_Profile_acceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Profile_acceleration 0 */
+     /* USER CODE END set_Profile_acceleration 0 */
++    old_Profile_acceleration = kProfile_position_mode.Profile_acceleration;
+     kProfile_position_mode.Profile_acceleration = val;
+     /* USER CODE BEGIN set_Profile_acceleration 1 */
+     // P/s/s转RPM/s
+@@ -598,8 +660,11 @@ UNS32 get_Profile_acceleration(void){
+ }
+ 
+ UNS32 set_Profile_deceleration(UNS32 val){
++    UNS32 old_Profile_deceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Profile_deceleration 0 */
+     /* USER CODE END set_Profile_deceleration 0 */
++    old_Profile_deceleration = kProfile_position_mode.Profile_deceleration;
+     kProfile_position_mode.Profile_deceleration = val;
+     /* USER CODE BEGIN set_Profile_deceleration 1 */
+     // P/s/s转RPM/s
+@@ -620,8 +685,11 @@ UNS32 get_Profile_deceleration(void){
+ }
+ 
+ UNS32 set_Quick_stop_deceleration(UNS32 val){
++    UNS32 old_Quick_stop_deceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Quick_stop_deceleration 0 */
+     /* USER CODE END set_Quick_stop_deceleration 0 */
++    old_Quick_stop_deceleration = kProfile_position_mode.Quick_stop_deceleration;
+     kProfile_position_mode.Quick_stop_deceleration = val;
+     /* USER CODE BEGIN set_Quick_stop_deceleration 1 */
+     // P/s/s转RPM/s
+@@ -642,8 +710,11 @@ UNS32 get_Quick_stop_deceleration(void){
+ }
+ 
+ UNS32 set_Max_acceleration(UNS32 val){
++    UNS32 old_Max_acceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_acceleration 0 */
+     /* USER CODE END set_Max_acceleration 0 */
++    old_Max_acceleration = kProfile_position_mode.Max_acceleration;
+     kProfile_position_mode.Max_acceleration = val;
+     /* USER CODE BEGIN set_Max_acceleration 1 */
+     // P/s/s转RPM/s
+@@ -664,8 +735,11 @@ UNS32 get_Max_acceleration(void){
+ }
+ 
+ UNS32 set_Max_deceleration(UNS32 val){
++    UNS32 old_Max_deceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_deceleration 0 */
+     /* USER CODE END set_Max_deceleration 0 */
++    old_Max_deceleration = kProfile_position_mode.Max_deceleration;
+     kProfile_position_mode.Max_deceleration = val;
+     /* USER CODE BEGIN set_Max_deceleration 1 */
+     // P/s/s转RPM/s
+@@ -686,8 +760,11 @@ UNS32 get_Max_deceleration(void){
+ }
+ 
+ UNS32 set_Home_offset(INTEGER32 val){
++    INTEGER32 old_Home_offset;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Home_offset 0 */
+     /* USER CODE END set_Home_offset 0 */
++    old_Home_offset = kHoming_mode.Home_offset;
+     kHoming_mode.Home_offset = val;
+     /* USER CODE BEGIN set_Home_offset 1 */
+     app_status = set_app_Home_offset(val);
+@@ -707,8 +784,11 @@ INTEGER32 get_Home_offset(void){
+ }
+ 
+ UNS32 set_Homing_method(INTEGER8 val){
++    INTEGER8 old_Homing_method;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Homing_method 0 */
+     /* USER CODE END set_Homing_method 0 */
++    old_Homing_method = kHoming_mode.Homing_method;
+     kHoming_mode.Homing_method = val;
+     /* USER CODE BEGIN set_Homing_method 1 */
+     app_status = set_app_Homing_method(val);
+@@ -742,8 +822,11 @@ UNS8 get_Homing_speeds(void){
+ }
+ 
+ UNS32 set_Homing_speeds_Speed_for_switch_search(UNS32 val){
++    UNS32 old_Homing_speeds_Speed_for_switch_search;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Homing_speeds_Speed_for_switch_search 0 */
+     /* USER CODE END set_Homing_speeds_Speed_for_switch_search 0 */
++    old_Homing_speeds_Speed_for_switch_search = kHoming_mode.Homing_speeds_Speed_for_switch_search;
+     kHoming_mode.Homing_speeds_Speed_for_switch_search = val;
+     /* USER CODE BEGIN set_Homing_speeds_Speed_for_switch_search 1 */
+     // P/s转RPM
+@@ -765,8 +848,11 @@ UNS32 get_Homing_speeds_Speed_for_switch_search(void){
+ }
+ 
+ UNS32 set_Homing_speeds_Speed_for_zero_search(UNS32 val){
++    UNS32 old_Homing_speeds_Speed_for_zero_search;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Homing_speeds_Speed_for_zero_search 0 */
+     /* USER CODE END set_Homing_speeds_Speed_for_zero_search 0 */
++    old_Homing_speeds_Speed_for_zero_search = kHoming_mode.Homing_speeds_Speed_for_zero_search;
+     kHoming_mode.Homing_speeds_Speed_for_zero_search = val;
+     /* USER CODE BEGIN set_Homing_speeds_Speed_for_zero_search 1 */
+     // P/s转RPM
+@@ -788,8 +874,11 @@ UNS32 get_Homing_speeds_Speed_for_zero_search(void){
+ }
+ 
+ UNS32 set_Homing_acceleration(UNS32 val){
++    UNS32 old_Homing_acceleration;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Homing_acceleration 0 */
+     /* USER CODE END set_Homing_acceleration 0 */
++    old_Homing_acceleration = kHoming_mode.Homing_acceleration;
+     kHoming_mode.Homing_acceleration = val;
+     /* USER CODE BEGIN set_Homing_acceleration 1 */
+     // P/s/s转RPM/s
+@@ -856,6 +945,8 @@ INTEGER32 get_Position_actual_value(void){
+ }
+ 
+ UNS32 set_Following_error_window(UNS32 val){
++    UNS32 old_Following_error_window;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Following_error_window 0 */
+     old_Following_error_window = kPosition_control_function.Following_error_window;
+     app_status = set_app_Following_error_window(val);
+@@ -878,8 +969,11 @@ UNS32 get_Following_error_window(void){
+ }
+ 
+ UNS32 set_Following_error_time_out(UNS16 val){
++    UNS16 old_Following_error_time_out;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Following_error_time_out 0 */
+     /* USER CODE END set_Following_error_time_out 0 */
++    old_Following_error_time_out = kPosition_control_function.Following_error_time_out;
+     kPosition_control_function.Following_error_time_out = val;
+     /* USER CODE BEGIN set_Following_error_time_out 1 */
+     app_status = set_app_Following_error_time_out((float)val * 0.001f);
+@@ -899,6 +993,8 @@ UNS16 get_Following_error_time_out(void){
+ }
+ 
+ UNS32 set_Position_window(UNS32 val){
++    UNS32 old_Position_window;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_window 0 */
+     old_Position_window = kPosition_control_function.Position_window;
+     app_status = set_app_Position_window(val);
+@@ -921,6 +1017,8 @@ UNS32 get_Position_window(void){
+ }
+ 
+ UNS32 set_Position_window_time(UNS16 val){
++    UNS16 old_Position_window_time;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Position_window_time 0 */
+     old_Position_window_time = kPosition_control_function.Position_window_time;
+     app_status = set_app_Position_window_time((float)val * 0.001f);
+@@ -972,8 +1070,11 @@ UNS8 get_Interpolation_time_period(void){
+ }
+ 
+ UNS32 set_Interpolation_time_period_Ip_time_units(UNS8 val){
++    UNS8 old_Interpolation_time_period_Ip_time_units;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_units 0 */
+     /* USER CODE END set_Interpolation_time_period_Ip_time_units 0 */
++    old_Interpolation_time_period_Ip_time_units = kInterpolated_position_mode.Interpolation_time_period_Ip_time_units;
+     kInterpolated_position_mode.Interpolation_time_period_Ip_time_units = val;
+     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_units 1 */
+     app_status = set_app_Interp_time_value(val);
+@@ -992,8 +1093,11 @@ UNS8 get_Interpolation_time_period_Ip_time_units(void){
+ }
+ 
+ UNS32 set_Interpolation_time_period_Ip_time_index(INTEGER8 val){
++    INTEGER8 old_Interpolation_time_period_Ip_time_index;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_index 0 */
+     /* USER CODE END set_Interpolation_time_period_Ip_time_index 0 */
++    old_Interpolation_time_period_Ip_time_index = kInterpolated_position_mode.Interpolation_time_period_Ip_time_index;
+     kInterpolated_position_mode.Interpolation_time_period_Ip_time_index = val;
+     /* USER CODE BEGIN set_Interpolation_time_period_Ip_time_index 1 */
+     app_status = set_app_Interp_time_index(val);
+@@ -1044,6 +1148,8 @@ INTEGER32 get_Velocity_actual_value(void){
+ }
+ 
+ UNS32 set_Velocity_window(UNS16 val){
++    UNS16 old_Velocity_window;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Velocity_window 0 */
+     // P/s转RPM
+     old_Velocity_window = kProfile_velocity_mode.Velocity_window;
+@@ -1067,6 +1173,8 @@ UNS16 get_Velocity_window(void){
+ }
+ 
+ UNS32 set_Velocity_window_time(UNS16 val){
++    UNS16 old_Velocity_window_time;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Velocity_window_time 0 */
+     old_Velocity_window_time = kProfile_velocity_mode.Velocity_window_time;
+     app_status = set_app_Velocity_window_time((float)val * 0.001f);
+@@ -1089,6 +1197,8 @@ UNS16 get_Velocity_window_time(void){
+ }
+ 
+ UNS32 set_Velocity_threshold(UNS16 val){
++    UNS16 old_Velocity_threshold;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Velocity_threshold 0 */
+     // P/s转RPM
+     old_Velocity_threshold = kProfile_velocity_mode.Velocity_threshold;
+@@ -1112,6 +1222,8 @@ UNS16 get_Velocity_threshold(void){
+ }
+ 
+ UNS32 set_Velocity_threshold_time(UNS16 val){
++    UNS16 old_Velocity_threshold_time;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Velocity_threshold_time 0 */
+     old_Velocity_threshold_time = kProfile_velocity_mode.Velocity_threshold_time;
+     app_status = set_app_Velocity_threshold_time((float)val * 0.001f);
+@@ -1134,8 +1246,11 @@ UNS16 get_Velocity_threshold_time(void){
+ }
+ 
+ UNS32 set_Target_velocity(INTEGER32 val){
++    INTEGER32 old_Target_velocity;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Target_velocity 0 */
+     /* USER CODE END set_Target_velocity 0 */
++    old_Target_velocity = kProfile_velocity_mode.Target_velocity;
+     kProfile_velocity_mode.Target_velocity = val;
+     /* USER CODE BEGIN set_Target_velocity 1 */
+     // P/s 转 RPM
+@@ -1157,8 +1272,11 @@ INTEGER32 get_Target_velocity(void){
+ }
+ 
+ UNS32 set_Target_torque(INTEGER16 val){
++    INTEGER16 old_Target_torque;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Target_torque 0 */
+     /* USER CODE END set_Target_torque 0 */
++    old_Target_torque = kProfile_torque_mode.Target_torque;
+     kProfile_torque_mode.Target_torque = val;
+     /* USER CODE BEGIN set_Target_torque 1 */
+     // 额定电流千分比转实际电流
+@@ -1179,8 +1297,11 @@ INTEGER16 get_Target_torque(void){
+ }
+ 
+ UNS32 set_Max_torque(UNS16 val){
++    UNS16 old_Max_torque;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_torque 0 */
+     /* USER CODE END set_Max_torque 0 */
++    old_Max_torque = kProfile_torque_mode.Max_torque;
+     kProfile_torque_mode.Max_torque = val;
+     /* USER CODE BEGIN set_Max_torque 1 */
+     // 额定电流千分比转实际电流
+@@ -1201,8 +1322,11 @@ UNS16 get_Max_torque(void){
+ }
+ 
+ UNS32 set_Max_current(UNS16 val){
++    UNS16 old_Max_current;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Max_current 0 */
+     /* USER CODE END set_Max_current 0 */
++    old_Max_current = kProfile_torque_mode.Max_current;
+     kProfile_torque_mode.Max_current = val;
+     /* USER CODE BEGIN set_Max_current 1 */
+     app_status = set_app_Max_current((float)val * get_app_Motor_rated_current() * MATH_ARMS2APEAK * 0.001f);
+@@ -1237,8 +1361,11 @@ INTEGER16 get_Torque_demand_value(void){
+ }
+ 
+ UNS32 set_Motor_rated_current(UNS32 val){
++    UNS32 old_Motor_rated_current;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Motor_rated_current 0 */
+     /* USER CODE END set_Motor_rated_current 0 */
++    old_Motor_rated_current = kProfile_torque_mode.Motor_rated_current;
+     kProfile_torque_mode.Motor_rated_current = val;
+     /* USER CODE BEGIN set_Motor_rated_current 1 */
+     app_status = set_app_Motor_rated_current((float)val * 0.001f);
+@@ -1258,8 +1385,11 @@ UNS32 get_Motor_rated_current(void){
+ }
+ 
+ UNS32 set_Motor_rated_torque(UNS32 val){
++    UNS32 old_Motor_rated_torque;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Motor_rated_torque 0 */
+     /* USER CODE END set_Motor_rated_torque 0 */
++    old_Motor_rated_torque = kProfile_torque_mode.Motor_rated_torque;
+     kProfile_torque_mode.Motor_rated_torque = val;
+     /* USER CODE BEGIN set_Motor_rated_torque 1 */
+     // mNm 转 Nm
+@@ -1328,8 +1458,11 @@ UNS32 get_DC_link_circuit_voltage(void){
+ }
+ 
+ UNS32 set_Torque_slope(UNS32 val){
++    UNS32 old_Torque_slope;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Torque_slope 0 */
+     /* USER CODE END set_Torque_slope 0 */
++    old_Torque_slope = kProfile_torque_mode.Torque_slope;
+     kProfile_torque_mode.Torque_slope = val;
+     /* USER CODE BEGIN set_Torque_slope 1 */
+     // 千分比转电流
+@@ -1421,8 +1554,11 @@ UNS8 get_Digital_outputs(void){
+ }
+ 
+ UNS32 set_Digital_outputs_Physical_outputs(UNS32 val){
++    UNS32 old_Digital_outputs_Physical_outputs;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Digital_outputs_Physical_outputs 0 */
+     /* USER CODE END set_Digital_outputs_Physical_outputs 0 */
++    old_Digital_outputs_Physical_outputs = kOptional_application.Digital_outputs_Physical_outputs;
+     kOptional_application.Digital_outputs_Physical_outputs = val;
+     /* USER CODE BEGIN set_Digital_outputs_Physical_outputs 1 */
+     app_status = set_app_Digital_io_outputs_phys(val);
+@@ -1441,8 +1577,11 @@ UNS32 get_Digital_outputs_Physical_outputs(void){
+ }
+ 
+ UNS32 set_Digital_outputs_Bit_mask(UNS32 val){
++    UNS32 old_Digital_outputs_Bit_mask;
++    uint32_t app_status;
+     /* USER CODE BEGIN set_Digital_outputs_Bit_mask 0 */
+     /* USER CODE END set_Digital_outputs_Bit_mask 0 */
++    old_Digital_outputs_Bit_mask = kOptional_application.Digital_outputs_Bit_mask;
+     kOptional_application.Digital_outputs_Bit_mask = val;
+     /* USER CODE BEGIN set_Digital_outputs_Bit_mask 1 */
+     app_status = set_app_Digital_io_outputs_mask(val);
+diff --git a/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.h b/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.h
+index 398d299..90f6aa6 100644
+--- a/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.h
++++ b/communication/callback/cia402_od/Cia402_ObjectDictionary_Variable.h
+@@ -17,6 +17,9 @@ typedef uint32_t UNS32;
+ #define ABORT_CODE_VALUE_TOO_HIGH           (0x06090031) //Value of parameter written too high
+ #define ABORT_CODE_VALUE_TOO_LOW            (0x06090032) //Value of parameter written too low
+ #define ABORT_CODE_DRIVE_STATE_DENIED       (0x08000022) //Data cannot be transferred or stored to the application because of the present device state
++#define ABORT_CODE_VALUE_OUT_OF_RANGE        (0x06090030) //Value of parameter written out of range
++#define ABORT_CODE_GENERAL_ERROR             (0x08000000) //General error
++#define ABORT_CODE_OBJECT_NOT_EXIST          (0x06020000) //Object does not exist in the object dictionary
+ 
+ typedef struct
+ {
+diff --git a/communication/callback/cia402_od/master_cia402_callback.c b/communication/callback/cia402_od/master_cia402_callback.c
+index f10b370..42031b4 100644
+--- a/communication/callback/cia402_od/master_cia402_callback.c
++++ b/communication/callback/cia402_od/master_cia402_callback.c
+@@ -46,7 +46,22 @@ UNS32 master_cia402_write_callback(uint16_t index, uint8_t subindex, void *data)
+         case 0x60B1: return OD_0x60B1_Velocity_offset_Write_Callback(subindex, data); break;
+         case 0x60B2: return OD_0x60B2_Torque_offset_Write_Callback(subindex, data); break;
+         case 0x60FE: return OD_0x60FE_Digital_outputs_Write_Callback(subindex, data); break;
+-        default: return ABORT_CODE_CANNOT_WRITE_RO_OBJECT; break;
++        case 0x603F:
++        case 0x6041:
++        case 0x6061:
++        case 0x6062:
++        case 0x6063:
++        case 0x6064:
++        case 0x606B:
++        case 0x606C:
++        case 0x6074:
++        case 0x6077:
++        case 0x6078:
++        case 0x6079:
++        case 0x60F4:
++        case 0x60FD:
++            return ABORT_CODE_CANNOT_WRITE_RO_OBJECT;
++        default: return ABORT_CODE_OBJECT_NOT_EXIST; break;
+     }
+ }
+ 
+@@ -107,6 +122,6 @@ UNS32 master_cia402_read_callback(uint16_t index, uint8_t subindex, void *data){
+         case 0x60B2: return OD_0x60B2_Torque_offset_Read_Callback(subindex, data); break;
+         case 0x60FD: return OD_0x60FD_Digital_inputs_Read_Callback(subindex, data); break;
+         case 0x60FE: return OD_0x60FE_Digital_outputs_Read_Callback(subindex, data); break;
+-        default: return ABORT_CODE_CANNOT_READ_WO_OBJECT; break;
++        default: return ABORT_CODE_OBJECT_NOT_EXIST; break;
+     }
+ }
+diff --git a/communication/callback/ethercat/ecat_callback.c b/communication/callback/ethercat/ecat_callback.c
+index f2ce252..a3a61cf 100644
+--- a/communication/callback/ethercat/ecat_callback.c
++++ b/communication/callback/ethercat/ecat_callback.c
+@@ -1,6 +1,8 @@
+ #include "Cia402_ObjectDictionary_Callback.h"
+ #include "ecat_def.h"
+ #include "data_param.h"
++#include "Cia402_ObjectDictionary_Variable.h"
++#include "sdoserv.h"
+ UINT8 EtherCAT_Read_0x603F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+     OD_0x603F_Error_code_Read_Callback(subindex, pData);
+     return 0;
+@@ -261,307 +263,231 @@ UINT8 EtherCAT_Read_0x60FF_Callback(UINT16 index, UINT8 subindex, UINT32 dataSiz
+     return 0;
+ }
+ 
+-UINT8 EtherCAT_Write_0x6040_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
++/* SSC expects an abort table index, while the common OD returns the wire code. */
++static UINT8 ethercat_write_od(UNS32 (*write_od)(UNS8, void *), UINT8 subindex,
++                              UINT16 MBXMEM *data, UINT8 complete_access)
++{
++    if (get_app_Comm_control_authority() == COMM_CONTROL_HOST) {
++        return ABORTIDX_DATA_CANNOT_BE_ACCESSED_BECAUSE_OF_LOCAL_CONTROL;
++    }
++    /* These OD callbacks write one subindex per call. */
++    if (complete_access) {
++        return ABORTIDX_COMPLETE_ACCESS_NOT_SUPPORTED;
++    }
++
++    switch (write_od(subindex, data)) {
++    case ABORT_CODE_SUCCESSFUL:
+         return 0;
++    case ABORT_CODE_UNSUPPORTED_ACCESS:
++        return ABORTIDX_UNSUPPORTED_ACCESS;
++    case ABORT_CODE_CANNOT_READ_WO_OBJECT:
++        return ABORTIDX_WRITE_ONLY_ENTRY;
++    case ABORT_CODE_CANNOT_WRITE_RO_OBJECT:
++        return ABORTIDX_READ_ONLY_ENTRY;
++    case ABORT_CODE_OBJECT_NOT_EXIST:
++        return ABORTIDX_OBJECT_NOT_EXISTING;
++    case ABORT_CODE_SUB_INDEX_NOT_EXIST:
++        return ABORTIDX_SUBINDEX_NOT_EXISTING;
++    case ABORT_CODE_VALUE_OUT_OF_RANGE:
++        return ABORTIDX_VALUE_EXCEEDED;
++    case ABORT_CODE_VALUE_TOO_HIGH:
++        return ABORTIDX_VALUE_TOO_GREAT;
++    case ABORT_CODE_VALUE_TOO_LOW:
++        return ABORTIDX_VALUE_TOO_SMALL;
++    case ABORT_CODE_DRIVE_STATE_DENIED:
++        return ABORTIDX_IN_THIS_STATE_DATA_CANNOT_BE_READ_OR_STORED;
++    default:
++        return ABORTIDX_GENERAL_ERROR;
+     }
+-    OD_0x6040_Controlword_Write_Callback(subindex, pData);
+-    return 0;
++}
++
++UINT8 EtherCAT_Write_0x6040_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
++    return ethercat_write_od(OD_0x6040_Controlword_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x605A_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x605A_Quick_stop_option_code_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x605A_Quick_stop_option_code_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6060_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6060_Modes_of_operation_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6060_Modes_of_operation_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6065_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6065_Following_error_window_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6065_Following_error_window_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6066_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6066_Following_error_time_out_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6066_Following_error_time_out_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6067_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6067_Position_window_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6067_Position_window_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6068_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6068_Position_window_time_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6068_Position_window_time_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x606D_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x606D_Velocity_window_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x606D_Velocity_window_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x606E_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x606E_Velocity_window_time_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x606E_Velocity_window_time_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x606F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x606F_Velocity_threshold_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x606F_Velocity_threshold_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6070_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6070_Velocity_threshold_time_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6070_Velocity_threshold_time_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6071_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6071_Target_torque_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6071_Target_torque_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6072_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6072_Max_torque_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6072_Max_torque_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6073_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6073_Max_current_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6073_Max_current_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6075_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6075_Motor_rated_current_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6075_Motor_rated_current_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6076_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6076_Motor_rated_torque_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6076_Motor_rated_torque_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x607A_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x607A_Target_position_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x607A_Target_position_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x607B_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x607B_Position_range_limit_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x607B_Position_range_limit_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x607D_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x607D_Software_position_limit_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x607D_Software_position_limit_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x607E_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x607E_Polarity_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x607E_Polarity_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x607F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x607F_Max_profile_velocity_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x607F_Max_profile_velocity_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6080_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6080_Max_motor_speed_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6080_Max_motor_speed_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6081_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6081_Profile_velocity_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6081_Profile_velocity_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6083_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6083_Profile_acceleration_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6083_Profile_acceleration_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6084_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6084_Profile_deceleration_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6084_Profile_deceleration_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6085_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6085_Quick_stop_deceleration_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6085_Quick_stop_deceleration_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6087_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6087_Torque_slope_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6087_Torque_slope_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x608F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x608F_Position_encoder_resolution_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x608F_Position_encoder_resolution_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6091_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6091_Gear_ratio_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6091_Gear_ratio_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x6098_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x6098_Homing_method_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x6098_Homing_method_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60B0_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60B0_Position_offset_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60B0_Position_offset_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60B1_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60B1_Velocity_offset_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60B1_Velocity_offset_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60B2_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60B2_Torque_offset_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60B2_Torque_offset_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60C2_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60C2_Interpolation_time_period_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60C2_Interpolation_time_period_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60C5_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60C5_Max_acceleration_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60C5_Max_acceleration_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60C6_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60C6_Max_deceleration_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60C6_Max_deceleration_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60FE_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60FE_Digital_outputs_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60FE_Digital_outputs_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+ UINT8 EtherCAT_Write_0x60FF_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
+-        return 0;
+-    }
+-    OD_0x60FF_Target_velocity_Write_Callback(subindex, pData);
+-    return 0;
++    return ethercat_write_od(OD_0x60FF_Target_velocity_Write_Callback,
++                             subindex, pData, bCompleteAccess);
+ }
+ 
+diff --git a/communication/protocol/CANopen/SlaveOD/SlaveOD.h b/communication/protocol/CANopen/SlaveOD/SlaveOD.h
+index 541a89b..6c50caa 100644
+--- a/communication/protocol/CANopen/SlaveOD/SlaveOD.h
++++ b/communication/protocol/CANopen/SlaveOD/SlaveOD.h
+@@ -5,7 +5,6 @@
+ #define SLAVEOD_H
+ 
+ #include "data.h"
+-#include "drv_can_app.h"
+ 
+ /* Prototypes of function provided by object dictionnary */
+ UNS32 SlaveOD_valueRangeTest (UNS8 typeValue, void * value);
+diff --git a/database/data_param.c b/database/data_param.c
+index f8206b5..d609d53 100644
+--- a/database/data_param.c
++++ b/database/data_param.c
+@@ -1,5 +1,6 @@
+ #include "data_param.h"
+ #include "motor_ctl_loop.h"
++#include "version.h"
+ 
+ /* USER CODE BEGIN AREA 0 */
+ 
+@@ -1545,6 +1546,7 @@ uint32_t set_app_Home_position_offset_value(int64_t val)
+     kAppBaseConfig.Home_position_offset_value = val;
+     /* USER CODE END set_app_Home_position_offset_value 0 */
+     kAppBaseConfig.Home_position_offset_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -1552,7 +1554,10 @@ int64_t get_app_Home_position_offset_value(void)
+ {
+     /* USER CODE BEGIN get_app_Home_position_offset_value */
+     /* USER CODE END get_app_Home_position_offset_value */
+-    return kAppBaseConfig.Home_position_offset_value;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppBaseConfig.Home_position_offset_value;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Can_id(uint32_t val)
+@@ -1924,7 +1929,10 @@ int64_t get_app_Target_position(void)
+ {
+     /* USER CODE BEGIN get_app_Target_position */
+     /* USER CODE END get_app_Target_position */
+-    return kAppMotionParam.Target_position;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppMotionParam.Target_position;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Profile_velocity(float val)
+@@ -2040,6 +2048,7 @@ uint32_t set_app_Home_offset(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Home_offset 0 */
+     /* USER CODE END set_app_Home_offset 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionParam.Home_offset = val;
+     /* USER CODE BEGIN set_app_Home_offset 1 */
+     app_param_unlock(irq_state);
+@@ -2050,7 +2059,10 @@ int64_t get_app_Home_offset(void)
+ {
+     /* USER CODE BEGIN get_app_Home_offset */
+     /* USER CODE END get_app_Home_offset */
+-    return kAppMotionParam.Home_offset;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppMotionParam.Home_offset;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Homing_method(int8_t val)
+@@ -2181,6 +2193,7 @@ uint32_t set_app_MIT_target_position(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_MIT_target_position 0 */
+     /* USER CODE END set_app_MIT_target_position 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionParam.MIT_target_position = val;
+     /* USER CODE BEGIN set_app_MIT_target_position 1 */
+     app_param_unlock(irq_state);
+@@ -2191,7 +2204,10 @@ int64_t get_app_MIT_target_position(void)
+ {
+     /* USER CODE BEGIN get_app_MIT_target_position */
+     /* USER CODE END get_app_MIT_target_position */
+-    return kAppMotionParam.MIT_target_position;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppMotionParam.MIT_target_position;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_MIT_max_current(float val)
+@@ -2401,7 +2417,10 @@ int64_t get_app_Position_range_limit_Minimal_position_limit(void)
+ {
+     /* USER CODE BEGIN get_app_Position_range_limit_Minimal_position_limit */
+     /* USER CODE END get_app_Position_range_limit_Minimal_position_limit */
+-    return kAppRestrictParam.Position_range_limit_Minimal_position_limit;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppRestrictParam.Position_range_limit_Minimal_position_limit;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Position_range_limit_Maximal_position_limit(int64_t val)
+@@ -2424,7 +2443,10 @@ int64_t get_app_Position_range_limit_Maximal_position_limit(void)
+ {
+     /* USER CODE BEGIN get_app_Position_range_limit_Maximal_position_limit */
+     /* USER CODE END get_app_Position_range_limit_Maximal_position_limit */
+-    return kAppRestrictParam.Position_range_limit_Maximal_position_limit;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppRestrictParam.Position_range_limit_Maximal_position_limit;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Software_position_limit_Minimal_position_limit(int64_t val)
+@@ -2447,7 +2469,10 @@ int64_t get_app_Software_position_limit_Minimal_position_limit(void)
+ {
+     /* USER CODE BEGIN get_app_Software_position_limit_Minimal_position_limit */
+     /* USER CODE END get_app_Software_position_limit_Minimal_position_limit */
+-    return kAppRestrictParam.Software_position_limit_Minimal_position_limit;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppRestrictParam.Software_position_limit_Minimal_position_limit;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Software_position_limit_Maximal_position_limit(int64_t val)
+@@ -2470,7 +2495,10 @@ int64_t get_app_Software_position_limit_Maximal_position_limit(void)
+ {
+     /* USER CODE BEGIN get_app_Software_position_limit_Maximal_position_limit */
+     /* USER CODE END get_app_Software_position_limit_Maximal_position_limit */
+-    return kAppRestrictParam.Software_position_limit_Maximal_position_limit;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppRestrictParam.Software_position_limit_Maximal_position_limit;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Max_profile_velocity(float val)
+@@ -2597,7 +2625,9 @@ uint32_t set_app_Position_demand_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Position_demand_value 0 */
+     /* USER CODE END set_app_Position_demand_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Position_demand_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2610,14 +2640,16 @@ int64_t get_app_Position_demand_value(void)
+     app_param_unlock(irq_state);
+ 
+     /* USER CODE END get_app_Position_demand_value */
+-    return kAppMotionInfo.Position_demand_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Position_actual_value_inc(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Position_actual_value_inc 0 */
+     /* USER CODE END set_app_Position_actual_value_inc 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Position_actual_value_inc = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2644,14 +2676,16 @@ int64_t get_app_Position_actual_value_inc(void)
+     app_param_unlock(irq_state);
+ 
+     /* USER CODE END get_app_Position_actual_value_inc */
+-    return kAppMotionInfo.Position_actual_value_inc;
++    return value;
+ }
+ 
+ uint32_t set_app_Position_actual_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Position_actual_value 0 */
+     /* USER CODE END set_app_Position_actual_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Position_actual_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2663,14 +2697,16 @@ int64_t get_app_Position_actual_value(void)
+     kAppMotionInfo.Position_actual_value = value;
+     app_param_unlock(irq_state);
+     /* USER CODE END get_app_Position_actual_value */
+-    return kAppMotionInfo.Position_actual_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Following_error_actual_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Following_error_actual_value 0 */
+     /* USER CODE END set_app_Following_error_actual_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Following_error_actual_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2682,7 +2718,7 @@ int64_t get_app_Following_error_actual_value(void)
+     kAppMotionInfo.Following_error_actual_value = value;
+     app_param_unlock(irq_state);
+     /* USER CODE END get_app_Following_error_actual_value */
+-    return kAppMotionInfo.Following_error_actual_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Velocity_demand_value(float val)
+@@ -2835,7 +2871,9 @@ uint32_t set_app_Motor_position_demand_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Motor_position_demand_value 0 */
+     /* USER CODE END set_app_Motor_position_demand_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Motor_position_demand_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2847,14 +2885,16 @@ int64_t get_app_Motor_position_demand_value(void)
+     kAppMotionInfo.Motor_position_demand_value = value;
+     app_param_unlock(irq_state);
+     /* USER CODE END get_app_Motor_position_demand_value */
+-    return kAppMotionInfo.Motor_position_demand_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Motor_position_actual_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Motor_position_actual_value 0 */
+     /* USER CODE END set_app_Motor_position_actual_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Motor_position_actual_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2866,14 +2906,16 @@ int64_t get_app_Motor_position_actual_value(void)
+     kAppMotionInfo.Motor_position_actual_value = value;
+     app_param_unlock(irq_state);
+     /* USER CODE END get_app_Motor_position_actual_value */
+-    return kAppMotionInfo.Motor_position_actual_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Motor_following_error_actual_value(int64_t val)
+ {
+     /* USER CODE BEGIN set_app_Motor_following_error_actual_value 0 */
+     /* USER CODE END set_app_Motor_following_error_actual_value 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppMotionInfo.Motor_following_error_actual_value = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -2885,7 +2927,7 @@ int64_t get_app_Motor_following_error_actual_value(void)
+     kAppMotionInfo.Motor_following_error_actual_value = value;
+     app_param_unlock(irq_state);
+     /* USER CODE END get_app_Motor_following_error_actual_value */
+-    return kAppMotionInfo.Motor_following_error_actual_value;
++    return value;
+ }
+ 
+ uint32_t set_app_Motor_velocity_demand_value(float val)
+@@ -3143,6 +3185,7 @@ uint32_t set_app_Following_error_window(int64_t val)
+         return APP_PARAM_OUT_OF_RANGE;
+     /* USER CODE BEGIN set_app_Following_error_window 0 */
+     /* USER CODE END set_app_Following_error_window 0 */
++    uint32_t irq_state = app_param_lock();
+     kAppWindowParam.Following_error_window = val;
+     /* USER CODE BEGIN set_app_Following_error_window 1 */
+     app_param_unlock(irq_state);
+@@ -3153,7 +3196,10 @@ int64_t get_app_Following_error_window(void)
+ {
+     /* USER CODE BEGIN get_app_Following_error_window */
+     /* USER CODE END get_app_Following_error_window */
+-    return kAppWindowParam.Following_error_window;
++    uint32_t irq_state = app_param_lock();
++    int64_t value = kAppWindowParam.Following_error_window;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Following_error_time_out(float val)
+@@ -4184,7 +4230,9 @@ uint32_t set_app_User_module_code(uint64_t val)
+ {
+     /* USER CODE BEGIN set_app_User_module_code 0 */
+     /* USER CODE END set_app_User_module_code 0 */
++    uint32_t irq_state = app_param_lock();
+     kCustomInfo.User_module_code = val;
++    app_param_unlock(irq_state);
+ 
+     return APP_PARAM_SUCCESS;
+ }
+@@ -4192,7 +4240,10 @@ uint64_t get_app_User_module_code(void)
+ {
+     /* USER CODE BEGIN get_app_User_module_code */
+     /* USER CODE END get_app_User_module_code */
+-    return kCustomInfo.User_module_code;
++    uint32_t irq_state = app_param_lock();
++    uint64_t value = kCustomInfo.User_module_code;
++    app_param_unlock(irq_state);
++    return value;
+ }
+ 
+ uint32_t set_app_Sys_init_flag(uint8_t val)
