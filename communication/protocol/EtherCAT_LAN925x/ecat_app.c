@@ -22,8 +22,13 @@
 ------
 -----------------------------------------------------------------------------------------*/
 #include "ecat_def.h"
+#include "bsp_api.h"
+#include "motor_ctl_loop.h"
 #include "data_param.h"     /* [ECAT 适配] 控制权 / 目标更新握手 */
 #include "Cia402_ObjectDictionary_Variable.h"
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+#include "servo_ecat_sync.h"
+#endif
 
 #include "applInterface.h"
 
@@ -54,6 +59,12 @@ typedef struct
 
 PdoCallbackStruct RxPdoList[PDO_MAP_NUM][PDO_SUB_MAX];
 PdoCallbackStruct TxPdoList[PDO_MAP_NUM][PDO_SUB_MAX];
+static volatile bool s_outputs_claimed;
+static volatile bool s_rxpdo_ready;
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+static volatile bool s_rxpdo_mapping;
+static volatile bool s_target_latch_pending;
+#endif
 /* USER CODE END 1 */
 /*-----------------------------------------------------------------------------------------
 ------
@@ -175,7 +186,14 @@ UINT16 APPL_StartOutputHandler(void)
      * 应用层是二选一权限模型（COMM_CONTROL_HOST / COMM_CONTROL_BUS），
      * ecat_callback.c 的每个 Write 回调在上位机掌权时会直接丢弃总线数据，
      * 所以必须在真正交换过程数据之前切过来。 */
+    uint32_t irq_state = bsp_irq_save();
+    s_rxpdo_ready = false;
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+    s_target_latch_pending = false;
+#endif
     (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_BUS);
+    s_outputs_claimed = true;
+    bsp_irq_restore(irq_state);
     return ALSTATUSCODE_NOERROR;
 }
 
@@ -192,11 +210,24 @@ UINT16 APPL_StartOutputHandler(void)
 
 UINT16 APPL_StopOutputHandler(void)
 {
-    /* [ECAT 适配] 离开 OP（主站降级/断开）：先走 CiA402 正常 Disable Voltage，
-     * 再显式失能并把控制权还给上位机。Fault 状态不会被这里清除。 */
-    (void)set_Controlword(0U);
-    (void)set_app_Controlword((uint16_t)APP_CTRL_DISABLE);
-    (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_HOST);
+    uint32_t irq_state = bsp_irq_save();
+    if (s_outputs_claimed) {
+        s_outputs_claimed = false;
+        s_rxpdo_ready = false;
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+        s_target_latch_pending = false;
+#endif
+        (void)set_Controlword(0U);
+        if (set_app_Controlword(APP_CTRL_DISABLE) != APP_PARAM_SUCCESS) {
+            /* CTRL authority rejects APP writes. Stop the controller input as well. */
+            kAppControlWord.Controlword = APP_CTRL_DISABLE;
+            kAxis.motor_ctl_sm_input.motor_enable = MOTOR_CTL_SM_MOTOR_DISABLE;
+        }
+        (void)set_app_Target_update_state(false);
+        bsp_set_pwm_state(PWM_DISABLE);
+        (void)set_app_Comm_control_authority((uint8_t)COMM_CONTROL_HOST);
+    }
+    bsp_irq_restore(irq_state);
     return ALSTATUSCODE_NOERROR;
 }
 
@@ -404,6 +435,13 @@ void APPL_OutputMapping(UINT16* pData)
     UINT16 PDOAssignEntryCnt = 0;
     UINT16 PDOSubindex0 = 0;
 
+    if (!s_outputs_claimed) {
+        return;
+    }
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+    s_rxpdo_mapping = true;
+#endif
+
     for (PDOAssignEntryCnt = 0; PDOAssignEntryCnt < sRxPDOassign.u16SubIndex0; PDOAssignEntryCnt++)
     {
         uint8_t pdo_order = sRxPDOassign.aEntries[PDOAssignEntryCnt] & 0x000F;
@@ -459,10 +497,45 @@ void APPL_OutputMapping(UINT16* pData)
         }
     }
 
-    /* [ECAT 适配] 每收到一帧新的 RxPDO = 一次"新的目标值"，等价 CANopen 的 SYNC：
-     * 置目标更新标志，应用层（CSV/CSP/CST）才会把 0x60FF/0x607A/0x6071 换算进轨迹。 */
-    set_app_Target_update_state(true);
+    s_rxpdo_ready = true;
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+    /* With no DC, the received output image is the SM event. The position loop latches it. */
+    if (!bDcSyncActive) {
+        s_target_latch_pending = true;
+    }
+    s_rxpdo_mapping = false;
+#endif
 }
+
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+void servo_ecat_on_sync0(void)
+{
+    if (s_outputs_claimed && bEcatOutputUpdateRunning && s_rxpdo_ready) {
+        s_target_latch_pending = true;
+    }
+}
+
+void servo_ecat_latch_target(void)
+{
+    if (!s_outputs_claimed || !bEcatOutputUpdateRunning) {
+        return;
+    }
+    if (bDcSyncActive && (!bDcRunning || !bSmSyncSequenceValid)) {
+        s_target_latch_pending = false;
+        set_app_Target_update_state(false);
+        return;
+    }
+    if (s_rxpdo_mapping) {
+        /* ADC can preempt PDO mapping. Wait for a complete output image. */
+        set_app_Target_update_state(false);
+        return;
+    }
+    if (s_target_latch_pending) {
+        s_target_latch_pending = false;
+        set_app_Target_update_state(true);
+    }
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -472,6 +545,11 @@ void APPL_OutputMapping(UINT16* pData)
 void APPL_Application(void)
 {
     uint16_t subindex_count = 0;
+
+    /* Re-entering OP must not reapply a controlword cached in the previous OP. */
+    if (!bEcatOutputUpdateRunning || !s_outputs_claimed || !s_rxpdo_ready) {
+        return;
+    }
 
     for (uint8_t i = 0; i < sRxPDOassign.u16SubIndex0; i++)
     {

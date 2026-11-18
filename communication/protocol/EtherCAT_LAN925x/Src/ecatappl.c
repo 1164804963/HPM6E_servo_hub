@@ -151,6 +151,9 @@ V4.00 APPL 6: The main function was split in MainInit and MainLoop
 
 /*ECATCHANGE_START(V5.13) CIA402 3*/
 #include "ecat_app.h"
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+#include "servo_ecat_sync.h"
+#endif
 
 
 
@@ -861,6 +864,9 @@ void Sync0_Isr(void)
 
         /* Application is synchronized to SYNC0 event*/
         ECAT_Application();
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+        servo_ecat_on_sync0();
+#endif
 
 /*ECATCHANGE_START(V5.13) ECAT 6*/
         if (bCallInputMapping == TRUE)

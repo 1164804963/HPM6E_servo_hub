@@ -1,6 +1,8 @@
 #include "Cia402_ObjectDictionary_Callback.h"
 #include "ecat_def.h"
 #include "data_param.h"
+#include "Cia402_ObjectDictionary_Variable.h"
+#include "sdoserv.h"
 UINT8 EtherCAT_Read_0x603F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
     OD_0x603F_Error_code_Read_Callback(subindex, pData);
     return 0;
@@ -261,307 +263,231 @@ UINT8 EtherCAT_Read_0x60FF_Callback(UINT16 index, UINT8 subindex, UINT32 dataSiz
     return 0;
 }
 
-UINT8 EtherCAT_Write_0x6040_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
+/* SSC expects an abort table index, while the common OD returns the wire code. */
+static UINT8 ethercat_write_od(UNS32 (*write_od)(UNS8, void *), UINT8 subindex,
+                              UINT16 MBXMEM *data, UINT8 complete_access)
+{
+    if (get_app_Comm_control_authority() == COMM_CONTROL_HOST) {
+        return ABORTIDX_DATA_CANNOT_BE_ACCESSED_BECAUSE_OF_LOCAL_CONTROL;
     }
-    OD_0x6040_Controlword_Write_Callback(subindex, pData);
-    return 0;
+    /* These OD callbacks write one subindex per call. */
+    if (complete_access) {
+        return ABORTIDX_COMPLETE_ACCESS_NOT_SUPPORTED;
+    }
+
+    switch (write_od(subindex, data)) {
+    case ABORT_CODE_SUCCESSFUL:
+        return 0;
+    case ABORT_CODE_UNSUPPORTED_ACCESS:
+        return ABORTIDX_UNSUPPORTED_ACCESS;
+    case ABORT_CODE_CANNOT_READ_WO_OBJECT:
+        return ABORTIDX_WRITE_ONLY_ENTRY;
+    case ABORT_CODE_CANNOT_WRITE_RO_OBJECT:
+        return ABORTIDX_READ_ONLY_ENTRY;
+    case ABORT_CODE_OBJECT_NOT_EXIST:
+        return ABORTIDX_OBJECT_NOT_EXISTING;
+    case ABORT_CODE_SUB_INDEX_NOT_EXIST:
+        return ABORTIDX_SUBINDEX_NOT_EXISTING;
+    case ABORT_CODE_VALUE_OUT_OF_RANGE:
+        return ABORTIDX_VALUE_EXCEEDED;
+    case ABORT_CODE_VALUE_TOO_HIGH:
+        return ABORTIDX_VALUE_TOO_GREAT;
+    case ABORT_CODE_VALUE_TOO_LOW:
+        return ABORTIDX_VALUE_TOO_SMALL;
+    case ABORT_CODE_DRIVE_STATE_DENIED:
+        return ABORTIDX_IN_THIS_STATE_DATA_CANNOT_BE_READ_OR_STORED;
+    default:
+        return ABORTIDX_GENERAL_ERROR;
+    }
+}
+
+UINT8 EtherCAT_Write_0x6040_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
+    return ethercat_write_od(OD_0x6040_Controlword_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x605A_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x605A_Quick_stop_option_code_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x605A_Quick_stop_option_code_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6060_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6060_Modes_of_operation_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6060_Modes_of_operation_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6065_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6065_Following_error_window_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6065_Following_error_window_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6066_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6066_Following_error_time_out_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6066_Following_error_time_out_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6067_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6067_Position_window_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6067_Position_window_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6068_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6068_Position_window_time_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6068_Position_window_time_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x606D_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x606D_Velocity_window_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x606D_Velocity_window_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x606E_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x606E_Velocity_window_time_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x606E_Velocity_window_time_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x606F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x606F_Velocity_threshold_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x606F_Velocity_threshold_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6070_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6070_Velocity_threshold_time_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6070_Velocity_threshold_time_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6071_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6071_Target_torque_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6071_Target_torque_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6072_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6072_Max_torque_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6072_Max_torque_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6073_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6073_Max_current_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6073_Max_current_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6075_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6075_Motor_rated_current_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6075_Motor_rated_current_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6076_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6076_Motor_rated_torque_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6076_Motor_rated_torque_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x607A_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x607A_Target_position_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x607A_Target_position_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x607B_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x607B_Position_range_limit_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x607B_Position_range_limit_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x607D_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x607D_Software_position_limit_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x607D_Software_position_limit_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x607E_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x607E_Polarity_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x607E_Polarity_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x607F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x607F_Max_profile_velocity_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x607F_Max_profile_velocity_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6080_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6080_Max_motor_speed_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6080_Max_motor_speed_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6081_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6081_Profile_velocity_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6081_Profile_velocity_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6083_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6083_Profile_acceleration_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6083_Profile_acceleration_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6084_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6084_Profile_deceleration_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6084_Profile_deceleration_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6085_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6085_Quick_stop_deceleration_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6085_Quick_stop_deceleration_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6087_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6087_Torque_slope_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6087_Torque_slope_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x608F_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x608F_Position_encoder_resolution_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x608F_Position_encoder_resolution_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6091_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6091_Gear_ratio_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6091_Gear_ratio_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x6098_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x6098_Homing_method_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x6098_Homing_method_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60B0_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60B0_Position_offset_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60B0_Position_offset_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60B1_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60B1_Velocity_offset_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60B1_Velocity_offset_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60B2_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60B2_Torque_offset_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60B2_Torque_offset_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60C2_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60C2_Interpolation_time_period_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60C2_Interpolation_time_period_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60C5_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60C5_Max_acceleration_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60C5_Max_acceleration_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60C6_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60C6_Max_deceleration_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60C6_Max_deceleration_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60FE_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60FE_Digital_outputs_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60FE_Digital_outputs_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 
 UINT8 EtherCAT_Write_0x60FF_Callback(UINT16 index, UINT8 subindex, UINT32 dataSize, UINT16 MBXMEM * pData, UINT8 bCompleteAccess){
-    if(get_app_Comm_control_authority() == COMM_CONTROL_HOST){
-        return 0;
-    }
-    OD_0x60FF_Target_velocity_Write_Callback(subindex, pData);
-    return 0;
+    return ethercat_write_od(OD_0x60FF_Target_velocity_Write_Callback,
+                             subindex, pData, bCompleteAccess);
 }
 

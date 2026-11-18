@@ -19,6 +19,9 @@
 #include "drv_encoder.h"
 #include "system_timer.h"
 #include "version.h"
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+#include "servo_ecat_sync.h"
+#endif
 #if defined(USE_CANOPEN)
 #include "servo_can.h"
 #endif
@@ -362,6 +365,9 @@ static void board_control_tick(void)
     {
         pos_div = 0U;
         set_timer_record_start(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
+#if defined(CONFIG_SERVO_ETHERCAT) && CONFIG_SERVO_ETHERCAT
+        servo_ecat_latch_target();
+#endif
         PosSpeedLoopCtrl();
         set_timer_record_stop(SYS_TIMER_RECORD_POSITION_LOOP_TIME_INDEX);
     }
