@@ -1500,7 +1500,7 @@ PDOMapping=1
 ParameterName=Torque demand value
 ObjectType=0x7
 DataType=0x0003
-AccessType=rw
+AccessType=ro
 DefaultValue=0
 PDOMapping=1
 
@@ -1524,7 +1524,7 @@ PDOMapping=1
 ParameterName=Torque actual value
 ObjectType=0x7
 DataType=0x0003
-AccessType=rw
+AccessType=ro
 DefaultValue=0
 PDOMapping=1
 
@@ -1638,7 +1638,7 @@ PDOMapping=0
 ParameterName=Max motor speed
 ObjectType=0x7
 DataType=0x0007
-AccessType=rw
+AccessType=ro
 DefaultValue=0
 PDOMapping=1
 

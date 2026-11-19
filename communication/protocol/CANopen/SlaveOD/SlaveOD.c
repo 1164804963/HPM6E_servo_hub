@@ -732,7 +732,7 @@ $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 /* index 0x6074 :   Mapped variable Torque demand value */
                     subindex SlaveOD_Index6074[] = 
                      {
-                       { RW, int16, sizeof (INTEGER16), (void*)&Torque_demand_value, NULL }
+                       { RO, int16, sizeof (INTEGER16), (void*)&Torque_demand_value, NULL }
                      };
 
 /* index 0x6075 :   Mapped variable Motor rated current */
@@ -750,7 +750,7 @@ $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 /* index 0x6077 :   Mapped variable Torque actual value */
                     subindex SlaveOD_Index6077[] = 
                      {
-                       { RW, int16, sizeof (INTEGER16), (void*)&Torque_actual_value, NULL }
+                       { RO, int16, sizeof (INTEGER16), (void*)&Torque_actual_value, NULL }
                      };
 
 /* index 0x6078 :   Mapped variable Current actual value */
@@ -810,7 +810,7 @@ $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 /* index 0x6080 :   Mapped variable Max motor speed */
                     subindex SlaveOD_Index6080[] = 
                      {
-                       { RW, uint32, sizeof (UNS32), (void*)&Max_motor_speed, NULL }
+                       { RO, uint32, sizeof (UNS32), (void*)&Max_motor_speed, NULL }
                      };
 
 /* index 0x6081 :   Mapped variable Profile velocity */

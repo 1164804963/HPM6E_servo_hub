@@ -4063,6 +4063,22 @@ uint8_t get_app_Internal_control_authority(void)
 uint32_t set_app_Sys_cmd(uint8_t val)
 {
     /* USER CODE BEGIN set_app_Sys_cmd 0 */
+    switch (val)
+    {
+    case APP_SYSTEM_CMD_SAVE_CONFIG:
+    case APP_SYSTEM_CMD_SAVE_TQ_FC_TABLE:
+    case APP_SYSTEM_CMD_TQ_FC_TABLE_CLEAR:
+    case APP_SYSTEM_CMD_ERROR_RECORD_CLEAR:
+    case APP_SYSTEM_CMD_FACTORY_RESET:
+        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
+        {
+            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
+            return APP_PARAM_WRITE_STATE_ERROR;
+        }
+        break;
+    default:
+        break;
+    }
     /* USER CODE END set_app_Sys_cmd 0 */
     kSystemCmd.Sys_cmd = val;
     /* USER CODE BEGIN set_app_Sys_cmd 1 */
@@ -4084,11 +4100,6 @@ uint32_t set_app_Sys_cmd(uint8_t val)
 
         break;
     case APP_SYSTEM_CMD_SAVE_CONFIG:
-        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
-        {
-            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-            return APP_PARAM_WRITE_STATE_ERROR;
-        }
 #if defined(BOARD_SERVO_HPM6E80)
         /* HPM stores in the foreground; clear the previous completion first. */
         set_app_Storage_status(FLASH_STORE_STATUS_IDLE);
@@ -4099,35 +4110,15 @@ uint32_t set_app_Sys_cmd(uint8_t val)
         bsp_system_reset();
         break;
     case APP_SYSTEM_CMD_SAVE_TQ_FC_TABLE:
-        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
-        {
-            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-            return APP_PARAM_WRITE_STATE_ERROR;
-        }
         set_app_Storage_cmd(FLASH_STORE_CMD_WRITE_TQ_FC);
         break;
     case APP_SYSTEM_CMD_TQ_FC_TABLE_CLEAR:
-        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
-        {
-            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-            return APP_PARAM_WRITE_STATE_ERROR;
-        }
         set_app_Storage_cmd(FLASH_STORE_CMD_ERASE_TQ_FC);
         break;
     case APP_SYSTEM_CMD_ERROR_RECORD_CLEAR:
-        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
-        {
-            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-            return APP_PARAM_WRITE_STATE_ERROR;
-        }
         set_app_Storage_cmd(FLASH_STORE_CMD_ERASE_ERROR);
         break;
     case APP_SYSTEM_CMD_FACTORY_RESET:
-        if (axis->motor_ctl_sm_output.state == MOTOR_CTL_SM_MOTOR_ENABLE)
-        {
-            set_app_Storage_status(FLASH_STORE_STATUS_WARNING);
-            return APP_PARAM_WRITE_STATE_ERROR;
-        }
         set_app_Storage_cmd(FLASH_STORE_CMD_ERASE_PARAM);
         break;
     default:
